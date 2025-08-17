@@ -1,6 +1,7 @@
 package com.testehan.finana.controller;
 
 import com.testehan.finana.model.CompanyOverview;
+import com.testehan.finana.model.IncomeStatementData;
 import com.testehan.finana.service.AlphaVantageService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,5 +24,10 @@ public class StockController {
     @GetMapping("/overview/{symbol}")
     public Mono<CompanyOverview> getCompanyOverview(@PathVariable String symbol) {
         return alphaVantageService.getCompanyOverview(symbol);
+    }
+
+    @GetMapping("/income-statement/{symbol}")
+    public Mono<IncomeStatementData> getIncomeStatements(@PathVariable String symbol) {
+        return alphaVantageService.getIncomeStatements(symbol);
     }
 }

@@ -1,7 +1,9 @@
 package com.testehan.finana.service;
 
 import com.testehan.finana.model.CompanyOverview;
+import com.testehan.finana.model.IncomeStatementData;
 import com.testehan.finana.repository.CompanyOverviewRepository;
+import com.testehan.finana.repository.IncomeStatementRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -16,26 +18,54 @@ import java.util.Optional;
 public class AlphaVantageService {
 
     private final WebClient webClient;
-    private final CompanyOverviewRepository repository;
+    private final CompanyOverviewRepository companyOverviewRepository;
+    private final IncomeStatementRepository incomeStatementRepository;
 
     @Value("${alphavantage.api.key}")
     private String apiKey;
 
     @Autowired
-    public AlphaVantageService(WebClient.Builder webClientBuilder, CompanyOverviewRepository repository) {
+    public AlphaVantageService(WebClient.Builder webClientBuilder, CompanyOverviewRepository companyOverviewRepository, IncomeStatementRepository incomeStatementRepository) {
         this.webClient = webClientBuilder.baseUrl("https://www.alphavantage.co").build();
-        this.repository = repository;
+        this.companyOverviewRepository = companyOverviewRepository;
+        this.incomeStatementRepository = incomeStatementRepository;
     }
 
     public Mono<CompanyOverview> getCompanyOverview(String symbol) {
         return Mono.defer(() -> {
-            Optional<CompanyOverview> overviewFromDb = repository.findBySymbol(symbol.toUpperCase());
+            Optional<CompanyOverview> overviewFromDb = companyOverviewRepository.findBySymbol(symbol.toUpperCase());
             if (overviewFromDb.isPresent() && isRecent(overviewFromDb.get().getLastUpdated())) {
                 return Mono.just(overviewFromDb.get());
             } else {
-                return fetchFromApiAndSave(symbol.toUpperCase(), overviewFromDb);
+                return fetchCompanyOverviewFromApiAndSave(symbol.toUpperCase(), overviewFromDb);
             }
         });
+    }
+
+    public Mono<IncomeStatementData> getIncomeStatements(String symbol) {
+        return Mono.defer(() -> {
+            Optional<IncomeStatementData> incomeStatementsFromDb = incomeStatementRepository.findBySymbol(symbol.toUpperCase());
+            if (incomeStatementsFromDb.isPresent()) {
+                return Mono.just(incomeStatementsFromDb.get());
+            } else {
+                return fetchIncomeStatementsFromApiAndSave(symbol.toUpperCase());
+            }
+        });
+    }
+
+    private Mono<IncomeStatementData> fetchIncomeStatementsFromApiAndSave(String symbol) {
+        return webClient.get()
+                .uri(uriBuilder -> uriBuilder.path("/query")
+                        .queryParam("function", "INCOME_STATEMENT")
+                        .queryParam("symbol", symbol)
+                        .queryParam("apikey", apiKey)
+                        .build())
+                .retrieve()
+                .bodyToMono(IncomeStatementData.class)
+                .flatMap(incomeStatementData -> {
+                    incomeStatementData.setSymbol(symbol);
+                    return Mono.just(incomeStatementRepository.save(incomeStatementData));
+                });
     }
 
     private boolean isRecent(LocalDateTime lastUpdated) {
@@ -45,7 +75,7 @@ public class AlphaVantageService {
         return ChronoUnit.WEEKS.between(lastUpdated, LocalDateTime.now()) < 1;
     }
 
-    private Mono<CompanyOverview> fetchFromApiAndSave(String symbol, Optional<CompanyOverview> existingOverview) {
+    private Mono<CompanyOverview> fetchCompanyOverviewFromApiAndSave(String symbol, Optional<CompanyOverview> existingOverview) {
         return webClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/query")
                         .queryParam("function", "OVERVIEW")
@@ -58,7 +88,7 @@ public class AlphaVantageService {
                     CompanyOverview overviewToSave = existingOverview.orElse(new CompanyOverview());
                     updateOverview(overviewToSave, newOverview);
                     overviewToSave.setLastUpdated(LocalDateTime.now());
-                    return Mono.just(repository.save(overviewToSave));
+                    return Mono.just(companyOverviewRepository.save(overviewToSave));
                 });
     }
 
