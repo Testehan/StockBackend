@@ -1,5 +1,6 @@
 package com.testehan.finana.controller;
 
+import com.testehan.finana.model.BalanceSheetData;
 import com.testehan.finana.model.CompanyOverview;
 import com.testehan.finana.model.IncomeStatementData;
 import com.testehan.finana.service.AlphaVantageService;
@@ -29,5 +30,10 @@ public class StockController {
     @GetMapping("/income-statement/{symbol}")
     public Mono<IncomeStatementData> getIncomeStatements(@PathVariable String symbol) {
         return alphaVantageService.getIncomeStatements(symbol);
+    }
+
+    @GetMapping("/balance-sheet/{symbol}")
+    public Mono<BalanceSheetData> getBalanceSheet(@PathVariable String symbol) {
+        return alphaVantageService.getBalanceSheet(symbol);
     }
 }

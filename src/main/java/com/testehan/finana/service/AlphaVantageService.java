@@ -1,7 +1,9 @@
 package com.testehan.finana.service;
 
+import com.testehan.finana.model.BalanceSheetData;
 import com.testehan.finana.model.CompanyOverview;
 import com.testehan.finana.model.IncomeStatementData;
+import com.testehan.finana.repository.BalanceSheetRepository;
 import com.testehan.finana.repository.CompanyOverviewRepository;
 import com.testehan.finana.repository.IncomeStatementRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,15 +22,20 @@ public class AlphaVantageService {
     private final WebClient webClient;
     private final CompanyOverviewRepository companyOverviewRepository;
     private final IncomeStatementRepository incomeStatementRepository;
+    private final BalanceSheetRepository balanceSheetRepository;
 
     @Value("${alphavantage.api.key}")
     private String apiKey;
 
     @Autowired
-    public AlphaVantageService(WebClient.Builder webClientBuilder, CompanyOverviewRepository companyOverviewRepository, IncomeStatementRepository incomeStatementRepository) {
+    public AlphaVantageService(WebClient.Builder webClientBuilder,
+                               CompanyOverviewRepository companyOverviewRepository,
+                               IncomeStatementRepository incomeStatementRepository,
+                               BalanceSheetRepository balanceSheetRepository) {
         this.webClient = webClientBuilder.baseUrl("https://www.alphavantage.co").build();
         this.companyOverviewRepository = companyOverviewRepository;
         this.incomeStatementRepository = incomeStatementRepository;
+        this.balanceSheetRepository = balanceSheetRepository;
     }
 
     public Mono<CompanyOverview> getCompanyOverview(String symbol) {
@@ -53,6 +60,17 @@ public class AlphaVantageService {
         });
     }
 
+    public Mono<BalanceSheetData> getBalanceSheet(String symbol) {
+        return Mono.defer(() -> {
+            Optional<BalanceSheetData> balanceSheetFromDb = balanceSheetRepository.findBySymbol(symbol.toUpperCase());
+            if (balanceSheetFromDb.isPresent()) {
+                return Mono.just(balanceSheetFromDb.get());
+            } else {
+                return fetchBalanceSheetFromApiAndSave(symbol.toUpperCase());
+            }
+        });
+    }
+
     private Mono<IncomeStatementData> fetchIncomeStatementsFromApiAndSave(String symbol) {
         return webClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/query")
@@ -65,6 +83,21 @@ public class AlphaVantageService {
                 .flatMap(incomeStatementData -> {
                     incomeStatementData.setSymbol(symbol);
                     return Mono.just(incomeStatementRepository.save(incomeStatementData));
+                });
+    }
+
+    private Mono<BalanceSheetData> fetchBalanceSheetFromApiAndSave(String symbol) {
+        return webClient.get()
+                .uri(uriBuilder -> uriBuilder.path("/query")
+                        .queryParam("function", "BALANCE_SHEET")
+                        .queryParam("symbol", symbol)
+                        .queryParam("apikey", apiKey)
+                        .build())
+                .retrieve()
+                .bodyToMono(BalanceSheetData.class)
+                .flatMap(balanceSheetData -> {
+                    balanceSheetData.setSymbol(symbol);
+                    return Mono.just(balanceSheetRepository.save(balanceSheetData));
                 });
     }
 
