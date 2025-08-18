@@ -4,6 +4,7 @@ import com.testehan.finana.model.BalanceSheetData;
 import com.testehan.finana.model.CashFlowData;
 import com.testehan.finana.model.CompanyOverview;
 import com.testehan.finana.model.IncomeStatementData;
+import com.testehan.finana.model.SharesOutstandingData;
 import com.testehan.finana.service.AlphaVantageService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -41,5 +42,10 @@ public class StockController {
     @GetMapping("/cash-flow/{symbol}")
     public Mono<CashFlowData> getCashFlow(@PathVariable String symbol) {
         return alphaVantageService.getCashFlow(symbol);
+    }
+
+    @GetMapping("/shares-outstanding/{symbol}")
+    public Mono<SharesOutstandingData> getSharesOutstanding(@PathVariable String symbol) {
+        return alphaVantageService.getSharesOutstanding(symbol);
     }
 }
