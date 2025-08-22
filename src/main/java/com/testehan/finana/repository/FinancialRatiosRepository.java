@@ -1,10 +1,10 @@
 package com.testehan.finana.repository;
 
-import com.testehan.finana.model.FinancialRatios;
+import com.testehan.finana.model.FinancialRatiosData;
 import org.springframework.data.mongodb.repository.MongoRepository;
 
-import java.util.List;
+import java.util.Optional;
 
-public interface FinancialRatiosRepository extends MongoRepository<FinancialRatios, String> {
-    List<FinancialRatios> findBySymbol(String symbol);
+public interface FinancialRatiosRepository extends MongoRepository<FinancialRatiosData, String> {
+    Optional<FinancialRatiosData> findBySymbol(String symbol);
 }

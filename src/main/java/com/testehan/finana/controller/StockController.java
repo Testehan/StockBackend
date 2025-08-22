@@ -4,13 +4,14 @@ import com.testehan.finana.model.*;
 import com.testehan.finana.service.AlphaVantageService;
 import com.testehan.finana.service.FinancialMetricsService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 
-import java.util.List;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/stocks")
@@ -51,7 +52,9 @@ public class StockController {
     }
 
     @GetMapping("/financial-ratios/{symbol}")
-    public List<FinancialRatios> getFinancialRatios(@PathVariable String symbol) {
-        return financialMetricsService.getFinancialRatios(symbol);
+    public ResponseEntity<FinancialRatiosData> getFinancialRatios(@PathVariable String symbol) {
+        Optional<FinancialRatiosData> financialRatiosData = financialMetricsService.getFinancialRatios(symbol);
+        return financialRatiosData.map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 }

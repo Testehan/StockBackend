@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -28,7 +29,17 @@ public class FinancialMetricsService {
         this.financialRatiosRepository = financialRatiosRepository;
     }
 
-    public void calculateAndSaveRatios(String symbol) {
+    public Optional<FinancialRatiosData> getFinancialRatios(String symbol) {
+        Optional<FinancialRatiosData> existingRatiosData = financialRatiosRepository.findBySymbol(symbol);
+
+        if (existingRatiosData.isEmpty()) {
+            FinancialRatiosData newRatiosData = calculateAndSaveRatios(symbol);
+            return Optional.ofNullable(newRatiosData); // Return newly calculated data
+        }
+        return existingRatiosData;
+    }
+
+    public FinancialRatiosData calculateAndSaveRatios(String symbol) {
         Optional<IncomeStatementData> incomeStatementDataOptional = incomeStatementRepository.findBySymbol(symbol);
         Optional<BalanceSheetData> balanceSheetDataOptional = balanceSheetRepository.findBySymbol(symbol);
 
@@ -36,26 +47,37 @@ public class FinancialMetricsService {
             IncomeStatementData incomeStatementData = incomeStatementDataOptional.get();
             BalanceSheetData balanceSheetData = balanceSheetDataOptional.get();
 
-            processReports(symbol, incomeStatementData.getAnnualReports(), balanceSheetData.getAnnualReports());
-            processReports(symbol, incomeStatementData.getQuarterlyReports(), balanceSheetData.getQuarterlyReports());
+            FinancialRatiosData financialRatiosData = financialRatiosRepository.findBySymbol(symbol)
+                    .orElse(new FinancialRatiosData());
+            financialRatiosData.setSymbol(symbol);
+            financialRatiosData.setAnnualReports(new ArrayList<>());
+            financialRatiosData.setQuarterlyReports(new ArrayList<>());
+
+            // Process Annual Reports
+            processAndAddReports(symbol, incomeStatementData.getAnnualReports(), balanceSheetData.getAnnualReports(), financialRatiosData.getAnnualReports());
+            // Process Quarterly Reports
+            processAndAddReports(symbol, incomeStatementData.getQuarterlyReports(), balanceSheetData.getQuarterlyReports(), financialRatiosData.getQuarterlyReports());
+
+            return financialRatiosRepository.save(financialRatiosData);
         }
+        return null; // Or throw an exception if data is not found
     }
 
-    private void processReports(String symbol, List<IncomeReport> incomeReports, List<BalanceSheetReport> balanceSheetReports) {
+    private void processAndAddReports(String symbol, List<IncomeReport> incomeReports, List<BalanceSheetReport> balanceSheetReports, List<FinancialRatiosReport> targetList) {
         for (IncomeReport incomeReport : incomeReports) {
             balanceSheetReports.stream()
                     .filter(balanceSheetReport -> incomeReport.getFiscalDateEnding().equals(balanceSheetReport.getFiscalDateEnding()))
                     .findFirst()
                     .ifPresent(balanceSheetReport -> {
-                        FinancialRatios financialRatios = calculateRatios(symbol, incomeReport, balanceSheetReport);
-                        financialRatiosRepository.save(financialRatios);
+                        FinancialRatiosReport financialRatiosReport = calculateRatios(incomeReport, balanceSheetReport);
+                        targetList.add(financialRatiosReport);
                     });
         }
     }
 
-    public FinancialRatios calculateRatios(String symbol, IncomeReport incomeReport, BalanceSheetReport balanceSheetReport) {
-        FinancialRatios ratios = new FinancialRatios();
-        ratios.setSymbol(symbol);
+
+    public FinancialRatiosReport calculateRatios(IncomeReport incomeReport, BalanceSheetReport balanceSheetReport) {
+        FinancialRatiosReport ratios = new FinancialRatiosReport();
         ratios.setFiscalDateEnding(incomeReport.getFiscalDateEnding());
 
         SafeParser safeParser = new SafeParser();
@@ -82,15 +104,25 @@ public class FinancialMetricsService {
         }
 
         BigDecimal totalCurrentAssets = safeParser.parse(balanceSheetReport.getTotalCurrentAssets());
-        BigDecimal totalCurrentLiabilities = safeParser.parse(balanceSheetReport.getOtherCurrentLiabilities());
-        if (totalCurrentLiabilities.compareTo(BigDecimal.ZERO) != 0) {
-            ratios.setCurrentRatio(totalCurrentAssets.divide(totalCurrentLiabilities, 4, RoundingMode.HALF_UP));
+
+        BigDecimal shortTermDebt = safeParser.parse(balanceSheetReport.getShortTermDebt());
+        BigDecimal currentAccountsPayable = safeParser.parse(balanceSheetReport.getCurrentAccountsPayable());
+        BigDecimal otherCurrentLiabilities = safeParser.parse(balanceSheetReport.getOtherCurrentLiabilities());
+        BigDecimal deferredRevenue = safeParser.parse(balanceSheetReport.getDeferredRevenue());
+
+        BigDecimal currentLiabilities = shortTermDebt
+                .add(currentAccountsPayable)
+                .add(otherCurrentLiabilities)
+                .add(deferredRevenue);
+
+        if (currentLiabilities.compareTo(BigDecimal.ZERO) != 0) {
+            ratios.setCurrentRatio(totalCurrentAssets.divide(currentLiabilities, 4, RoundingMode.HALF_UP));
         }
 
         BigDecimal inventory = safeParser.parse(balanceSheetReport.getInventory());
         BigDecimal quickAssets = totalCurrentAssets.subtract(inventory);
-        if (totalCurrentLiabilities.compareTo(BigDecimal.ZERO) != 0) {
-            ratios.setQuickRatio(quickAssets.divide(totalCurrentLiabilities, 4, RoundingMode.HALF_UP));
+        if (currentLiabilities.compareTo(BigDecimal.ZERO) != 0) { // Use currentLiabilities here
+            ratios.setQuickRatio(quickAssets.divide(currentLiabilities, 4, RoundingMode.HALF_UP));
         }
 
         BigDecimal totalLiabilities = safeParser.parse(balanceSheetReport.getTotalLiabilities());
@@ -114,16 +146,6 @@ public class FinancialMetricsService {
         return ratios;
     }
 
-    public List<FinancialRatios> getFinancialRatios(String symbol) {
-        List<FinancialRatios> existingRatios = financialRatiosRepository.findBySymbol(symbol);
-
-        if (existingRatios.isEmpty()) {
-            calculateAndSaveRatios(symbol);
-            // After calculation, retrieve them again to return
-            existingRatios = financialRatiosRepository.findBySymbol(symbol);
-        }
-        return existingRatios;
-    }
 
     private static class SafeParser {
         public BigDecimal parse(String value) {
