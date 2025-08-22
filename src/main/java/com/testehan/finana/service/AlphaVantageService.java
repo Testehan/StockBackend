@@ -164,4 +164,19 @@ public class AlphaVantageService {
         existing.setPercentInsiders(newOverview.getPercentInsiders());
         existing.setPercentInstitutions(newOverview.getPercentInstitutions());
     }
+
+    public Mono<EarningsHistory> fetchEarningsHistoryFromApiAndSave(String symbol) {
+        return webClient.get()
+                .uri(uriBuilder -> uriBuilder.path("/query")
+                        .queryParam("function", "EARNINGS")
+                        .queryParam("symbol", symbol)
+                        .queryParam("apikey", apiKey)
+                        .build())
+                .retrieve()
+                .bodyToMono(EarningsHistory.class)
+                .flatMap(earningsHistory -> {
+                    earningsHistory.setSymbol(symbol);
+                    return Mono.just(earningsHistory);
+                });
+    }
 }

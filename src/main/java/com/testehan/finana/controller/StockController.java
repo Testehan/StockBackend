@@ -54,6 +54,11 @@ public class StockController {
         return financialDataService.getSharesOutstanding(symbol);
     }
 
+    @GetMapping("/earnings-history/{symbol}")
+    public Mono<EarningsHistory> getEarningsHistory(@PathVariable String symbol) {
+        return financialDataService.getEarningsHistory(symbol);
+    }
+
     @GetMapping("/financial-ratios/{symbol}")
     public ResponseEntity<FinancialRatiosData> getFinancialRatios(@PathVariable String symbol) {
         Optional<FinancialRatiosData> financialRatiosData = financialMetricsService.getFinancialRatios(symbol);
