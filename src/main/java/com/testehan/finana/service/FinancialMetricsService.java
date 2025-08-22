@@ -15,24 +15,15 @@ import java.util.stream.Collectors;
 @Service
 public class FinancialMetricsService {
 
-    private final IncomeStatementRepository incomeStatementRepository;
-    private final BalanceSheetRepository balanceSheetRepository;
-    private final CashFlowRepository cashFlowRepository;
-    private final SharesOutstandingRepository sharesOutstandingRepository;
+    private final FinancialDataService financialDataService;
     private final FinancialRatiosRepository financialRatiosRepository;
 
     private final FinancialRatiosCalculator financialRatiosCalculator;
 
     @Autowired
-    public FinancialMetricsService(IncomeStatementRepository incomeStatementRepository,
-                                   BalanceSheetRepository balanceSheetRepository,
-                                   CashFlowRepository cashFlowRepository,
-                                   SharesOutstandingRepository sharesOutstandingRepository,
+    public FinancialMetricsService(FinancialDataService financialDataService,
                                    FinancialRatiosRepository financialRatiosRepository, FinancialRatiosCalculator financialRatiosCalculator) {
-        this.incomeStatementRepository = incomeStatementRepository;
-        this.balanceSheetRepository = balanceSheetRepository;
-        this.cashFlowRepository = cashFlowRepository;
-        this.sharesOutstandingRepository = sharesOutstandingRepository;
+        this.financialDataService = financialDataService;
         this.financialRatiosRepository = financialRatiosRepository;
         this.financialRatiosCalculator = financialRatiosCalculator;
     }
@@ -48,10 +39,10 @@ public class FinancialMetricsService {
     }
 
     public FinancialRatiosData calculateAndSaveRatios(String symbol) {
-        Optional<IncomeStatementData> incomeStatementDataOptional = incomeStatementRepository.findBySymbol(symbol);
-        Optional<BalanceSheetData> balanceSheetDataOptional = balanceSheetRepository.findBySymbol(symbol);
-        Optional<CashFlowData> cashFlowDataOptional = cashFlowRepository.findBySymbol(symbol);
-        Optional<SharesOutstandingData> sharesOutstandingDataOptional = sharesOutstandingRepository.findBySymbol(symbol); // Add this
+        Optional<IncomeStatementData> incomeStatementDataOptional = financialDataService.getIncomeStatements(symbol).blockOptional();
+        Optional<BalanceSheetData> balanceSheetDataOptional = financialDataService.getBalanceSheet(symbol).blockOptional();
+        Optional<CashFlowData> cashFlowDataOptional = financialDataService.getCashFlow(symbol).blockOptional();
+        Optional<SharesOutstandingData> sharesOutstandingDataOptional = financialDataService.getSharesOutstanding(symbol).blockOptional();
 
         if (incomeStatementDataOptional.isPresent() && balanceSheetDataOptional.isPresent()
                 && cashFlowDataOptional.isPresent() && sharesOutstandingDataOptional.isPresent()) {

@@ -1,15 +1,7 @@
 package com.testehan.finana.service;
 
-import com.testehan.finana.model.BalanceSheetData;
-import com.testehan.finana.model.CashFlowData;
-import com.testehan.finana.model.CompanyOverview;
-import com.testehan.finana.model.IncomeStatementData;
-import com.testehan.finana.model.SharesOutstandingData;
-import com.testehan.finana.repository.BalanceSheetRepository;
-import com.testehan.finana.repository.CashFlowRepository;
-import com.testehan.finana.repository.CompanyOverviewRepository;
-import com.testehan.finana.repository.IncomeStatementRepository;
-import com.testehan.finana.repository.SharesOutstandingRepository;
+import com.testehan.finana.model.*;
+import com.testehan.finana.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -17,18 +9,13 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 
 @Service
 public class AlphaVantageService {
 
     private final WebClient webClient;
-    private final CompanyOverviewRepository companyOverviewRepository;
-    private final IncomeStatementRepository incomeStatementRepository;
-    private final BalanceSheetRepository balanceSheetRepository;
-    private final CashFlowRepository cashFlowRepository;
-    private final SharesOutstandingRepository sharesOutstandingRepository;
+
 
     @Value("${alphavantage.api.key}")
     private String apiKey;
@@ -41,69 +28,9 @@ public class AlphaVantageService {
                                CashFlowRepository cashFlowRepository,
                                SharesOutstandingRepository sharesOutstandingRepository) {
         this.webClient = webClientBuilder.baseUrl("https://www.alphavantage.co").build();
-        this.companyOverviewRepository = companyOverviewRepository;
-        this.incomeStatementRepository = incomeStatementRepository;
-        this.balanceSheetRepository = balanceSheetRepository;
-        this.cashFlowRepository = cashFlowRepository;
-        this.sharesOutstandingRepository = sharesOutstandingRepository;
     }
 
-    public Mono<CompanyOverview> getCompanyOverview(String symbol) {
-        return Mono.defer(() -> {
-            Optional<CompanyOverview> overviewFromDb = companyOverviewRepository.findBySymbol(symbol.toUpperCase());
-            if (overviewFromDb.isPresent() && isRecent(overviewFromDb.get().getLastUpdated())) {
-                return Mono.just(overviewFromDb.get());
-            } else {
-                return fetchCompanyOverviewFromApiAndSave(symbol.toUpperCase(), overviewFromDb);
-            }
-        });
-    }
-
-    public Mono<IncomeStatementData> getIncomeStatements(String symbol) {
-        return Mono.defer(() -> {
-            Optional<IncomeStatementData> incomeStatementsFromDb = incomeStatementRepository.findBySymbol(symbol.toUpperCase());
-            if (incomeStatementsFromDb.isPresent()) {
-                return Mono.just(incomeStatementsFromDb.get());
-            } else {
-                return fetchIncomeStatementsFromApiAndSave(symbol.toUpperCase());
-            }
-        });
-    }
-
-    public Mono<BalanceSheetData> getBalanceSheet(String symbol) {
-        return Mono.defer(() -> {
-            Optional<BalanceSheetData> balanceSheetFromDb = balanceSheetRepository.findBySymbol(symbol.toUpperCase());
-            if (balanceSheetFromDb.isPresent()) {
-                return Mono.just(balanceSheetFromDb.get());
-            } else {
-                return fetchBalanceSheetFromApiAndSave(symbol.toUpperCase());
-            }
-        });
-    }
-
-    public Mono<CashFlowData> getCashFlow(String symbol) {
-        return Mono.defer(() -> {
-            Optional<CashFlowData> cashFlowFromDb = cashFlowRepository.findBySymbol(symbol.toUpperCase());
-            if (cashFlowFromDb.isPresent()) {
-                return Mono.just(cashFlowFromDb.get());
-            } else {
-                return fetchCashFlowFromApiAndSave(symbol.toUpperCase());
-            }
-        });
-    }
-
-    public Mono<SharesOutstandingData> getSharesOutstanding(String symbol) {
-        return Mono.defer(() -> {
-            Optional<SharesOutstandingData> sharesOutstandingFromDb = sharesOutstandingRepository.findBySymbol(symbol.toUpperCase());
-            if (sharesOutstandingFromDb.isPresent()) {
-                return Mono.just(sharesOutstandingFromDb.get());
-            } else {
-                return fetchSharesOutstandingFromApiAndSave(symbol.toUpperCase());
-            }
-        });
-    }
-
-    private Mono<IncomeStatementData> fetchIncomeStatementsFromApiAndSave(String symbol) {
+    public Mono<IncomeStatementData> fetchIncomeStatementsFromApiAndSave(String symbol) {
         return webClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/query")
                         .queryParam("function", "INCOME_STATEMENT")
@@ -114,11 +41,11 @@ public class AlphaVantageService {
                 .bodyToMono(IncomeStatementData.class)
                 .flatMap(incomeStatementData -> {
                     incomeStatementData.setSymbol(symbol);
-                    return Mono.just(incomeStatementRepository.save(incomeStatementData));
+                    return Mono.just(incomeStatementData);
                 });
     }
 
-    private Mono<BalanceSheetData> fetchBalanceSheetFromApiAndSave(String symbol) {
+    public Mono<BalanceSheetData> fetchBalanceSheetFromApiAndSave(String symbol) {
         return webClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/query")
                         .queryParam("function", "BALANCE_SHEET")
@@ -129,11 +56,11 @@ public class AlphaVantageService {
                 .bodyToMono(BalanceSheetData.class)
                 .flatMap(balanceSheetData -> {
                     balanceSheetData.setSymbol(symbol);
-                    return Mono.just(balanceSheetRepository.save(balanceSheetData));
+                    return Mono.just(balanceSheetData);
                 });
     }
 
-    private Mono<CashFlowData> fetchCashFlowFromApiAndSave(String symbol) {
+    public Mono<CashFlowData> fetchCashFlowFromApiAndSave(String symbol) {
         return webClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/query")
                         .queryParam("function", "CASH_FLOW")
@@ -144,11 +71,11 @@ public class AlphaVantageService {
                 .bodyToMono(CashFlowData.class)
                 .flatMap(cashFlowData -> {
                     cashFlowData.setSymbol(symbol);
-                    return Mono.just(cashFlowRepository.save(cashFlowData));
+                    return Mono.just(cashFlowData);
                 });
     }
 
-    private Mono<SharesOutstandingData> fetchSharesOutstandingFromApiAndSave(String symbol) {
+    public Mono<SharesOutstandingData> fetchSharesOutstandingFromApiAndSave(String symbol) {
         return webClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/query")
                         .queryParam("function", "SHARES_OUTSTANDING")
@@ -159,18 +86,11 @@ public class AlphaVantageService {
                 .bodyToMono(SharesOutstandingData.class)
                 .flatMap(sharesOutstandingData -> {
                     sharesOutstandingData.setSymbol(symbol);
-                    return Mono.just(sharesOutstandingRepository.save(sharesOutstandingData));
+                    return Mono.just(sharesOutstandingData);
                 });
     }
 
-    private boolean isRecent(LocalDateTime lastUpdated) {
-        if (lastUpdated == null) {
-            return false;
-        }
-        return ChronoUnit.WEEKS.between(lastUpdated, LocalDateTime.now()) < 1;
-    }
-
-    private Mono<CompanyOverview> fetchCompanyOverviewFromApiAndSave(String symbol, Optional<CompanyOverview> existingOverview) {
+    public Mono<CompanyOverview> fetchCompanyOverviewFromApiAndSave(String symbol, Optional<CompanyOverview> existingOverview) {
         return webClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/query")
                         .queryParam("function", "OVERVIEW")
@@ -183,7 +103,7 @@ public class AlphaVantageService {
                     CompanyOverview overviewToSave = existingOverview.orElse(new CompanyOverview());
                     updateOverview(overviewToSave, newOverview);
                     overviewToSave.setLastUpdated(LocalDateTime.now());
-                    return Mono.just(companyOverviewRepository.save(overviewToSave));
+                    return Mono.just(overviewToSave);
                 });
     }
 

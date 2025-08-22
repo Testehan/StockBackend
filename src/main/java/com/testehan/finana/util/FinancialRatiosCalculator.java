@@ -102,7 +102,7 @@ public class FinancialRatiosCalculator {
         // Balance Sheet - Assets (Current)
         data.totalAssets = safeParser.parse(balance.getTotalAssets());
         data.totalCurrentAssets = safeParser.parse(balance.getTotalCurrentAssets());
-        data.cash = safeParser.parse(balance.getCashAndCashEquivalentsAtCarryingValue());
+        data.cash = safeParser.parse(balance.getCashAndShortTermInvestments());
         data.shortTermInvestments = safeParser.parse(balance.getShortTermInvestments());
         data.netReceivables = safeParser.parse(balance.getCurrentNetReceivables());
         data.inventory = safeParser.parse(balance.getInventory());
@@ -125,6 +125,7 @@ public class FinancialRatiosCalculator {
         // Balance Sheet - Liabilities (Non-Current)
         data.longTermDebt = safeParser.parse(balance.getLongTermDebt());
         data.otherNonCurrentLiabilities = safeParser.parse(balance.getOtherNonCurrentLiabilities());
+        data.capitalLeaseObligations = safeParser.parse(balance.getCapitalLeaseObligations());
 
         // Balance Sheet - Equity
         data.totalShareholderEquity = safeParser.parse(balance.getTotalShareholderEquity());
@@ -196,16 +197,35 @@ public class FinancialRatiosCalculator {
     }
 
     private void calculateRoic(FinancialRatiosReport ratios, ParsedFinancialData data) {
+        // 1. Tax Rate
         BigDecimal taxRate = BigDecimal.ZERO;
-        if (data.incomeBeforeTax.compareTo(BigDecimal.ZERO) != 0) {
+        if (data.incomeBeforeTax != null && data.incomeBeforeTax.compareTo(BigDecimal.ZERO) > 0) {
             taxRate = data.incomeTaxExpense.divide(data.incomeBeforeTax, 4, RoundingMode.HALF_UP);
         }
+
+        // 2. NOPAT (Net Operating Profit After Tax)
         BigDecimal nopat = data.ebit.multiply(BigDecimal.ONE.subtract(taxRate));
 
-        BigDecimal investedCapital = data.totalDebt.add(data.totalShareholderEquity).subtract(data.cash);
+        // 3. Invested Capital (Standard Approach)
+        // Formula: Total Equity + Total Debt + Lease Liabilities
+        // DO NOT subtract cash if you want to match standard market data for Tech giants.
 
+        // Note: Alpha Vantage 'totalDebt' usually includes Short+Long term debt.
+        // But check if your data object has 'capitalLeaseObligations' or similar.
+        // If not, just Debt + Equity is a safe 90% solution.
+
+        BigDecimal investedCapital = data.totalShareholderEquity.add(data.totalDebt);
+
+        // Optional: Add Capital Lease Obligations if you have that field mapped
+        if (data.capitalLeaseObligations != null) {
+            investedCapital = investedCapital.add(data.capitalLeaseObligations);
+        }
+
+        // 4. Final Calculation
         if (investedCapital.compareTo(BigDecimal.ZERO) > 0) {
             ratios.setRoic(nopat.divide(investedCapital, 4, RoundingMode.HALF_UP));
+        } else {
+            ratios.setRoic(null);
         }
     }
 
@@ -514,6 +534,7 @@ public class FinancialRatiosCalculator {
         // Balance Sheet - Liabilities (Non-Current)
         BigDecimal longTermDebt;
         BigDecimal otherNonCurrentLiabilities;
+        BigDecimal capitalLeaseObligations;
 
         // Balance Sheet - Equity
         BigDecimal totalShareholderEquity;
