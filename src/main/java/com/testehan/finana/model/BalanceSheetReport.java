@@ -13,8 +13,8 @@ public class BalanceSheetReport {
     private String totalAssets;
     @JsonProperty("totalCurrentAssets")
     private String totalCurrentAssets;
-    @JsonProperty("cashAndCashEquivalents")
-    private String cashAndCashEquivalents;
+    @JsonProperty("cashAndCashEquivalentsAtCarryingValue")
+    private String cashAndCashEquivalentsAtCarryingValue;
     @JsonProperty("shortTermInvestments")
     private String shortTermInvestments;
     @JsonProperty("netReceivables")
