@@ -65,4 +65,9 @@ public class StockController {
         return financialRatiosData.map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
+
+    @GetMapping("/global-quote/{symbol}")
+    public Mono<StockQuotes> getGlobalQuote(@PathVariable String symbol) {
+        return financialDataService.getGlobalQuote(symbol);
+    }
 }

@@ -2,6 +2,8 @@ package com.testehan.finana.service;
 
 import com.testehan.finana.model.*;
 import com.testehan.finana.repository.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -14,6 +16,7 @@ import java.util.Optional;
 @Service
 public class AlphaVantageService {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(AlphaVantageService.class);
     private final WebClient webClient;
 
 
@@ -98,12 +101,28 @@ public class AlphaVantageService {
                         .queryParam("apikey", apiKey)
                         .build())
                 .retrieve()
-                .bodyToMono(CompanyOverview.class)
-                .flatMap(newOverview -> {
-                    CompanyOverview overviewToSave = existingOverview.orElse(new CompanyOverview());
-                    updateOverview(overviewToSave, newOverview);
-                    overviewToSave.setLastUpdated(LocalDateTime.now());
-                    return Mono.just(overviewToSave);
+                .bodyToMono(String.class)
+                .doOnNext(responseBody -> LOGGER.info("Response from AlphaVantage: {}", responseBody))
+                .flatMap(responseBody -> {
+                    // Manually deserialize here if needed, for now let's assume bodyToMono works with the logged output
+                    return Mono.just(responseBody);
+                })
+                .flatMap(responseBody -> {
+                    // This is a placeholder for actual deserialization logic if bodyToMono(CompanyOverview.class) fails
+                    // For now, we are just logging the response. We will need to properly deserialize it.
+                    // The issue is likely in the direct bodyToMono(CompanyOverview.class) call
+                    // We will replace this flatMap with proper deserialization in the next step.
+                    try {
+                        com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                        CompanyOverview newOverview = objectMapper.readValue(responseBody, CompanyOverview.class);
+                        CompanyOverview overviewToSave = existingOverview.orElse(new CompanyOverview());
+                        updateOverview(overviewToSave, newOverview);
+                        overviewToSave.setLastUpdated(LocalDateTime.now());
+                        return Mono.just(overviewToSave);
+                    } catch (Exception e) {
+                        LOGGER.error("Error deserializing company overview", e);
+                        return Mono.error(e);
+                    }
                 });
     }
 
@@ -178,5 +197,17 @@ public class AlphaVantageService {
                     earningsHistory.setSymbol(symbol);
                     return Mono.just(earningsHistory);
                 });
+    }
+
+    public Mono<GlobalQuote> fetchGlobalQuoteFromApi(String symbol) {
+        return webClient.get()
+                .uri(uriBuilder -> uriBuilder.path("/query")
+                        .queryParam("function", "GLOBAL_QUOTE")
+                        .queryParam("symbol", symbol)
+                        .queryParam("apikey", apiKey)
+                        .build())
+                .retrieve()
+                .bodyToMono(GlobalQuoteResponse.class)
+                .map(GlobalQuoteResponse::getGlobalQuote);
     }
 }

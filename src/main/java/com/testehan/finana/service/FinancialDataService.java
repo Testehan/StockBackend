@@ -21,8 +21,10 @@ public class FinancialDataService {
     private final CashFlowRepository cashFlowRepository;
     private final SharesOutstandingRepository sharesOutstandingRepository;
     private final EarningsHistoryRepository earningsHistoryRepository;
+    private final StockQuotesRepository stockQuotesRepository;
 
-    public FinancialDataService(AlphaVantageService alphaVantageService, IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository, CashFlowRepository cashFlowRepository, SharesOutstandingRepository sharesOutstandingRepository, FinancialRatiosRepository financialRatiosRepository, FinancialRatiosCalculator financialRatiosCalculator, CompanyOverviewRepository companyOverviewRepository, EarningsHistoryRepository earningsHistoryRepository) {
+
+    public FinancialDataService(AlphaVantageService alphaVantageService, IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository, CashFlowRepository cashFlowRepository, SharesOutstandingRepository sharesOutstandingRepository, FinancialRatiosRepository financialRatiosRepository, FinancialRatiosCalculator financialRatiosCalculator, CompanyOverviewRepository companyOverviewRepository, EarningsHistoryRepository earningsHistoryRepository, StockQuotesRepository stockQuotesRepository) {
         this.alphaVantageService = alphaVantageService;
         this.incomeStatementRepository = incomeStatementRepository;
         this.balanceSheetRepository = balanceSheetRepository;
@@ -30,6 +32,7 @@ public class FinancialDataService {
         this.sharesOutstandingRepository = sharesOutstandingRepository;
         this.companyOverviewRepository = companyOverviewRepository;
         this.earningsHistoryRepository = earningsHistoryRepository;
+        this.stockQuotesRepository = stockQuotesRepository;
     }
 
     public Mono<EarningsHistory> getEarningsHistory(String symbol) {
@@ -44,10 +47,35 @@ public class FinancialDataService {
         });
     }
 
+    public Mono<StockQuotes> getGlobalQuote(String symbol) {
+        return Mono.defer(() -> {
+            Optional<StockQuotes> stockQuotesFromDb = stockQuotesRepository.findBySymbol(symbol.toUpperCase());
+            if (stockQuotesFromDb.isPresent() && isRecent(stockQuotesFromDb.get().getLastUpdated(), 10)) {
+                return Mono.just(stockQuotesFromDb.get());
+            } else {
+                return alphaVantageService.fetchGlobalQuoteFromApi(symbol.toUpperCase())
+                        .flatMap(globalQuote -> {
+                            StockQuotes stockQuotes;
+                            if (stockQuotesFromDb.isPresent()) {
+                                stockQuotes = stockQuotesFromDb.get();
+                                stockQuotes.getQuotes().add(globalQuote);
+                            } else {
+                                stockQuotes = new StockQuotes();
+                                stockQuotes.setSymbol(symbol.toUpperCase());
+                                stockQuotes.setQuotes(new java.util.ArrayList<>());
+                                stockQuotes.getQuotes().add(globalQuote);
+                            }
+                            stockQuotes.setLastUpdated(LocalDateTime.now());
+                            return Mono.just(stockQuotesRepository.save(stockQuotes));
+                        });
+            }
+        });
+    }
+
     public Mono<CompanyOverview> getCompanyOverview(String symbol) {
         return Mono.defer(() -> {
             Optional<CompanyOverview> overviewFromDb = companyOverviewRepository.findBySymbol(symbol.toUpperCase());
-            if (overviewFromDb.isPresent() && isRecent(overviewFromDb.get().getLastUpdated())) {
+            if (overviewFromDb.isPresent() && isRecent(overviewFromDb.get().getLastUpdated(), 10080)) {
                 return Mono.just(overviewFromDb.get());
             } else {
                 return alphaVantageService.fetchCompanyOverviewFromApiAndSave(symbol.toUpperCase(), overviewFromDb)
@@ -104,10 +132,10 @@ public class FinancialDataService {
         });
     }
 
-    private boolean isRecent(LocalDateTime lastUpdated) {
+    private boolean isRecent(LocalDateTime lastUpdated, int minutes) {
         if (lastUpdated == null) {
             return false;
         }
-        return ChronoUnit.WEEKS.between(lastUpdated, LocalDateTime.now()) < 1;
+        return ChronoUnit.MINUTES.between(lastUpdated, LocalDateTime.now()) < minutes;
     }
 }
