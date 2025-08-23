@@ -1,0 +1,25 @@
+Act as a strict financial credit analyst. I need you to calculate the "Financial Resilience" score (0-5) for a company based on the data provided below.
+
+Here is the financial data:
+- Total Cash & Short Term Investments: {totalCashAndEquivalents}
+- Total Debt (Long + Short Term): {totalDebt}
+- EBITDA (TTM): {ttmEbitda}
+- Interest Expense (TTM): [Insert Value]
+
+Instructions for Scoring:
+1. Calculate "Net Debt" (Total Debt minus Total Cash).
+2. Calculate "Net Debt to EBITDA" Ratio.
+3. Calculate "Interest Coverage" Ratio (EBITDA divided by Interest Expense).
+
+Assign a Score from 0 to 5 based on this logic:
+- Score 0 (Fragile): Negative EBITDA OR Interest Coverage < 1.5x.
+- Score 1 (Weak): Net Debt/EBITDA > 4x OR Interest Coverage < 3x.
+- Score 2-3 (Average): Net Debt/EBITDA is between 2x and 4x.
+- Score 4 (Strong): Net Debt/EBITDA is between 0x and 2x.
+- Score 5 (Citadel): Company has "Negative Net Debt" (More Cash than Debt) OR Net Debt/EBITDA < 1x with massive Interest Coverage (>15x).
+
+Output Requirement:
+1. Provide the Score (0-5).
+2. In the message show the calculated Ratios. Write 1-2 sentences explaining why you gave this score.
+
+{format}
