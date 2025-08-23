@@ -70,4 +70,9 @@ public class StockController {
     public Mono<StockQuotes> getGlobalQuote(@PathVariable String symbol) {
         return financialDataService.getGlobalQuote(symbol);
     }
+
+    @GetMapping("/earnings-call-transcript/{symbol}/{quarter}")
+    public Mono<QuarterlyEarningsTranscript> getEarningsCallTranscript(@PathVariable String symbol, @PathVariable String quarter) {
+        return financialDataService.getEarningsCallTranscript(symbol, quarter);
+    }
 }

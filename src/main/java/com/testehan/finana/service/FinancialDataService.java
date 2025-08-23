@@ -24,7 +24,11 @@ public class FinancialDataService {
     private final StockQuotesRepository stockQuotesRepository;
 
 
-    public FinancialDataService(AlphaVantageService alphaVantageService, IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository, CashFlowRepository cashFlowRepository, SharesOutstandingRepository sharesOutstandingRepository, FinancialRatiosRepository financialRatiosRepository, FinancialRatiosCalculator financialRatiosCalculator, CompanyOverviewRepository companyOverviewRepository, EarningsHistoryRepository earningsHistoryRepository, StockQuotesRepository stockQuotesRepository) {
+
+    private final CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository;
+
+
+    public FinancialDataService(AlphaVantageService alphaVantageService, IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository, CashFlowRepository cashFlowRepository, SharesOutstandingRepository sharesOutstandingRepository, FinancialRatiosRepository financialRatiosRepository, FinancialRatiosCalculator financialRatiosCalculator, CompanyOverviewRepository companyOverviewRepository, EarningsHistoryRepository earningsHistoryRepository, StockQuotesRepository stockQuotesRepository, CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository) {
         this.alphaVantageService = alphaVantageService;
         this.incomeStatementRepository = incomeStatementRepository;
         this.balanceSheetRepository = balanceSheetRepository;
@@ -33,6 +37,29 @@ public class FinancialDataService {
         this.companyOverviewRepository = companyOverviewRepository;
         this.earningsHistoryRepository = earningsHistoryRepository;
         this.stockQuotesRepository = stockQuotesRepository;
+        this.companyEarningsTranscriptsRepository = companyEarningsTranscriptsRepository;
+    }
+
+    public Mono<QuarterlyEarningsTranscript> getEarningsCallTranscript(String symbol, String quarter) {
+        return Mono.defer(() -> {
+            Optional<CompanyEarningsTranscripts> earningsCallTranscriptFromDb = companyEarningsTranscriptsRepository.findById(symbol.toUpperCase());
+            if (earningsCallTranscriptFromDb.isPresent()) {
+                Optional<QuarterlyEarningsTranscript> quarterlyTranscript = earningsCallTranscriptFromDb.get().getTranscripts().stream()
+                        .filter(transcript -> transcript.getQuarter().equals(quarter))
+                        .findFirst();
+
+                if (quarterlyTranscript.isPresent()) {
+                    return Mono.just(quarterlyTranscript.get());
+                }
+            }
+
+            return alphaVantageService.fetchEarningsCallTranscriptFromApiAndSave(symbol.toUpperCase(), quarter)
+                    .flatMap(companyTranscripts -> companyTranscripts.getTranscripts().stream()
+                            .filter(transcript -> transcript.getQuarter().equals(quarter))
+                            .findFirst()
+                            .map(Mono::just)
+                            .orElse(Mono.empty()));
+        });
     }
 
     public Mono<EarningsHistory> getEarningsHistory(String symbol) {

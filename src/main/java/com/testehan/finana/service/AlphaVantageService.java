@@ -23,15 +23,59 @@ public class AlphaVantageService {
     @Value("${alphavantage.api.key}")
     private String apiKey;
 
+    private final CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository;
+
     @Autowired
     public AlphaVantageService(WebClient.Builder webClientBuilder,
                                CompanyOverviewRepository companyOverviewRepository,
                                IncomeStatementRepository incomeStatementRepository,
                                BalanceSheetRepository balanceSheetRepository,
                                CashFlowRepository cashFlowRepository,
-                               SharesOutstandingRepository sharesOutstandingRepository) {
+                               SharesOutstandingRepository sharesOutstandingRepository,
+                               CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository) {
         this.webClient = webClientBuilder.baseUrl("https://www.alphavantage.co").build();
+        this.companyEarningsTranscriptsRepository = companyEarningsTranscriptsRepository;
     }
+
+    public Mono<CompanyEarningsTranscripts> fetchEarningsCallTranscriptFromApiAndSave(String symbol, String quarter) {
+        return webClient.get()
+                .uri(uriBuilder -> uriBuilder.path("/query")
+                        .queryParam("function", "EARNINGS_CALL_TRANSCRIPT")
+                        .queryParam("symbol", symbol)
+                        .queryParam("quarter", quarter)
+                        .queryParam("apikey", apiKey)
+                        .build())
+                .retrieve()
+                .bodyToMono(EarningsCallTranscript.class)
+                .flatMap(earningsCallTranscript -> {
+                    QuarterlyEarningsTranscript newQuarterlyTranscript = new QuarterlyEarningsTranscript();
+                    newQuarterlyTranscript.setQuarter(earningsCallTranscript.getQuarter());
+                    newQuarterlyTranscript.setTranscript(earningsCallTranscript.getTranscript());
+
+                    return Mono.fromCallable(() -> companyEarningsTranscriptsRepository.findById(symbol))
+                            .flatMap(optionalCompanyEarningsTranscripts -> {
+                                CompanyEarningsTranscripts companyEarningsTranscripts = optionalCompanyEarningsTranscripts.orElseGet(() -> {
+                                    CompanyEarningsTranscripts newCompanyEarningsTranscripts = new CompanyEarningsTranscripts();
+                                    newCompanyEarningsTranscripts.setSymbol(symbol);
+                                    return newCompanyEarningsTranscripts;
+                                });
+
+                                boolean transcriptExists = companyEarningsTranscripts.getTranscripts() != null && companyEarningsTranscripts.getTranscripts().stream()
+                                        .anyMatch(transcript -> transcript.getQuarter().equals(quarter));
+
+                                if (!transcriptExists) {
+                                    if (companyEarningsTranscripts.getTranscripts() == null) {
+                                        companyEarningsTranscripts.setTranscripts(new java.util.ArrayList<>());
+                                    }
+                                    companyEarningsTranscripts.getTranscripts().add(newQuarterlyTranscript);
+                                    return Mono.fromCallable(() -> companyEarningsTranscriptsRepository.save(companyEarningsTranscripts));
+                                } else {
+                                    return Mono.just(companyEarningsTranscripts);
+                                }
+                            });
+                });
+    }
+
 
     public Mono<IncomeStatementData> fetchIncomeStatementsFromApiAndSave(String symbol) {
         return webClient.get()
