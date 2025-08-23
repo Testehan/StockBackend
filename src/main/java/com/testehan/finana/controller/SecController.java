@@ -21,26 +21,26 @@ public class SecController {
 
     @GetMapping("/10-k/{ticker}/risk-factors")
     public Mono<String> getRiskFactorsFrom10K(@PathVariable String ticker) {
-        return secApiService.getRiskFactorsFrom10K(ticker);
+        return secApiService.getSectionFrom10K(ticker, "risk_factors");
     }
 
     @GetMapping("/10-k/{ticker}/management-discussion")
     public Mono<String> getManagementDiscussionFrom10K(@PathVariable String ticker) {
-        return secApiService.getManagementDiscussionFrom10K(ticker);
+        return secApiService.getSectionFrom10K(ticker, "management_discussion");
     }
 
     @GetMapping("/10-k/{ticker}/business-description")
     public Mono<String> getBusinessDescriptionFrom10K(@PathVariable String ticker) {
-        return secApiService.getBusinessDescriptionFrom10K(ticker);
+        return secApiService.getSectionFrom10K(ticker, "business_description");
     }
 
     @GetMapping("/10-q/{ticker}/management-discussion")
     public Mono<String> getManagementDiscussionFrom10Q(@PathVariable String ticker) {
-        return secApiService.getManagementDiscussionFrom10Q(ticker);
+        return secApiService.getSectionFrom10Q(ticker, "management_discussion");
     }
 
     @GetMapping("/10-q/{ticker}/risk-factors")
     public Mono<String> getRiskFactorsFrom10Q(@PathVariable String ticker) {
-        return secApiService.getRiskFactorsFrom10Q(ticker);
+        return secApiService.getSectionFrom10Q(ticker, "risk_factors");
     }
 }
