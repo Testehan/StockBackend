@@ -5,6 +5,7 @@ import com.testehan.finana.repository.BalanceSheetRepository;
 import com.testehan.finana.repository.GeneratedReportRepository;
 import com.testehan.finana.repository.IncomeStatementRepository;
 import com.testehan.finana.repository.FinancialRatiosRepository;
+import com.testehan.finana.repository.EarningsHistoryRepository;
 import com.testehan.finana.service.FinancialDataService;
 import com.testehan.finana.service.LlmService;
 import org.slf4j.Logger;
@@ -18,6 +19,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.util.concurrent.CompletableFuture;
 import java.math.BigDecimal;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -33,6 +35,7 @@ public class FerolService {
     private final GeneratedReportRepository generatedReportRepository;
     private final FinancialDataService financialDataService;
     private final FinancialRatiosRepository financialRatiosRepository;
+    private final EarningsHistoryRepository earningsHistoryRepository;
 
     @Value("classpath:financial_resilience_prompt.txt")
     private Resource financialResiliencePrompt;
@@ -43,13 +46,15 @@ public class FerolService {
                         LlmService llmService,
                         GeneratedReportRepository generatedReportRepository,
                         FinancialDataService financialDataService,
-                        FinancialRatiosRepository financialRatiosRepository) {
+                        FinancialRatiosRepository financialRatiosRepository,
+                        EarningsHistoryRepository earningsHistoryRepository) {
         this.balanceSheetRepository = balanceSheetRepository;
         this.incomeStatementRepository = incomeStatementRepository;
         this.llmService = llmService;
         this.generatedReportRepository = generatedReportRepository;
         this.financialDataService = financialDataService;
         this.financialRatiosRepository = financialRatiosRepository;
+        this.earningsHistoryRepository = earningsHistoryRepository;
     }
 
     private BigDecimal safeParseBigDecimal(String value) {
@@ -59,15 +64,29 @@ public class FerolService {
         return new BigDecimal(value);
     }
 
-    public SseEmitter getFerolReport(String ticker) {
-        // Timeout set to 1 hour
-        SseEmitter sseEmitter = new SseEmitter(3600000L);
+    public SseEmitter getFerolReport(String ticker, boolean recreateReport) {
+        SseEmitter sseEmitter = new SseEmitter(3600000L); // Timeout set to 1 hour
 
-        // Run the report generation in a separate thread to avoid blocking the main thread
-        // and to allow the SseEmitter to send events asynchronously.
         new Thread(() -> {
             try {
-                sendSseEvent(sseEmitter, "Initiating FEROL report generation for " + ticker + "...");
+                if (!recreateReport) {
+                    sendSseEvent(sseEmitter, "Attempting to load report from database...");
+                    Optional<GeneratedReport> existingGeneratedReport = generatedReportRepository.findBySymbol(ticker);
+                    if (existingGeneratedReport.isPresent() && existingGeneratedReport.get().getFerolReport() != null) {
+                        FerolReport ferolReport = existingGeneratedReport.get().getFerolReport();
+                        sendSseEvent(sseEmitter, "Report loaded from database.");
+                        sseEmitter.send(SseEmitter.event()
+                                .name("COMPLETED")
+                                .data(ferolReport, MediaType.APPLICATION_JSON));
+                        sseEmitter.complete();
+                        LOGGER.info("FEROL report for {} loaded from DB and sent.", ticker);
+                        return; // Exit as report is sent
+                    } else {
+                        sendSseEvent(sseEmitter, "Report not found in database or incomplete, generating new report.");
+                    }
+                } else {
+                    sendSseEvent(sseEmitter, "Initiating FEROL report generation for " + ticker + "...");
+                }
 
                 sendSseEvent(sseEmitter, "Ensuring financial data is present...");
                 financialDataService.ensureFinancialDataIsPresent(ticker);
@@ -78,27 +97,53 @@ public class FerolService {
                 Optional<BalanceSheetData> balanceSheetData = balanceSheetRepository.findBySymbol(ticker);
                 sendSseEvent(sseEmitter, "Financial data retrieved.");
 
-                sendSseEvent(sseEmitter, "Calculating financial resilience...");
-                FerolReportItem financialResilience = calculateFinancialResilience(ticker, incomeStatementData, balanceSheetData, sseEmitter);
-                sendSseEvent(sseEmitter, "Financial resilience calculation complete.");
+                // Launch all calculations in parallel using CompletableFuture
+                CompletableFuture<FerolReportItem> financialResilienceFuture = CompletableFuture.supplyAsync(() -> {
+                    sendSseEvent(sseEmitter, "Calculating financial resilience...");
+                    FerolReportItem item = calculateFinancialResilience(ticker, incomeStatementData, balanceSheetData, sseEmitter);
+                    sendSseEvent(sseEmitter, "Financial resilience calculation complete.");
+                    return item;
+                });
 
+                CompletableFuture<FerolReportItem> grossMarginFuture = CompletableFuture.supplyAsync(() -> {
+                    sendSseEvent(sseEmitter, "Calculating Gross Margin...");
+                    FerolReportItem item = calculateGrossMargin(ticker, sseEmitter);
+                    sendSseEvent(sseEmitter, "Gross Margin calculation complete.");
+                    return item;
+                });
+
+                CompletableFuture<FerolReportItem> roicFuture = CompletableFuture.supplyAsync(() -> {
+                    sendSseEvent(sseEmitter, "Calculating Return on Invested Capital (ROIC)...");
+                    FerolReportItem item = calculateReturnOnInvestedCapital(ticker, sseEmitter);
+                    sendSseEvent(sseEmitter, "Return on Invested Capital (ROIC) calculation complete.");
+                    return item;
+                });
+
+                CompletableFuture<FerolReportItem> fcfFuture = CompletableFuture.supplyAsync(() -> {
+                    sendSseEvent(sseEmitter, "Calculating Free Cash Flow...");
+                    FerolReportItem item = calculateFreeCashFlow(ticker, sseEmitter);
+                    sendSseEvent(sseEmitter, "Free Cash Flow calculation complete.");
+                    return item;
+                });
+
+                CompletableFuture<FerolReportItem> epsFuture = CompletableFuture.supplyAsync(() -> {
+                    sendSseEvent(sseEmitter, "Calculating Earnings Per Share (EPS)...");
+                    FerolReportItem item = calculateEarningsPerShare(ticker, sseEmitter);
+                    sendSseEvent(sseEmitter, "Earnings Per Share (EPS) calculation complete.");
+                    return item;
+                });
+
+                // Wait for all futures to complete
+                CompletableFuture.allOf(financialResilienceFuture, grossMarginFuture, roicFuture, fcfFuture, epsFuture)
+                        .join(); // Blocks until all complete or one fails
+
+                // Collect results
                 List<FerolReportItem> ferolReportItems = new ArrayList<>();
-                ferolReportItems.add(financialResilience);
-
-                sendSseEvent(sseEmitter, "Calculating Gross Margin...");
-                FerolReportItem grossMargin = calculateGrossMargin(ticker, sseEmitter);
-                ferolReportItems.add(grossMargin);
-                sendSseEvent(sseEmitter, "Gross Margin calculation complete.");
-
-                sendSseEvent(sseEmitter, "Calculating Return on Invested Capital (ROIC)...");
-                FerolReportItem roic = calculateReturnOnInvestedCapital(ticker, sseEmitter);
-                ferolReportItems.add(roic);
-                sendSseEvent(sseEmitter, "Return on Invested Capital (ROIC) calculation complete.");
-
-                sendSseEvent(sseEmitter, "Calculating Free Cash Flow...");
-                FerolReportItem fcf = calculateFreeCashFlow(ticker, sseEmitter);
-                ferolReportItems.add(fcf);
-                sendSseEvent(sseEmitter, "Free Cash Flow calculation complete.");
+                ferolReportItems.add(financialResilienceFuture.get());
+                ferolReportItems.add(grossMarginFuture.get());
+                ferolReportItems.add(roicFuture.get());
+                ferolReportItems.add(fcfFuture.get());
+                ferolReportItems.add(epsFuture.get());
 
                 sendSseEvent(sseEmitter, "Building and saving FEROL report...");
                 FerolReport ferolReport = buildAndSaveReport(ticker, ferolReportItems);
@@ -462,5 +507,80 @@ public class FerolService {
         }
         sendSseEvent(sseEmitter, "FCF calculation complete. Score: " + score);
         return new FerolReportItem("freeCashFlow", score, detailedExplanation.toString() + explanation);
+    }
+
+    private FerolReportItem calculateEarningsPerShare(String ticker, SseEmitter sseEmitter) {
+        sendSseEvent(sseEmitter, "Calculating Earnings Per Share (EPS)...");
+
+        Optional<EarningsHistory> earningsHistoryOptional = earningsHistoryRepository.findBySymbol(ticker);
+
+        if (earningsHistoryOptional.isEmpty() || earningsHistoryOptional.get().getQuarterlyEarnings().size() < 8) {
+            LOGGER.warn("No sufficient earnings history data for EPS calculation for ticker: {}", ticker);
+            sendSseEvent(sseEmitter, "EPS calculation skipped: Insufficient data found.");
+            return new FerolReportItem("earningsPerShare", 0, "Insufficient quarterly earnings history data for EPS calculation (need at least 8 quarters).");
+        }
+
+        List<QuarterlyEarning> quarterlyEarnings = earningsHistoryOptional.get().getQuarterlyEarnings();
+        // Sort by reportedDate in descending order to get latest first
+        quarterlyEarnings.sort(Comparator.comparing(QuarterlyEarning::getReportedDate).reversed());
+
+        // Get latest 8 quarters for current and previous TTM EPS
+        List<QuarterlyEarning> relevantEarnings = quarterlyEarnings.stream().limit(8).collect(Collectors.toList());
+
+        // Calculate current TTM EPS (latest 4 quarters)
+        BigDecimal currentTtmEps = BigDecimal.ZERO;
+        for (int i = 0; i < 4; i++) {
+            currentTtmEps = currentTtmEps.add(safeParseBigDecimal(relevantEarnings.get(i).getReportedEPS()));
+        }
+
+        // Calculate previous TTM EPS (the 4 quarters before the current TTM)
+        BigDecimal previousTtmEps = BigDecimal.ZERO;
+        for (int i = 4; i < 8; i++) {
+            previousTtmEps = previousTtmEps.add(safeParseBigDecimal(relevantEarnings.get(i).getReportedEPS()));
+        }
+
+        sendSseEvent(sseEmitter, "Current TTM EPS: " + currentTtmEps.toPlainString());
+        sendSseEvent(sseEmitter, "Previous TTM EPS: " + previousTtmEps.toPlainString());
+
+        int score;
+        String explanation;
+        StringBuilder detailedExplanation = new StringBuilder();
+        detailedExplanation.append("Current TTM EPS: ").append(currentTtmEps.toPlainString()).append(". ");
+
+        if (currentTtmEps.compareTo(BigDecimal.ZERO) < 0) { // Negative EPS
+            score = 0;
+            explanation = "EPS is Negative, indicating a potential 'Cash Burner'.";
+        } else {
+            // EPS is positive, now check for growth
+            if (previousTtmEps.compareTo(BigDecimal.ZERO) <= 0) { // Previous TTM EPS was zero or negative
+                if (currentTtmEps.compareTo(BigDecimal.ZERO) > 0) {
+                    score = 1;
+                    explanation = "EPS is Positive, but previous TTM EPS was zero or negative, so growth cannot be reliably assessed as 'Growing Fast'.";
+                } else { // Should not happen given outer if, but for completeness
+                    score = 0;
+                    explanation = "EPS is Negative, indicating a potential 'Cash Burner'.";
+                }
+            } else {
+                BigDecimal growthThreshold = BigDecimal.valueOf(1.15); // 15% higher
+
+                if (currentTtmEps.compareTo(previousTtmEps.multiply(growthThreshold)) >= 0) { // Current is >= 15% higher than previous
+                    score = 3;
+                    BigDecimal growthPercentage = currentTtmEps.subtract(previousTtmEps)
+                            .divide(previousTtmEps, 4, BigDecimal.ROUND_HALF_UP)
+                            .multiply(BigDecimal.valueOf(100));
+                    detailedExplanation.append("YoY Growth: ").append(growthPercentage.toPlainString()).append("%. ");
+                    explanation = "EPS is Positive and growing fast (Current TTM is " + growthPercentage.toPlainString() + "% higher than Previous TTM), indicating strong performance.";
+                } else {
+                    score = 2; // Changed from 1 to 2 as per user's clarification
+                    BigDecimal growthPercentage = currentTtmEps.subtract(previousTtmEps)
+                            .divide(previousTtmEps, 4, BigDecimal.ROUND_HALF_UP)
+                            .multiply(BigDecimal.valueOf(100));
+                    detailedExplanation.append("YoY Growth: ").append(growthPercentage.toPlainString()).append("%. ");
+                    explanation = "EPS is Positive, but not growing fast (Current TTM is " + growthPercentage.toPlainString() + "% higher than Previous TTM), indicating stable performance.";
+                }
+            }
+        }
+        sendSseEvent(sseEmitter, "EPS calculation complete. Score: " + score);
+        return new FerolReportItem("earningsPerShare", score, detailedExplanation.toString() + explanation);
     }
 }
