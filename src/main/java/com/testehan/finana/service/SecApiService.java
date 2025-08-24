@@ -32,8 +32,8 @@ public class SecApiService {
     private static final Map<String, SectionConfig<TenQFilings>> TEN_Q_SECTIONS = new java.util.HashMap<>();
 
     static {
-        TEN_K_SECTIONS.put("risk_factors", new SectionConfig<>("1A", TenKFilings::getRiskFactors, TenKFilings::setRiskFactors, 6));
-        TEN_K_SECTIONS.put("management_discussion", new SectionConfig<>("7", TenKFilings::getManagementDiscussion, TenKFilings::setManagementDiscussion, 6));
+        TEN_K_SECTIONS.put("risk_factors", new SectionConfig<>("1A", TenKFilings::getRiskFactors, TenKFilings::setRiskFactors, 12));
+        TEN_K_SECTIONS.put("management_discussion", new SectionConfig<>("7", TenKFilings::getManagementDiscussion, TenKFilings::setManagementDiscussion, 12));
         TEN_K_SECTIONS.put("business_description", new SectionConfig<>("1", TenKFilings::getBusinessDescription, TenKFilings::setBusinessDescription, 12));
 
         TEN_Q_SECTIONS.put("risk_factors", new SectionConfig<>("part2item1a", TenQFilings::getRiskFactors, TenQFilings::setRiskFactors, 0, 60));
