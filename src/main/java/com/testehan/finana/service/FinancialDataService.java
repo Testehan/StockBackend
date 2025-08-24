@@ -96,7 +96,7 @@ public class FinancialDataService {
     public Mono<StockQuotes> getGlobalQuote(String symbol) {
         return Mono.defer(() -> {
             Optional<StockQuotes> stockQuotesFromDb = stockQuotesRepository.findBySymbol(symbol.toUpperCase());
-            if (stockQuotesFromDb.isPresent() && isRecent(stockQuotesFromDb.get().getLastUpdated(), 10)) {
+            if (stockQuotesFromDb.isPresent() && isRecent(stockQuotesFromDb.get().getLastUpdated(), 1000)) {
                 return Mono.just(stockQuotesFromDb.get());
             } else {
                 return alphaVantageService.fetchGlobalQuoteFromApi(symbol.toUpperCase())

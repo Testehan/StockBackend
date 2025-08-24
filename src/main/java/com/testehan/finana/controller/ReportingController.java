@@ -1,13 +1,13 @@
 package com.testehan.finana.controller;
 
-import com.testehan.finana.model.FerolReport;
 import com.testehan.finana.service.reporting.FerolService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import reactor.core.publisher.Mono;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @RestController
 @RequestMapping("/stocks/reporting")
@@ -20,8 +20,8 @@ public class ReportingController {
         this.ferolService = ferolService;
     }
 
-    @GetMapping("/ferol/{ticker}")
-    public Mono<FerolReport> getFerolReport(@PathVariable String ticker) {
-        return Mono.just(ferolService.getFerolReport(ticker.toUpperCase()));
+    @GetMapping(value = "/ferol/{ticker}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter getFerolReport(@PathVariable String ticker) {
+        return ferolService.getFerolReport(ticker.toUpperCase());
     }
 }
