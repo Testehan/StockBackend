@@ -16,10 +16,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -56,17 +53,46 @@ public class FerolService {
         return new BigDecimal(value);
     }
 
-    public FerolLlmResponse getFerolReport(String ticker) {
+    public FerolReport getFerolReport(String ticker) {
         financialDataService.ensureFinancialDataIsPresent(ticker);
 
+        Optional<IncomeStatementData> incomeStatementData = incomeStatementRepository.findBySymbol(ticker);
+        Optional<BalanceSheetData> balanceSheetData = balanceSheetRepository.findBySymbol(ticker);
+
+        FerolReportItem financialResilience = calculateFinancialResilience(ticker, incomeStatementData, balanceSheetData);
+
+        List<FerolReportItem> ferolReportItems = new ArrayList<>();
+        ferolReportItems.add(financialResilience);
+
+        return buildAndSaveReport(ticker, ferolReportItems);
+    }
+
+    private FerolReport buildAndSaveReport(String ticker, List<FerolReportItem> ferolReportItems) {
+        GeneratedReport generatedReport = generatedReportRepository.findBySymbol(ticker).orElse(new GeneratedReport());
+        if (generatedReport.getSymbol()==null) {
+            generatedReport.setSymbol(ticker);
+        }
+
+        FerolReport ferolReport = generatedReport.getFerolReport();
+        if (ferolReport == null) {
+            ferolReport = new FerolReport();
+        }
+        ferolReport.setItems(ferolReportItems);
+        generatedReport.setFerolReport(ferolReport);
+
+        generatedReportRepository.save(generatedReport);
+
+        return ferolReport;
+    }
+
+    private FerolReportItem calculateFinancialResilience(String ticker, Optional<IncomeStatementData> incomeStatementData, Optional<BalanceSheetData> balanceSheetData) {
         final BigDecimal[] totalCashAndEquivalents = {BigDecimal.ZERO};
         final BigDecimal[] totalDebt = {BigDecimal.ZERO};
         final BigDecimal[] ttmEbitda = {BigDecimal.ZERO};
         final BigDecimal[] ttmInterestExpense = {BigDecimal.ZERO};
 
-        // Fetch BalanceSheetData for the most recent quarter
-        balanceSheetRepository.findBySymbol(ticker).ifPresent(balanceSheetData -> {
-            balanceSheetData.getQuarterlyReports().stream()
+        balanceSheetData.ifPresent(balance -> {
+            balance.getQuarterlyReports().stream()
                     .max(Comparator.comparing(report -> ((BalanceSheetReport) report).getFiscalDateEnding()))
                     .ifPresent(latestBalanceSheet -> {
                         totalCashAndEquivalents[0] = safeParseBigDecimal(latestBalanceSheet.getCashAndCashEquivalentsAtCarryingValue())
@@ -77,9 +103,8 @@ public class FerolService {
                     });
         });
 
-        // Fetch IncomeStatementData for the trailing 12 months
-        incomeStatementRepository.findBySymbol(ticker).ifPresent(incomeStatementData -> {
-            List<IncomeReport> quarterlyReports = incomeStatementData.getQuarterlyReports().stream()
+        incomeStatementData.ifPresent(income -> {
+            List<IncomeReport> quarterlyReports = income.getQuarterlyReports().stream()
                     .sorted(Comparator.comparing(report -> ((IncomeReport) report).getFiscalDateEnding()).reversed())
                     .limit(4)
                     .collect(Collectors.toList());
@@ -109,20 +134,8 @@ public class FerolService {
 
         LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
         String llmResponse = llmService.callLlm(prompt);
-        FerolLlmResponse ferolLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
+        FerolLlmResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
 
-        GeneratedReport generatedReport = new GeneratedReport();
-        generatedReport.setSymbol(ticker);
-        FerolReport ferolReport = new FerolReport();
-        FerolReportItem ferolReportItem = new FerolReportItem();
-        ferolReportItem.setName("financialResilience");
-        ferolReportItem.setScore(ferolLlmResponse.getScore());
-        ferolReportItem.setExplanation(ferolLlmResponse.getExplanation());
-        ferolReport.getItems().add(ferolReportItem);
-        generatedReport.setFerolReport(ferolReport);
-
-        generatedReportRepository.save(generatedReport);
-
-        return ferolLlmResponse;
+        return new FerolReportItem("financialResilience", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
     }
 }

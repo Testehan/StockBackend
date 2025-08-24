@@ -1,6 +1,6 @@
 package com.testehan.finana.controller;
 
-import com.testehan.finana.model.FerolLlmResponse;
+import com.testehan.finana.model.FerolReport;
 import com.testehan.finana.service.reporting.FerolService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,7 +21,7 @@ public class ReportingController {
     }
 
     @GetMapping("/ferol/{ticker}")
-    public Mono<FerolLlmResponse> getFerolReport(@PathVariable String ticker) {
+    public Mono<FerolReport> getFerolReport(@PathVariable String ticker) {
         return Mono.just(ferolService.getFerolReport(ticker.toUpperCase()));
     }
 }
