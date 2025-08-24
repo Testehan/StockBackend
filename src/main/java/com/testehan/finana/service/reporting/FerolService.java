@@ -1,12 +1,11 @@
 package com.testehan.finana.service.reporting;
 
-import com.testehan.finana.model.BalanceSheetReport;
-import com.testehan.finana.model.FerolLlmResponse;
-import com.testehan.finana.model.IncomeReport;
+import com.testehan.finana.model.*;
 import com.testehan.finana.repository.BalanceSheetRepository;
+import com.testehan.finana.repository.GeneratedReportRepository;
 import com.testehan.finana.repository.IncomeStatementRepository;
+import com.testehan.finana.service.FinancialDataService;
 import com.testehan.finana.service.LlmService;
-import com.testehan.finana.util.FinancialRatiosCalculator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.prompt.Prompt;
@@ -30,8 +29,9 @@ public class FerolService {
 
     private final BalanceSheetRepository balanceSheetRepository;
     private final IncomeStatementRepository incomeStatementRepository;
-    private final FinancialRatiosCalculator financialRatiosCalculator;
     private final LlmService llmService;
+    private final GeneratedReportRepository generatedReportRepository;
+    private final FinancialDataService financialDataService;
 
     @Value("classpath:financial_resilience_prompt.txt")
     private Resource financialResiliencePrompt;
@@ -39,12 +39,14 @@ public class FerolService {
 
     public FerolService(BalanceSheetRepository balanceSheetRepository,
                         IncomeStatementRepository incomeStatementRepository,
-                        FinancialRatiosCalculator financialRatiosCalculator,
-                        LlmService llmService){
+                        LlmService llmService,
+                        GeneratedReportRepository generatedReportRepository,
+                        FinancialDataService financialDataService) {
         this.balanceSheetRepository = balanceSheetRepository;
         this.incomeStatementRepository = incomeStatementRepository;
-        this.financialRatiosCalculator = financialRatiosCalculator;
         this.llmService = llmService;
+        this.generatedReportRepository = generatedReportRepository;
+        this.financialDataService = financialDataService;
     }
 
     private BigDecimal safeParseBigDecimal(String value) {
@@ -54,7 +56,9 @@ public class FerolService {
         return new BigDecimal(value);
     }
 
-    public FerolLlmResponse financialResilience(String ticker) {
+    public FerolLlmResponse getFerolReport(String ticker) {
+        financialDataService.ensureFinancialDataIsPresent(ticker);
+
         final BigDecimal[] totalCashAndEquivalents = {BigDecimal.ZERO};
         final BigDecimal[] totalDebt = {BigDecimal.ZERO};
         final BigDecimal[] ttmEbitda = {BigDecimal.ZERO};
@@ -105,7 +109,20 @@ public class FerolService {
 
         LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
         String llmResponse = llmService.callLlm(prompt);
+        FerolLlmResponse ferolLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
 
-        return ferolLlmResponseOutputConverter.convert(llmResponse);
+        GeneratedReport generatedReport = new GeneratedReport();
+        generatedReport.setSymbol(ticker);
+        FerolReport ferolReport = new FerolReport();
+        FerolReportItem ferolReportItem = new FerolReportItem();
+        ferolReportItem.setName("financialResilience");
+        ferolReportItem.setScore(ferolLlmResponse.getScore());
+        ferolReportItem.setExplanation(ferolLlmResponse.getExplanation());
+        ferolReport.getItems().add(ferolReportItem);
+        generatedReport.setFerolReport(ferolReport);
+
+        generatedReportRepository.save(generatedReport);
+
+        return ferolLlmResponse;
     }
 }

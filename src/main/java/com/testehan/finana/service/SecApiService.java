@@ -142,7 +142,11 @@ public class SecApiService {
 
     private <T> Mono<String> getSection(SectionRequest<T> request) {
 
-        SecFiling secFiling = secFilingRepository.findById(request.getTicker()).orElse(new SecFiling());
+        SecFiling secFiling = secFilingRepository.findById(request.getTicker()).orElseGet(() -> {
+            SecFiling newFiling = new SecFiling();
+            newFiling.setSymbol(request.getTicker());
+            return newFiling;
+        });
 
         if (request.getGetFilings().apply(secFiling) != null && !request.getGetFilings().apply(secFiling).isEmpty()) {
             T latestInDb = request.getGetFilings().apply(secFiling).stream()
@@ -169,10 +173,18 @@ public class SecApiService {
         }
 
         return getLatestFiling(request.getTicker(), request.getFormType())
+                .doOnNext(filing -> LOGGER.info("Found latest filing: {}", filing))
+                .switchIfEmpty(Mono.defer(() -> {
+                    LOGGER.warn("No latest filing found for ticker: {}", request.getTicker());
+                    return Mono.empty();
+                }))
                 .flatMap(latestFilingFromApi -> {
                     String url = latestFilingFromApi.getLinkToFilingDetails() != null ? latestFilingFromApi.getLinkToFilingDetails() : latestFilingFromApi.getFilingUrl();
-                    SecFiling secFilingToSave = secFilingRepository.findById(request.getTicker()).orElse(new SecFiling());
-                    secFilingToSave.setSymbol(request.getTicker());
+                    SecFiling secFilingToSave = secFilingRepository.findById(request.getTicker()).orElseGet(() -> {
+                        SecFiling newFiling = new SecFiling();
+                        newFiling.setSymbol(request.getTicker());
+                        return newFiling;
+                    });
                     if (request.getGetFilings().apply(secFilingToSave) == null) {
                         request.getSetFilings().accept(secFilingToSave, new java.util.ArrayList<>());
                     }
@@ -193,6 +205,7 @@ public class SecApiService {
                                     request.getGetFilings().apply(secFilingToSave).add(filingToSave);
                                 }
                                 request.getSetSectionInFiling().accept(filingToSave, section);
+                                LOGGER.info("Saving SecFiling for ticker: {}", secFilingToSave.getSymbol());
                                 secFilingRepository.save(secFilingToSave);
                                 return Mono.just(section);
                             });
@@ -234,6 +247,7 @@ public class SecApiService {
     }
 
     private Mono<String> extractSection(String filingUrl, String item) {
+        LOGGER.info("Extracting section {} from URL {}", item, filingUrl);
         return webClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/extractor")
                         .queryParam("url", filingUrl)
@@ -242,7 +256,12 @@ public class SecApiService {
                         .queryParam("token", apiKey)
                         .build())
                 .retrieve()
-                .bodyToMono(String.class);
+                .bodyToMono(String.class)
+                .doOnNext(section -> LOGGER.info("Extracted section {} content (first 50 chars): {}", item, section.substring(0, Math.min(50, section.length()))))
+                .switchIfEmpty(Mono.defer(() -> {
+                    LOGGER.warn("No content extracted for section {} from URL {}", item, filingUrl);
+                    return Mono.empty();
+                }));
     }
 
 

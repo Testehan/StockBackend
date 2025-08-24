@@ -2,7 +2,6 @@ package com.testehan.finana.service;
 
 import com.testehan.finana.model.*;
 import com.testehan.finana.repository.*;
-import com.testehan.finana.util.FinancialRatiosCalculator;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
@@ -22,13 +21,14 @@ public class FinancialDataService {
     private final SharesOutstandingRepository sharesOutstandingRepository;
     private final EarningsHistoryRepository earningsHistoryRepository;
     private final StockQuotesRepository stockQuotesRepository;
+    private final SecApiService secApiService;
 
 
 
     private final CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository;
 
 
-    public FinancialDataService(AlphaVantageService alphaVantageService, IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository, CashFlowRepository cashFlowRepository, SharesOutstandingRepository sharesOutstandingRepository, FinancialRatiosRepository financialRatiosRepository, FinancialRatiosCalculator financialRatiosCalculator, CompanyOverviewRepository companyOverviewRepository, EarningsHistoryRepository earningsHistoryRepository, StockQuotesRepository stockQuotesRepository, CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository) {
+    public FinancialDataService(AlphaVantageService alphaVantageService, IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository, CashFlowRepository cashFlowRepository, SharesOutstandingRepository sharesOutstandingRepository, CompanyOverviewRepository companyOverviewRepository, EarningsHistoryRepository earningsHistoryRepository, StockQuotesRepository stockQuotesRepository, CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository, SecApiService secApiService) {
         this.alphaVantageService = alphaVantageService;
         this.incomeStatementRepository = incomeStatementRepository;
         this.balanceSheetRepository = balanceSheetRepository;
@@ -38,6 +38,25 @@ public class FinancialDataService {
         this.earningsHistoryRepository = earningsHistoryRepository;
         this.stockQuotesRepository = stockQuotesRepository;
         this.companyEarningsTranscriptsRepository = companyEarningsTranscriptsRepository;
+        this.secApiService = secApiService;
+    }
+
+    public void ensureFinancialDataIsPresent(String ticker) {
+        getGlobalQuote(ticker).block();
+        getIncomeStatements(ticker).block();
+        getBalanceSheet(ticker).block();
+        getCashFlow(ticker).block();
+        CompanyOverview companyOverview = getCompanyOverview(ticker).block();
+
+        if (companyOverview != null && companyOverview.getLatestQuarter() != null) {
+            getEarningsCallTranscript(ticker, companyOverview.getLatestQuarter()).block();
+        }
+
+        secApiService.getSectionFrom10K(ticker, "risk_factors").block();
+        secApiService.getSectionFrom10K(ticker, "management_discussion").block();
+        secApiService.getSectionFrom10K(ticker, "business_description").block();
+        secApiService.getSectionFrom10Q(ticker, "risk_factors").block();
+        secApiService.getSectionFrom10Q(ticker, "management_discussion").block();
     }
 
     public Mono<QuarterlyEarningsTranscript> getEarningsCallTranscript(String symbol, String quarter) {

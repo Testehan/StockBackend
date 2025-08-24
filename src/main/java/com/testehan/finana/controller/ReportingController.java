@@ -22,6 +22,6 @@ public class ReportingController {
 
     @GetMapping("/ferol/{ticker}")
     public Mono<FerolLlmResponse> getFerolReport(@PathVariable String ticker) {
-        return Mono.just(ferolService.financialResilience(ticker.toUpperCase()));
+        return Mono.just(ferolService.getFerolReport(ticker.toUpperCase()));
     }
 }
