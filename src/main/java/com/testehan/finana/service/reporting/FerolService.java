@@ -234,6 +234,15 @@ public class FerolService {
         }
     }
 
+    private void sendSseErrorEvent(SseEmitter sseEmitter, String message) {
+        try {
+            sseEmitter.send(SseEmitter.event().name("ERROR").data(message));
+            LOGGER.error("SSE Error Event sent: {}", message);
+        } catch (Exception e) {
+            LOGGER.error("Error sending SSE error event: {}", e.getMessage());
+        }
+    }
+
     private FerolReport buildAndSaveReport(String ticker, List<FerolReportItem> ferolReportItems) {
         GeneratedReport generatedReport = generatedReportRepository.findBySymbol(ticker).orElse(new GeneratedReport());
         if (generatedReport.getSymbol()==null) {
@@ -300,13 +309,20 @@ public class FerolService {
         promptParameters.put("format", ferolLlmResponseOutputConverter.getFormat());
         Prompt prompt = promptTemplate.create(promptParameters);
 
-        sendSseEvent(sseEmitter, "Sending data to LLM for resilience analysis...");
-        LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
-        String llmResponse = llmService.callLlm(prompt);
-        sendSseEvent(sseEmitter, "Received LLM response for resilience analysis.");
-        FerolLlmResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
+        try {
+            sendSseEvent(sseEmitter, "Sending data to LLM for resilience analysis...");
+            LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
+            String llmResponse = llmService.callLlm(prompt);
+            sendSseEvent(sseEmitter, "Received LLM response for resilience analysis.");
+            FerolLlmResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
 
-        return new FerolReportItem("financialResilience", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
+            return new FerolReportItem("financialResilience", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
+        } catch (Exception e) {
+            String errorMessage = "Operation 'calculateFinancialResilience' failed.";
+            LOGGER.error(errorMessage, e);
+            sendSseErrorEvent(sseEmitter, errorMessage);
+            throw new RuntimeException(errorMessage, e);
+        }
     }
 
     private FerolMoatAnalysisLlmResponse calculateMoats(String ticker,  Optional<SecFiling> secFilingData, Optional<CompanyOverview> companyOverview, SseEmitter sseEmitter) {
@@ -338,13 +354,20 @@ public class FerolService {
         promptParameters.put("format", ferolLlmResponseOutputConverter.getFormat());
         Prompt prompt = promptTemplate.create(promptParameters);
 
-        sendSseEvent(sseEmitter, "Sending data to LLM for moat analysis...");
-        LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
-        String llmResponse = llmService.callLlm(prompt);
-        sendSseEvent(sseEmitter, "Received LLM response for moat analysis.");
-        FerolMoatAnalysisLlmResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
+        try {
+            sendSseEvent(sseEmitter, "Sending data to LLM for moat analysis...");
+            LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
+            String llmResponse = llmService.callLlm(prompt);
+            sendSseEvent(sseEmitter, "Received LLM response for moat analysis.");
+            FerolMoatAnalysisLlmResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
 
-        return convertedLlmResponse;
+            return convertedLlmResponse;
+        } catch (Exception e) {
+            String errorMessage = "Operation 'calculateMoats' failed.";
+            LOGGER.error(errorMessage, e);
+            sendSseErrorEvent(sseEmitter, errorMessage);
+            throw new RuntimeException(errorMessage, e);
+        }
     }
 
     private FerolReportItem calculateGrossMargin(String ticker, SseEmitter sseEmitter) {
@@ -778,14 +801,20 @@ public class FerolService {
         promptParameters.put("format", ferolLlmResponseOutputConverter.getFormat());
         Prompt prompt = promptTemplate.create(promptParameters);
 
-        sendSseEvent(sseEmitter, "Sending data to LLM for optionality analysis...");
-        LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
-        String llmResponse = llmService.callLlm(prompt);
-        sendSseEvent(sseEmitter, "Received LLM response for optionality analysis.");
-        FerolLlmResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
+        try {
+            sendSseEvent(sseEmitter, "Sending data to LLM for optionality analysis...");
+            LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
+            String llmResponse = llmService.callLlm(prompt);
+            sendSseEvent(sseEmitter, "Received LLM response for optionality analysis.");
+            FerolLlmResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
 
-        return new FerolReportItem("optionality", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
-
+            return new FerolReportItem("optionality", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
+        } catch (Exception e) {
+            String errorMessage = "Operation 'calculateOptionality' failed.";
+            LOGGER.error(errorMessage, e);
+            sendSseErrorEvent(sseEmitter, errorMessage);
+            throw new RuntimeException(errorMessage, e);
+        }
     }
 
 
@@ -825,14 +854,20 @@ public class FerolService {
         promptParameters.put("format", ferolLlmResponseOutputConverter.getFormat());
         Prompt prompt = promptTemplate.create(promptParameters);
 
-        sendSseEvent(sseEmitter, "Sending data to LLM for organic growth runaway analysis...");
-        LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
-        String llmResponse = llmService.callLlm(prompt);
-        sendSseEvent(sseEmitter, "Received LLM response for organic growth runaway analysis.");
-        FerolLlmResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
+        try {
+            sendSseEvent(sseEmitter, "Sending data to LLM for organic growth runaway analysis...");
+            LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
+            String llmResponse = llmService.callLlm(prompt);
+            sendSseEvent(sseEmitter, "Received LLM response for organic growth runaway analysis.");
+            FerolLlmResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
 
-        return new FerolReportItem("organicGrowthRunway", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
-
+            return new FerolReportItem("organicGrowthRunway", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
+        } catch (Exception e) {
+            String errorMessage = "Operation 'calculateOrganicGrowthRunaway' failed.";
+            LOGGER.error(errorMessage, e);
+            sendSseErrorEvent(sseEmitter, errorMessage);
+            throw new RuntimeException(errorMessage, e);
+        }
     }
 
     private BigDecimal calculateRevenueCAGRPerShare(String ticker) {
