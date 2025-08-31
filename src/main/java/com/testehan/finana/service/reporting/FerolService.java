@@ -19,6 +19,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.time.LocalDateTime;
 import java.util.concurrent.CompletableFuture;
 import java.math.BigDecimal;
 import java.util.*;
@@ -188,6 +189,7 @@ public class FerolService {
             ferolReport = new FerolReport();
         }
         ferolReport.setItems(ferolReportItems);
+        ferolReport.setGeneratedAt(LocalDateTime.now());
         generatedReport.setFerolReport(ferolReport);
 
         generatedReportRepository.save(generatedReport);
