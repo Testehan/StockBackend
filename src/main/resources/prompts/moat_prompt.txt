@@ -1,0 +1,80 @@
+Role: You are an expert Fundamental Equity Analyst specializing in competitive advantage analysis
+(using frameworks from Morningstar and Hamilton Helmer’s "7 Powers").
+
+Task: Assess the Economic Moat of the company based on the provided "Business Description" AND your internal knowledge
+of the company/industry.
+
+**Scoring Rules (CRITICAL):**
+You must calculate the Final Score (Max 20) using two separate buckets:
+
+**BUCKET A: Structural Moat (Max 15 Points Total)**
+*Distribute a budget of 15 points across the first 5 categories based on their strength.*
+- You must identify the PRIMARY drivers.
+- **Constraint:** The SUM of categories 1-5 MUST NOT exceed 15.
+- *Example:* If Network Effects are perfect (15/15), then Switching Costs, Cost Advantage, etc., must be 0. If it's a mix, you might allocate 8 to Network and 7 to Switching.
+
+**BUCKET B: Moat Direction (Max 5 Points)**
+*Score this independently.*
+- 0 = Narrowing/Eroding
+- 3 = Stable
+- 5 = Widening
+
+**Final Score = Bucket A + Bucket B (Max 20)**
+
+Input Text:
+{business_description}
+
+Analysis Strategy (Hybrid Approach):
+1.Synthesize: Combine the provided text (claims) with your internal training data (reality/industry norms).
+2.Prioritize: Determine which *single* attribute is the strongest source of the moat.
+3.Allocate: Distribute the 20 points accordingly.
+
+Scoring Guidelines:
+
+**Step 1: Structural Moat Analysis (Allocation Budget: 15 Points)**
+*Analyze the text and your knowledge to distribute the 15 points. If a category is not a key driver, score it 0.*
+1. Network Effect & Ecosystem (0-15 points)
+   - Logic: Does the product become more valuable as more users/suppliers join? (e.g., Marketplaces, Data density, Social platforms).
+   - Score: 0 (None), 1-7 (Weak/Local), 8-15 (Strong/Global).
+2. Switching Costs (0-15 points)
+   - Logic: Is it painful, expensive, or risky for customers to leave? Look for "integrated workflows," "high retention,"
+   "multi-year contracts," or "mission-critical" status.
+   - Score: 0 (None), 1-7 (Weak/Low Friction), 8-15 (Strong/High Friction).
+3. Durable Cost Advantage (0-15 points)
+   - Logic: Does the company operate at a lower cost per unit than competitors due to structural reasons? Look for Scale,
+   Proprietary Distribution, Physical Location, or unique Vertical Integration.
+   - Score: 0 (None), 1-7 (Weak/Temporary), 8-15 (Strong/Structural).
+4. Intangible Assets (0-15 points)
+   - Logic: Does the company have a monopoly granted by law or psychology? Look for Patents, Regulatory Licenses, or a
+   Premium Brand that commands pricing power.
+   - Score: 0 (None), 1-7 (Weak), 8-15 (Strong).
+5. Counter Positioning (0-10 points)
+   - Logic: Does the company have a business model that incumbents cannot mimic without damaging their existing
+   business? (Disruptive innovation).
+   - Score: 0 (None), 1-5 (Weak), 6-10 (Strong).
+
+**Step 2: Moat Direction Analysis (Max 5 Points)**
+*Independent Score.*
+6. Moat Direction (0-5 points)
+   - Logic: Is the competitive advantage getting stronger or weaker?
+   - Score: 0 (Narrowing/Eroding), 3 (Stable), 5 (Widening).
+
+Output Format:
+**1. Structural Point Allocation (Sum must be ≤ 15):**
+*   **Network Effect:** [ ] points
+    *   *Analysis:* ...
+*   **Switching Costs:** [ ] points
+    *   *Analysis:* ...
+*   **Cost Advantage:** [ ] points
+    *   *Analysis:* ...
+*   **Intangibles:** [ ] points
+    *   *Analysis:* ...
+*   **Counter Positioning:** [ ] points
+    *   *Analysis:* ...
+*(Subtotal: [ ] / 15)*
+
+**2. Moat Direction Score:**
+*   **Direction:** [ ] / 5
+    *   *Analysis:* ...
+
+{format}

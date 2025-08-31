@@ -1,4 +1,4 @@
-package com.testehan.finana.model;
+package com.testehan.finana.model.llm.responses;
 
 import lombok.Data;
 

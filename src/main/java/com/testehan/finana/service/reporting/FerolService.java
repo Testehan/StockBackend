@@ -1,11 +1,9 @@
 package com.testehan.finana.service.reporting;
 
 import com.testehan.finana.model.*;
-import com.testehan.finana.repository.BalanceSheetRepository;
-import com.testehan.finana.repository.GeneratedReportRepository;
-import com.testehan.finana.repository.IncomeStatementRepository;
-import com.testehan.finana.repository.FinancialRatiosRepository;
-import com.testehan.finana.repository.EarningsHistoryRepository;
+import com.testehan.finana.model.llm.responses.FerolLlmResponse;
+import com.testehan.finana.model.llm.responses.FerolMoatAnalysisLlmResponse;
+import com.testehan.finana.repository.*;
 import com.testehan.finana.service.FinancialDataService;
 import com.testehan.finana.service.LlmService;
 import org.slf4j.Logger;
@@ -19,10 +17,10 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import java.time.LocalDateTime;
-import java.util.concurrent.CompletableFuture;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 @Service
@@ -37,9 +35,14 @@ public class FerolService {
     private final FinancialDataService financialDataService;
     private final FinancialRatiosRepository financialRatiosRepository;
     private final EarningsHistoryRepository earningsHistoryRepository;
+    private final SecFilingRepository secFilingRepository;
+    private final CompanyOverviewRepository companyOverviewRepository;
 
-    @Value("classpath:financial_resilience_prompt.txt")
+    @Value("classpath:/prompts/financial_resilience_prompt.txt")
     private Resource financialResiliencePrompt;
+
+    @Value("classpath:/prompts/moat_prompt.txt")
+    private Resource moatPrompt;
 
 
     public FerolService(BalanceSheetRepository balanceSheetRepository,
@@ -48,7 +51,7 @@ public class FerolService {
                         GeneratedReportRepository generatedReportRepository,
                         FinancialDataService financialDataService,
                         FinancialRatiosRepository financialRatiosRepository,
-                        EarningsHistoryRepository earningsHistoryRepository) {
+                        EarningsHistoryRepository earningsHistoryRepository, SecFilingRepository secFilingRepository, CompanyOverviewRepository companyOverviewRepository) {
         this.balanceSheetRepository = balanceSheetRepository;
         this.incomeStatementRepository = incomeStatementRepository;
         this.llmService = llmService;
@@ -56,6 +59,8 @@ public class FerolService {
         this.financialDataService = financialDataService;
         this.financialRatiosRepository = financialRatiosRepository;
         this.earningsHistoryRepository = earningsHistoryRepository;
+        this.secFilingRepository = secFilingRepository;
+        this.companyOverviewRepository = companyOverviewRepository;
     }
 
     private BigDecimal safeParseBigDecimal(String value) {
@@ -134,8 +139,17 @@ public class FerolService {
                     return item;
                 });
 
+                Optional<SecFiling> secFilingData = secFilingRepository.findBySymbol(ticker);
+                Optional<CompanyOverview> companyOverview = companyOverviewRepository.findBySymbol(ticker);
+                CompletableFuture<FerolMoatAnalysisLlmResponse> moatsFuture = CompletableFuture.supplyAsync(() -> {
+                    sendSseEvent(sseEmitter, "Thinking about moats...");
+                    FerolMoatAnalysisLlmResponse item = calculateMoats(ticker, secFilingData,companyOverview, sseEmitter);
+                    sendSseEvent(sseEmitter, "Moats analysis is complete.");
+                    return item;
+                });
+
                 // Wait for all futures to complete
-                CompletableFuture.allOf(financialResilienceFuture, grossMarginFuture, roicFuture, fcfFuture, epsFuture)
+                CompletableFuture.allOf(financialResilienceFuture, grossMarginFuture, roicFuture, fcfFuture, epsFuture, moatsFuture)
                         .join(); // Blocks until all complete or one fails
 
                 // Collect results
@@ -145,6 +159,14 @@ public class FerolService {
                 ferolReportItems.add(roicFuture.get());
                 ferolReportItems.add(fcfFuture.get());
                 ferolReportItems.add(epsFuture.get());
+
+                FerolMoatAnalysisLlmResponse moatAnalysis = moatsFuture.get();
+                ferolReportItems.add(new FerolReportItem("networkEffect",moatAnalysis.getNetworkEffectScore(), moatAnalysis.getNetworkEffectExplanation()));
+                ferolReportItems.add(new FerolReportItem("switchingCosts",moatAnalysis.getSwitchingCostsScore(), moatAnalysis.getSwitchingCostsExplanation()));
+                ferolReportItems.add(new FerolReportItem("durableCostAdvantage",moatAnalysis.getDurableCostAdvantageScore(), moatAnalysis.getDurableCostAdvantageExplanation()));
+                ferolReportItems.add(new FerolReportItem("intangibles",moatAnalysis.getIntangiblesScore(), moatAnalysis.getIntangiblesExplanation()));
+                ferolReportItems.add(new FerolReportItem("counterPositioning",moatAnalysis.getCounterPositioningScore(), moatAnalysis.getCounterPositioningExplanation()));
+                ferolReportItems.add(new FerolReportItem("moatDirection",moatAnalysis.getMoatDirectionScore(), moatAnalysis.getMoatDirectionExplanation()));
 
                 sendSseEvent(sseEmitter, "Building and saving FEROL report...");
                 FerolReport ferolReport = buildAndSaveReport(ticker, ferolReportItems);
@@ -251,6 +273,44 @@ public class FerolService {
         FerolLlmResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
 
         return new FerolReportItem("financialResilience", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
+    }
+
+    private FerolMoatAnalysisLlmResponse calculateMoats(String ticker,  Optional<SecFiling> secFilingData, Optional<CompanyOverview> companyOverview, SseEmitter sseEmitter) {
+
+        StringBuilder stringBuilder = new StringBuilder();
+
+        companyOverview.ifPresent( overview -> {
+            stringBuilder.append(overview.getName());
+            stringBuilder.append(overview.getDescription()).append("\n");
+        });
+
+        secFilingData.ifPresentOrElse(secData -> {
+            secData.getTenKFilings().stream().max(Comparator.comparing(tenKFiling -> tenKFiling.getFiledAt()))
+                    .ifPresent(latestTenKFiling -> {
+                        stringBuilder.append(latestTenKFiling.getBusinessDescription());
+                    });
+        }, () -> {
+            LOGGER.warn("No 10k found for ticker: {}", ticker);
+            sendSseEvent(sseEmitter, "No 10k available to get business description.");
+        });
+
+
+        PromptTemplate promptTemplate = new PromptTemplate(moatPrompt);
+        var ferolLlmResponseOutputConverter = new BeanOutputConverter<>(FerolMoatAnalysisLlmResponse.class);
+
+        Map<String, Object> promptParameters = new HashMap<>();
+        promptParameters.put("business_description", stringBuilder.toString());
+
+        promptParameters.put("format", ferolLlmResponseOutputConverter.getFormat());
+        Prompt prompt = promptTemplate.create(promptParameters);
+
+        sendSseEvent(sseEmitter, "Sending data to LLM for moat analysis...");
+        LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
+        String llmResponse = llmService.callLlm(prompt);
+        sendSseEvent(sseEmitter, "Received LLM response for moat analysis.");
+        FerolMoatAnalysisLlmResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
+
+        return convertedLlmResponse;
     }
 
     private FerolReportItem calculateGrossMargin(String ticker, SseEmitter sseEmitter) {
