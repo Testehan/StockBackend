@@ -14,13 +14,16 @@ public class AiConfig {
     @Value("${spring.ai.google.genai.api-key}")
     private String apiKey;
 
+    @Value("${spring.ai.google.genai.chat.options.model}")
+    private String modelName;
+
     @Bean
     @Primary
     public ChatModel googleGenAiChatModel() {
         return GoogleGenAiChatModel.builder()
                 .genAiClient(Client.builder().apiKey(apiKey).build())
                 .defaultOptions(GoogleGenAiChatOptions.builder()
-                        .model("gemini-2.5-pro") // gemini-2.0-flash-001
+                        .model(modelName)
                         .temperature(0.1)
                         .build())
                 .build();

@@ -19,7 +19,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
@@ -38,6 +40,7 @@ public class FerolService {
     private final EarningsHistoryRepository earningsHistoryRepository;
     private final SecFilingRepository secFilingRepository;
     private final CompanyOverviewRepository companyOverviewRepository;
+    private final SharesOutstandingRepository sharesOutstandingRepository;
     private final DateUtils dateUtils;
 
     @Value("classpath:/prompts/financial_resilience_prompt.txt")
@@ -49,13 +52,16 @@ public class FerolService {
     @Value("classpath:/prompts/optionality_prompt.txt")
     private Resource optionalityPrompt;
 
+    @Value("classpath:/prompts/organic_growth_runaway_prompt.txt")
+    private Resource organicGrowthPrompt;
+
     public FerolService(BalanceSheetRepository balanceSheetRepository,
                         IncomeStatementRepository incomeStatementRepository,
                         LlmService llmService,
                         GeneratedReportRepository generatedReportRepository,
                         FinancialDataService financialDataService,
                         FinancialRatiosRepository financialRatiosRepository,
-                        EarningsHistoryRepository earningsHistoryRepository, SecFilingRepository secFilingRepository, CompanyOverviewRepository companyOverviewRepository, CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository, DateUtils dateUtils) {
+                        EarningsHistoryRepository earningsHistoryRepository, SecFilingRepository secFilingRepository, CompanyOverviewRepository companyOverviewRepository, CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository, DateUtils dateUtils, SharesOutstandingRepository sharesOutstandingRepository) {
         this.balanceSheetRepository = balanceSheetRepository;
         this.incomeStatementRepository = incomeStatementRepository;
         this.llmService = llmService;
@@ -66,6 +72,7 @@ public class FerolService {
         this.secFilingRepository = secFilingRepository;
         this.companyOverviewRepository = companyOverviewRepository;
         this.dateUtils = dateUtils;
+        this.sharesOutstandingRepository = sharesOutstandingRepository;
     }
 
     private BigDecimal safeParseBigDecimal(String value) {
@@ -160,11 +167,18 @@ public class FerolService {
                     return item;
                 });
 
+                CompletableFuture<FerolReportItem> organicGrowthRunawayFuture = CompletableFuture.supplyAsync(() -> {
+                    sendSseEvent(sseEmitter, "Thinking about organic growth runaway...");
+                    FerolReportItem item = calculateOrganicGrowthRunaway(ticker, sseEmitter);
+                    sendSseEvent(sseEmitter, "Organic growth runaway analysis is complete.");
+                    return item;
+                });
+
                 // Wait for all futures to complete
                 CompletableFuture.allOf(
                         financialResilienceFuture, grossMarginFuture, roicFuture, fcfFuture, epsFuture,
                         moatsFuture,
-                        optionalityFuture)
+                        optionalityFuture, organicGrowthRunawayFuture)
                 .join(); // Blocks until all complete or one fails
 
                 // Financials
@@ -186,6 +200,7 @@ public class FerolService {
 
                 // Potential
                 ferolReportItems.add(optionalityFuture.get());
+                ferolReportItems.add(organicGrowthRunawayFuture.get());
 
                 sendSseEvent(sseEmitter, "Building and saving FEROL report...");
                 FerolReport ferolReport = buildAndSaveReport(ticker, ferolReportItems);
@@ -771,5 +786,167 @@ public class FerolService {
 
         return new FerolReportItem("optionality", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
 
+    }
+
+
+    private FerolReportItem calculateOrganicGrowthRunaway(String ticker, SseEmitter sseEmitter) {
+        Optional<CompanyOverview> companyOverview = companyOverviewRepository.findBySymbol(ticker);
+        Optional<SecFiling> secFilingData = secFilingRepository.findBySymbol(ticker);
+        Optional<FinancialRatiosData> financialRatios = financialRatiosRepository.findBySymbol(ticker);
+
+        BigDecimal revenueCAGRPerShare = calculateRevenueCAGRPerShare(ticker);
+        BigDecimal sustainableGrowthRate = calculateSustainableGrowthRate(ticker);
+
+        StringBuilder stringBuilder = new StringBuilder();
+
+        secFilingData.ifPresentOrElse(secData -> {
+            secData.getTenKFilings().stream().max(Comparator.comparing(tenKFiling -> tenKFiling.getFiledAt()))
+                    .ifPresent(latestTenKFiling -> {
+                        stringBuilder.append(latestTenKFiling.getManagementDiscussion());
+                    });
+        }, () -> {
+            LOGGER.warn("No 10k found for ticker: {}", ticker);
+            sendSseEvent(sseEmitter, "No 10k available to get management discussion.");
+        });
+
+        var latestQuarter = dateUtils.getDateQuarter(companyOverview.get());
+        var latestEarningsTranscript = financialDataService.getEarningsCallTranscript(ticker, latestQuarter).block().getTranscript().stream()
+                .map(t -> t.getSpeaker() + " (" + t.getTitle() + "): " + t.getContent() + " [" + t.getSentiment() + "]")
+                .collect(Collectors.joining("\n"));;
+
+        PromptTemplate promptTemplate = new PromptTemplate(organicGrowthPrompt);
+        var ferolLlmResponseOutputConverter = new BeanOutputConverter<>(FerolLlmResponse.class);
+
+        Map<String, Object> promptParameters = new HashMap<>();
+        promptParameters.put("management_discussion", stringBuilder.toString());
+        promptParameters.put("latest_earnings_transcript", latestEarningsTranscript);
+        promptParameters.put("revenue_cagr_share", revenueCAGRPerShare);
+        promptParameters.put("sustainable_growth_rate", sustainableGrowthRate);
+        promptParameters.put("format", ferolLlmResponseOutputConverter.getFormat());
+        Prompt prompt = promptTemplate.create(promptParameters);
+
+        sendSseEvent(sseEmitter, "Sending data to LLM for organic growth runaway analysis...");
+        LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
+        String llmResponse = llmService.callLlm(prompt);
+        sendSseEvent(sseEmitter, "Received LLM response for organic growth runaway analysis.");
+        FerolLlmResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
+
+        return new FerolReportItem("organicGrowthRunway", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
+
+    }
+
+    private BigDecimal calculateRevenueCAGRPerShare(String ticker) {
+        Optional<IncomeStatementData> incomeStatementDataOpt = incomeStatementRepository.findBySymbol(ticker);
+        Optional<SharesOutstandingData> sharesOutstandingDataOpt = sharesOutstandingRepository.findBySymbol(ticker);
+
+        if (incomeStatementDataOpt.isEmpty() || incomeStatementDataOpt.get().getAnnualReports() == null || incomeStatementDataOpt.get().getAnnualReports().size() < 4) {
+            LOGGER.warn("Not enough annual income reports for {}. Found {}.", ticker, incomeStatementDataOpt.map(d -> d.getAnnualReports().size()).orElse(0));
+            return BigDecimal.ZERO;
+        }
+        if (sharesOutstandingDataOpt.isEmpty() || sharesOutstandingDataOpt.get().getData() == null || sharesOutstandingDataOpt.get().getData().isEmpty()) {
+            LOGGER.warn("No shares outstanding data for {}", ticker);
+            return BigDecimal.ZERO;
+        }
+
+        List<IncomeReport> annualReports = incomeStatementDataOpt.get().getAnnualReports().stream()
+                .sorted(Comparator.comparing(IncomeReport::getFiscalDateEnding))
+                .collect(Collectors.toList());
+
+        List<SharesOutstandingReport> sharesOutstandingReports = sharesOutstandingDataOpt.get().getData();
+        sharesOutstandingReports.sort(Comparator.comparing(SharesOutstandingReport::getDate));
+
+        IncomeReport latestReport = annualReports.get(annualReports.size() - 1);
+        IncomeReport oldReport = annualReports.get(annualReports.size() - 4);
+
+        BigDecimal latestRevenue = safeParseBigDecimal(latestReport.getTotalRevenue());
+        BigDecimal oldRevenue = safeParseBigDecimal(oldReport.getTotalRevenue());
+
+        SharesOutstandingReport latestSharesReport = findClosestSharesOutstanding(sharesOutstandingReports, latestReport.getFiscalDateEnding());
+        SharesOutstandingReport oldSharesReport = findClosestSharesOutstanding(sharesOutstandingReports, oldReport.getFiscalDateEnding());
+
+        if (latestSharesReport == null || oldSharesReport == null) {
+            LOGGER.warn("Could not find matching shares outstanding data for the period for ticker: " + ticker);
+            return BigDecimal.ZERO;
+        }
+
+        BigDecimal latestShares = safeParseBigDecimal(latestSharesReport.getSharesOutstandingDiluted());
+        BigDecimal oldShares = safeParseBigDecimal(oldSharesReport.getSharesOutstandingDiluted());
+
+        if (latestShares.compareTo(BigDecimal.ZERO) == 0 || oldShares.compareTo(BigDecimal.ZERO) == 0) {
+            LOGGER.warn("Shares outstanding is zero, cannot calculate per share value for ticker: " + ticker);
+            return BigDecimal.ZERO;
+        }
+
+        BigDecimal latestRevenuePerShare = latestRevenue.divide(latestShares, 4, java.math.RoundingMode.HALF_UP);
+        BigDecimal oldRevenuePerShare = oldRevenue.divide(oldShares, 4, java.math.RoundingMode.HALF_UP);
+
+        if (oldRevenuePerShare.compareTo(BigDecimal.ZERO) <= 0) {
+            LOGGER.warn("Initial revenue per share was zero or negative, cannot calculate CAGR for ticker: " + ticker);
+            return BigDecimal.ZERO;
+        }
+
+        double ratio = latestRevenuePerShare.divide(oldRevenuePerShare, 4, java.math.RoundingMode.HALF_UP).doubleValue();
+        double cagr = Math.pow(ratio, 1.0 / 3.0) - 1.0;
+        return BigDecimal.valueOf(cagr * 100).setScale(2, java.math.RoundingMode.HALF_UP);
+    }
+
+    private SharesOutstandingReport findClosestSharesOutstanding(List<SharesOutstandingReport> reports, String dateString) {
+        try {
+            LocalDate targetDate = LocalDate.parse(dateString);
+            return reports.stream()
+                    .min(Comparator.comparing(report -> {
+                        try {
+                            LocalDate reportDate = LocalDate.parse(report.getDate());
+                            return Math.abs(ChronoUnit.DAYS.between(targetDate, reportDate));
+                        } catch (java.time.format.DateTimeParseException e) {
+                            return Long.MAX_VALUE;
+                        }
+                    }))
+                    .orElse(null);
+        } catch (java.time.format.DateTimeParseException e) {
+            LOGGER.warn("Could not parse date: " + dateString, e);
+            return null;
+        }
+    }
+
+    public BigDecimal calculateSustainableGrowthRate(String ticker) {
+        Optional<FinancialRatiosData> financialRatiosDataOpt = financialRatiosRepository.findBySymbol(ticker);
+
+        if (financialRatiosDataOpt.isEmpty() || financialRatiosDataOpt.get().getAnnualReports() == null || financialRatiosDataOpt.get().getAnnualReports().size() < 3) {
+            LOGGER.warn("Not enough annual financial ratios reports for SGR calculation for ticker: {}. Found {}.", ticker, financialRatiosDataOpt.map(d -> d.getAnnualReports().size()).orElse(0));
+            return BigDecimal.ZERO;
+        }
+
+        List<FinancialRatiosReport> annualReports = financialRatiosDataOpt.get().getAnnualReports().stream()
+                .sorted(Comparator.comparing(FinancialRatiosReport::getFiscalDateEnding).reversed())
+                .limit(3)
+                .collect(Collectors.toList());
+
+        if (annualReports.size() < 3) {
+            LOGGER.warn("Not enough annual financial ratios reports for SGR calculation for ticker: {}. Found {}.", ticker, annualReports.size());
+            return BigDecimal.ZERO;
+        }
+
+        List<BigDecimal> sgrValues = new ArrayList<>();
+        for (FinancialRatiosReport report : annualReports) {
+            BigDecimal roic = report.getRoic();
+            BigDecimal dividendPayoutRatio = report.getDividendPayoutRatio();
+
+            if (roic != null && dividendPayoutRatio != null) {
+                BigDecimal retentionRatio = BigDecimal.ONE.subtract(dividendPayoutRatio);
+                BigDecimal sgr = roic.multiply(retentionRatio);
+                sgrValues.add(sgr);
+            }
+        }
+
+        if (sgrValues.isEmpty()) {
+            LOGGER.warn("No SGR values could be calculated for ticker: {}", ticker);
+            return BigDecimal.ZERO;
+        }
+
+        BigDecimal sumSgr = sgrValues.stream().reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal avgSgr = sumSgr.divide(new BigDecimal(sgrValues.size()), 4, java.math.RoundingMode.HALF_UP);
+
+        return avgSgr.multiply(BigDecimal.valueOf(100)).setScale(2, java.math.RoundingMode.HALF_UP);
     }
 }
