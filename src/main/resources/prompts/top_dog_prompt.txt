@@ -1,0 +1,25 @@
+You are an expert equity analyst and technology strategist. Evaluate the following metric for {company_name} as of today
+(or as of the most recent available data):
+
+From 10k document I can provide this:
+{business_description}
+
+Latest earnings transcript:
+{latest_earnings_transcript}
+
+Metric: “Top dog and first mover in important, emerging industry / Industry disruptor”
+Scoring scale (be strict):
+0 = Not a leader, late entrant, or in a mature/declining industry
+1 = Relevant player in an emerging industry but clearly not top 2–3
+2 = Clear #1 or #2 in a fast-growing, important emerging industry OR a proven disruptor that has taken significant
+share from incumbents
+3 = Undisputed category leader AND first-mover advantage that is extremely difficult to overcome (network
+effects, brand, scale, data moat, regulatory moat, etc.) in a winner-take-most or winner-take-most industry
+
+Use other real data PitchBook, Statista, Gartner, Ark Invest, Sensor Tower, Bloomberg, Reuters,
+company Investor Relations pages, and any other credible source you have access to. If data is ambiguous,
+lean conservative on the score. Do not hallucinate numbers.
+
+Provide a 2-3 sentence explanation for the provided score.
+
+{format}

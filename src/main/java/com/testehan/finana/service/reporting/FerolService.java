@@ -55,6 +55,9 @@ public class FerolService {
     @Value("classpath:/prompts/organic_growth_runaway_prompt.txt")
     private Resource organicGrowthPrompt;
 
+    @Value("classpath:/prompts/top_dog_prompt.txt")
+    private Resource topDogPrompt;
+
     public FerolService(BalanceSheetRepository balanceSheetRepository,
                         IncomeStatementRepository incomeStatementRepository,
                         LlmService llmService,
@@ -174,11 +177,18 @@ public class FerolService {
                     return item;
                 });
 
+                CompletableFuture<FerolReportItem> topDogFuture = CompletableFuture.supplyAsync(() -> {
+                    sendSseEvent(sseEmitter, "Thinking about top dog or first mover...");
+                    FerolReportItem item = calculateTopDogOrFirstMover(ticker, sseEmitter);
+                    sendSseEvent(sseEmitter, "Top dog or first mover analysis is complete.");
+                    return item;
+                });
+
                 // Wait for all futures to complete
                 CompletableFuture.allOf(
                         financialResilienceFuture, grossMarginFuture, roicFuture, fcfFuture, epsFuture,
                         moatsFuture,
-                        optionalityFuture, organicGrowthRunawayFuture)
+                        optionalityFuture, organicGrowthRunawayFuture, topDogFuture)
                 .join(); // Blocks until all complete or one fails
 
                 // Financials
@@ -201,6 +211,7 @@ public class FerolService {
                 // Potential
                 ferolReportItems.add(optionalityFuture.get());
                 ferolReportItems.add(organicGrowthRunawayFuture.get());
+                ferolReportItems.add(topDogFuture.get());
 
                 sendSseEvent(sseEmitter, "Building and saving FEROL report...");
                 FerolReport ferolReport = buildAndSaveReport(ticker, ferolReportItems);
@@ -864,6 +875,52 @@ public class FerolService {
             return new FerolReportItem("organicGrowthRunway", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
         } catch (Exception e) {
             String errorMessage = "Operation 'calculateOrganicGrowthRunaway' failed.";
+            LOGGER.error(errorMessage, e);
+            sendSseErrorEvent(sseEmitter, errorMessage);
+            throw new RuntimeException(errorMessage, e);
+        }
+    }
+
+    private FerolReportItem calculateTopDogOrFirstMover(String ticker, SseEmitter sseEmitter) {
+        Optional<CompanyOverview> companyOverview = companyOverviewRepository.findBySymbol(ticker);
+        Optional<SecFiling> secFilingData = secFilingRepository.findBySymbol(ticker);
+        StringBuilder stringBuilder = new StringBuilder();
+
+        secFilingData.ifPresentOrElse(secData -> {
+            secData.getTenKFilings().stream().max(Comparator.comparing(tenKFiling -> tenKFiling.getFiledAt()))
+                    .ifPresent(latestTenKFiling -> {
+                        stringBuilder.append(latestTenKFiling.getBusinessDescription());
+                    });
+        }, () -> {
+            LOGGER.warn("No 10k found for ticker: {}", ticker);
+            sendSseEvent(sseEmitter, "No 10k available to get business description.");
+        });
+
+        var latestQuarter = dateUtils.getDateQuarter(companyOverview.get());
+        var latestEarningsTranscript = financialDataService.getEarningsCallTranscript(ticker, latestQuarter).block().getTranscript().stream()
+                .map(t -> t.getSpeaker() + " (" + t.getTitle() + "): " + t.getContent() + " [" + t.getSentiment() + "]")
+                .collect(Collectors.joining("\n"));;
+
+        PromptTemplate promptTemplate = new PromptTemplate(topDogPrompt);
+        var ferolLlmResponseOutputConverter = new BeanOutputConverter<>(FerolLlmResponse.class);
+
+        Map<String, Object> promptParameters = new HashMap<>();
+        promptParameters.put("company_name", companyOverview.get().getName());
+        promptParameters.put("business_description", stringBuilder.toString());
+        promptParameters.put("latest_earnings_transcript", latestEarningsTranscript);
+        promptParameters.put("format", ferolLlmResponseOutputConverter.getFormat());
+        Prompt prompt = promptTemplate.create(promptParameters);
+
+        try {
+            sendSseEvent(sseEmitter, "Sending data to LLM for top dog or first mover analysis...");
+            LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
+            String llmResponse = llmService.callLlm(prompt);
+            sendSseEvent(sseEmitter, "Received LLM response for top dog or first mover analysis.");
+            FerolLlmResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
+
+            return new FerolReportItem("topDogFirstMover", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
+        } catch (Exception e) {
+            String errorMessage = "Operation 'calculateTopDogOrFirstMover' failed.";
             LOGGER.error(errorMessage, e);
             sendSseErrorEvent(sseEmitter, errorMessage);
             throw new RuntimeException(errorMessage, e);
