@@ -6,6 +6,7 @@ import com.testehan.finana.model.llm.responses.FerolMoatAnalysisLlmResponse;
 import com.testehan.finana.repository.*;
 import com.testehan.finana.service.FinancialDataService;
 import com.testehan.finana.service.LlmService;
+import com.testehan.finana.util.DateUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.prompt.Prompt;
@@ -37,6 +38,7 @@ public class FerolService {
     private final EarningsHistoryRepository earningsHistoryRepository;
     private final SecFilingRepository secFilingRepository;
     private final CompanyOverviewRepository companyOverviewRepository;
+    private final DateUtils dateUtils;
 
     @Value("classpath:/prompts/financial_resilience_prompt.txt")
     private Resource financialResiliencePrompt;
@@ -44,6 +46,8 @@ public class FerolService {
     @Value("classpath:/prompts/moat_prompt.txt")
     private Resource moatPrompt;
 
+    @Value("classpath:/prompts/optionality_prompt.txt")
+    private Resource optionalityPrompt;
 
     public FerolService(BalanceSheetRepository balanceSheetRepository,
                         IncomeStatementRepository incomeStatementRepository,
@@ -51,7 +55,7 @@ public class FerolService {
                         GeneratedReportRepository generatedReportRepository,
                         FinancialDataService financialDataService,
                         FinancialRatiosRepository financialRatiosRepository,
-                        EarningsHistoryRepository earningsHistoryRepository, SecFilingRepository secFilingRepository, CompanyOverviewRepository companyOverviewRepository) {
+                        EarningsHistoryRepository earningsHistoryRepository, SecFilingRepository secFilingRepository, CompanyOverviewRepository companyOverviewRepository, CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository, DateUtils dateUtils) {
         this.balanceSheetRepository = balanceSheetRepository;
         this.incomeStatementRepository = incomeStatementRepository;
         this.llmService = llmService;
@@ -61,6 +65,7 @@ public class FerolService {
         this.earningsHistoryRepository = earningsHistoryRepository;
         this.secFilingRepository = secFilingRepository;
         this.companyOverviewRepository = companyOverviewRepository;
+        this.dateUtils = dateUtils;
     }
 
     private BigDecimal safeParseBigDecimal(String value) {
@@ -148,11 +153,21 @@ public class FerolService {
                     return item;
                 });
 
-                // Wait for all futures to complete
-                CompletableFuture.allOf(financialResilienceFuture, grossMarginFuture, roicFuture, fcfFuture, epsFuture, moatsFuture)
-                        .join(); // Blocks until all complete or one fails
+                CompletableFuture<FerolReportItem> optionalityFuture = CompletableFuture.supplyAsync(() -> {
+                    sendSseEvent(sseEmitter, "Thinking about optionality...");
+                    FerolReportItem item = calculateOptionality(ticker, sseEmitter);
+                    sendSseEvent(sseEmitter, "Optionality analysis is complete.");
+                    return item;
+                });
 
-                // Collect results
+                // Wait for all futures to complete
+                CompletableFuture.allOf(
+                        financialResilienceFuture, grossMarginFuture, roicFuture, fcfFuture, epsFuture,
+                        moatsFuture,
+                        optionalityFuture)
+                .join(); // Blocks until all complete or one fails
+
+                // Financials
                 List<FerolReportItem> ferolReportItems = new ArrayList<>();
                 ferolReportItems.add(financialResilienceFuture.get());
                 ferolReportItems.add(grossMarginFuture.get());
@@ -160,6 +175,7 @@ public class FerolService {
                 ferolReportItems.add(fcfFuture.get());
                 ferolReportItems.add(epsFuture.get());
 
+                // Moat
                 FerolMoatAnalysisLlmResponse moatAnalysis = moatsFuture.get();
                 ferolReportItems.add(new FerolReportItem("networkEffect",moatAnalysis.getNetworkEffectScore(), moatAnalysis.getNetworkEffectExplanation()));
                 ferolReportItems.add(new FerolReportItem("switchingCosts",moatAnalysis.getSwitchingCostsScore(), moatAnalysis.getSwitchingCostsExplanation()));
@@ -167,6 +183,9 @@ public class FerolService {
                 ferolReportItems.add(new FerolReportItem("intangibles",moatAnalysis.getIntangiblesScore(), moatAnalysis.getIntangiblesExplanation()));
                 ferolReportItems.add(new FerolReportItem("counterPositioning",moatAnalysis.getCounterPositioningScore(), moatAnalysis.getCounterPositioningExplanation()));
                 ferolReportItems.add(new FerolReportItem("moatDirection",moatAnalysis.getMoatDirectionScore(), moatAnalysis.getMoatDirectionExplanation()));
+
+                // Potential
+                ferolReportItems.add(optionalityFuture.get());
 
                 sendSseEvent(sseEmitter, "Building and saving FEROL report...");
                 FerolReport ferolReport = buildAndSaveReport(ticker, ferolReportItems);
@@ -644,5 +663,113 @@ public class FerolService {
         }
         sendSseEvent(sseEmitter, "EPS calculation complete. Score: " + score);
         return new FerolReportItem("earningsPerShare", score, detailedExplanation.toString() + explanation);
+    }
+
+    private FerolReportItem calculateOptionality(String ticker, SseEmitter sseEmitter) {
+        Optional<SecFiling> secFilingData = secFilingRepository.findBySymbol(ticker);
+        Optional<CompanyOverview> companyOverview = companyOverviewRepository.findBySymbol(ticker);
+        Optional<FinancialRatiosData> financialRatios = financialRatiosRepository.findBySymbol(ticker);
+        Optional<IncomeStatementData> incomeStatementData = incomeStatementRepository.findBySymbol(ticker);
+
+        StringBuilder stringBuilder = new StringBuilder();
+
+        companyOverview.ifPresent( overview -> {
+            stringBuilder.append(overview.getName());
+            stringBuilder.append(overview.getDescription()).append("\n");
+        });
+
+        secFilingData.ifPresentOrElse(secData -> {
+            secData.getTenKFilings().stream().max(Comparator.comparing(tenKFiling -> tenKFiling.getFiledAt()))
+                    .ifPresent(latestTenKFiling -> {
+                        stringBuilder.append(latestTenKFiling.getManagementDiscussion());
+                    });
+        }, () -> {
+            LOGGER.warn("No 10k found for ticker: {}", ticker);
+            sendSseEvent(sseEmitter, "No 10k available to get management discussion.");
+        });
+
+        final String[] avgRdIntensity = {"N/A"};
+        incomeStatementData.ifPresent(isData -> {
+            List<IncomeReport> annualReports = isData.getAnnualReports();
+            if (annualReports != null && annualReports.size() >= 3) {
+                sendSseEvent(sseEmitter, "Calculating R&D intensity from last 3 annual reports...");
+                List<BigDecimal> rdIntensities = new ArrayList<>();
+                annualReports.stream()
+                        .sorted(Comparator.comparing(IncomeReport::getFiscalDateEnding).reversed())
+                        .limit(3)
+                        .forEach(report -> {
+                            BigDecimal rd = safeParseBigDecimal(report.getResearchAndDevelopment());
+                            BigDecimal revenue = safeParseBigDecimal(report.getTotalRevenue());
+                            if (revenue.compareTo(BigDecimal.ZERO) != 0) {
+                                rdIntensities.add(rd.divide(revenue, 4, BigDecimal.ROUND_HALF_UP));
+                            }
+                        });
+
+                if (!rdIntensities.isEmpty()) {
+                    BigDecimal sum = rdIntensities.stream().reduce(BigDecimal.ZERO, BigDecimal::add);
+                    BigDecimal avg = sum.divide(new BigDecimal(rdIntensities.size()), 4, BigDecimal.ROUND_HALF_UP);
+                    avgRdIntensity[0] = avg.multiply(new BigDecimal("100")).setScale(2, BigDecimal.ROUND_HALF_UP).toPlainString() + "%";
+                }
+
+            } else {
+                sendSseEvent(sseEmitter, "Not enough annual reports, calculating R&D intensity from last 6 quarterly reports...");
+                List<IncomeReport> quarterlyReports = isData.getQuarterlyReports();
+                if (quarterlyReports != null && !quarterlyReports.isEmpty()) {
+                    List<BigDecimal> rdIntensities = new ArrayList<>();
+                    quarterlyReports.stream()
+                            .sorted(Comparator.comparing(IncomeReport::getFiscalDateEnding).reversed())
+                            .limit(6)
+                            .forEach(report -> {
+                                BigDecimal rd = safeParseBigDecimal(report.getResearchAndDevelopment());
+                                BigDecimal revenue = safeParseBigDecimal(report.getTotalRevenue());
+                                if (revenue.compareTo(BigDecimal.ZERO) != 0) {
+                                    rdIntensities.add(rd.divide(revenue, 4, BigDecimal.ROUND_HALF_UP));
+                                }
+                            });
+
+                    if (!rdIntensities.isEmpty()) {
+                        BigDecimal sum = rdIntensities.stream().reduce(BigDecimal.ZERO, BigDecimal::add);
+                        BigDecimal avg = sum.divide(new BigDecimal(rdIntensities.size()), 4, BigDecimal.ROUND_HALF_UP);
+                        avgRdIntensity[0] = avg.multiply(new BigDecimal("100")).setScale(2, BigDecimal.ROUND_HALF_UP).toPlainString() + "%";
+                    }
+                }
+            }
+            sendSseEvent(sseEmitter, "R&D intensity calculated: " + avgRdIntensity[0]);
+        });
+
+        var latestQuarter = dateUtils.getDateQuarter(companyOverview.get());
+        var latestEarningsTranscript = financialDataService.getEarningsCallTranscript(ticker, latestQuarter).block().getTranscript().stream()
+                .map(t -> t.getSpeaker() + " (" + t.getTitle() + "): " + t.getContent() + " [" + t.getSentiment() + "]")
+                .collect(Collectors.joining("\n"));;
+
+        PromptTemplate promptTemplate = new PromptTemplate(optionalityPrompt);
+        var ferolLlmResponseOutputConverter = new BeanOutputConverter<>(FerolLlmResponse.class);
+
+        Map<String, Object> promptParameters = new HashMap<>();
+        promptParameters.put("business_description", stringBuilder.toString());
+        promptParameters.put("latest_earnings_transcript", latestEarningsTranscript);
+        financialRatios.ifPresentOrElse(financialRatiosData -> {
+            var latestAnualReportRadios = financialRatiosData.getAnnualReports().stream()
+                    .max(Comparator.comparing(tenKFiling -> tenKFiling.getFiscalDateEnding()))
+                    .get();
+            promptParameters.put("free_cash_flow",latestAnualReportRadios.getFreeCashFlow());
+            promptParameters.put("net_debt_ebitda",latestAnualReportRadios.getNetDebtToEbitda());
+
+        },() -> {
+            promptParameters.put("net_debt_ebitda", "Could not be determined");
+            promptParameters.put("free_cash_flow", "Could not be determined");
+        });
+        promptParameters.put("avg_rd_intensity", avgRdIntensity[0]);
+        promptParameters.put("format", ferolLlmResponseOutputConverter.getFormat());
+        Prompt prompt = promptTemplate.create(promptParameters);
+
+        sendSseEvent(sseEmitter, "Sending data to LLM for optionality analysis...");
+        LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
+        String llmResponse = llmService.callLlm(prompt);
+        sendSseEvent(sseEmitter, "Received LLM response for optionality analysis.");
+        FerolLlmResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
+
+        return new FerolReportItem("optionality", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
+
     }
 }

@@ -2,6 +2,7 @@ package com.testehan.finana.service;
 
 import com.testehan.finana.model.*;
 import com.testehan.finana.repository.*;
+import com.testehan.finana.util.DateUtils;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
@@ -23,12 +24,13 @@ public class FinancialDataService {
     private final StockQuotesRepository stockQuotesRepository;
     private final SecApiService secApiService;
 
+    private final DateUtils dateUtils;
 
 
     private final CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository;
 
 
-    public FinancialDataService(AlphaVantageService alphaVantageService, IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository, CashFlowRepository cashFlowRepository, SharesOutstandingRepository sharesOutstandingRepository, CompanyOverviewRepository companyOverviewRepository, EarningsHistoryRepository earningsHistoryRepository, StockQuotesRepository stockQuotesRepository, CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository, SecApiService secApiService) {
+    public FinancialDataService(AlphaVantageService alphaVantageService, IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository, CashFlowRepository cashFlowRepository, SharesOutstandingRepository sharesOutstandingRepository, CompanyOverviewRepository companyOverviewRepository, EarningsHistoryRepository earningsHistoryRepository, StockQuotesRepository stockQuotesRepository, CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository, SecApiService secApiService, DateUtils dateUtils) {
         this.alphaVantageService = alphaVantageService;
         this.incomeStatementRepository = incomeStatementRepository;
         this.balanceSheetRepository = balanceSheetRepository;
@@ -39,6 +41,7 @@ public class FinancialDataService {
         this.stockQuotesRepository = stockQuotesRepository;
         this.companyEarningsTranscriptsRepository = companyEarningsTranscriptsRepository;
         this.secApiService = secApiService;
+        this.dateUtils = dateUtils;
     }
 
     public void ensureFinancialDataIsPresent(String ticker) {
@@ -49,7 +52,8 @@ public class FinancialDataService {
         CompanyOverview companyOverview = getCompanyOverview(ticker).block();
 
         if (companyOverview != null && companyOverview.getLatestQuarter() != null) {
-            getEarningsCallTranscript(ticker, companyOverview.getLatestQuarter()).block();
+            String dateQuarter = dateUtils.getDateQuarter(companyOverview);
+            getEarningsCallTranscript(ticker, dateQuarter).block();
         }
 
         secApiService.getSectionFrom10K(ticker, "risk_factors").block();
@@ -58,6 +62,7 @@ public class FinancialDataService {
         secApiService.getSectionFrom10Q(ticker, "risk_factors").block();
         secApiService.getSectionFrom10Q(ticker, "management_discussion").block();
     }
+
 
     public Mono<QuarterlyEarningsTranscript> getEarningsCallTranscript(String symbol, String quarter) {
         return Mono.defer(() -> {

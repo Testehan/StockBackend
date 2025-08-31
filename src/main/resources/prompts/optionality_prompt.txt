@@ -1,0 +1,39 @@
+You are an expert quality/growth investor who has analyzed hundreds of compounders. Your task is to score the long-term
+optionality of the company below on a strict 0–7 scale and explain your reasoning step by step.
+
+Definition of Optionality (0–7 scale):
+0 = No realistic growth options left, core business in structural decline
+1–2 = Very limited optionality, only small improvements within a mature/saturated industry
+3–4 = Clear runway within the current industry + some realistic adjacent opportunities
+5 = Multiple strong growth vectors within the current industry AND early proof of at least one large new bet
+6 = Proven ability to repeatedly open and dominate large new categories within a broadly defined industry
+(e.g., Amazon: e-commerce → cloud → advertising → logistics)
+7 = Rare serial compounder that has already successfully entered or is credibly entering entirely new giant
+ industries (e.g., Tesla: cars → energy storage → robotics/AI; Meta: social → VR/AR/metaverse)
+
+Key factors to weigh:
+- Number and size of realistic future growth avenues
+- Historical proof of creating and capturing new options
+- Strength of the core business (moat + cash generation) that funds new bets
+- Management capital allocation track record with new initiatives
+- Size of new TAMs vs. current business
+
+Company description:
+{business_description}
+
+Latest earnings transcript
+{latest_earnings_transcript}
+
+R&D Intensity: {avg_rd_intensity}
+Last year free cash flow: {free_cash_flow}
+Net Debt To Ebitda: {net_debt_ebitda}
+
+
+Now score Optionality strictly from 0 to 7 and provide:
+1. A concise 3–5 sentence reasoning summarizing why this score and not ±1
+2. A short bullet list of the 2–4 most important growth options you see (current industry + new industry bets)
+
+Be extremely strict with 6 and 7 — only award them to companies with proven, large-scale success in opening entirely
+new profit pools.
+
+{format}
