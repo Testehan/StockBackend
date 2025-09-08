@@ -21,6 +21,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -41,6 +42,7 @@ public class FerolService {
     private final SecFilingRepository secFilingRepository;
     private final CompanyOverviewRepository companyOverviewRepository;
     private final SharesOutstandingRepository sharesOutstandingRepository;
+    private final EarningsEstimatesRepository earningsEstimatesRepository;
     private final DateUtils dateUtils;
 
     @Value("classpath:/prompts/financial_resilience_prompt.txt")
@@ -58,13 +60,16 @@ public class FerolService {
     @Value("classpath:/prompts/top_dog_prompt.txt")
     private Resource topDogPrompt;
 
+    @Value("classpath:/prompts/operating_leverage_prompt.txt")
+    private Resource operatingLeveragePrompt;
+
     public FerolService(BalanceSheetRepository balanceSheetRepository,
                         IncomeStatementRepository incomeStatementRepository,
                         LlmService llmService,
                         GeneratedReportRepository generatedReportRepository,
                         FinancialDataService financialDataService,
                         FinancialRatiosRepository financialRatiosRepository,
-                        EarningsHistoryRepository earningsHistoryRepository, SecFilingRepository secFilingRepository, CompanyOverviewRepository companyOverviewRepository, CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository, DateUtils dateUtils, SharesOutstandingRepository sharesOutstandingRepository) {
+                        EarningsHistoryRepository earningsHistoryRepository, SecFilingRepository secFilingRepository, CompanyOverviewRepository companyOverviewRepository, CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository, DateUtils dateUtils, SharesOutstandingRepository sharesOutstandingRepository, EarningsEstimatesRepository earningsEstimatesRepository) {
         this.balanceSheetRepository = balanceSheetRepository;
         this.incomeStatementRepository = incomeStatementRepository;
         this.llmService = llmService;
@@ -76,6 +81,7 @@ public class FerolService {
         this.companyOverviewRepository = companyOverviewRepository;
         this.dateUtils = dateUtils;
         this.sharesOutstandingRepository = sharesOutstandingRepository;
+        this.earningsEstimatesRepository = earningsEstimatesRepository;
     }
 
     private BigDecimal safeParseBigDecimal(String value) {
@@ -184,11 +190,18 @@ public class FerolService {
                     return item;
                 });
 
+                CompletableFuture<FerolReportItem> operatingLeverageFuture = CompletableFuture.supplyAsync(() -> {
+                    sendSseEvent(sseEmitter, "Thinking about operating leverage...");
+                    FerolReportItem item = calculateOperatingLeverage(ticker, sseEmitter);
+                    sendSseEvent(sseEmitter, "Operating leverage analysis is complete.");
+                    return item;
+                });
+
                 // Wait for all futures to complete
                 CompletableFuture.allOf(
                         financialResilienceFuture, grossMarginFuture, roicFuture, fcfFuture, epsFuture,
                         moatsFuture,
-                        optionalityFuture, organicGrowthRunawayFuture, topDogFuture)
+                        optionalityFuture, organicGrowthRunawayFuture, topDogFuture, operatingLeverageFuture)
                 .join(); // Blocks until all complete or one fails
 
                 // Financials
@@ -212,6 +225,7 @@ public class FerolService {
                 ferolReportItems.add(optionalityFuture.get());
                 ferolReportItems.add(organicGrowthRunawayFuture.get());
                 ferolReportItems.add(topDogFuture.get());
+                ferolReportItems.add(operatingLeverageFuture.get());
 
                 sendSseEvent(sseEmitter, "Building and saving FEROL report...");
                 FerolReport ferolReport = buildAndSaveReport(ticker, ferolReportItems);
@@ -927,6 +941,54 @@ public class FerolService {
         }
     }
 
+
+    private FerolReportItem calculateOperatingLeverage(String ticker, SseEmitter sseEmitter) {
+        Optional<CompanyOverview> companyOverview = companyOverviewRepository.findBySymbol(ticker);
+        Optional<SecFiling> secFilingData = secFilingRepository.findBySymbol(ticker);
+        StringBuilder stringBuilder = new StringBuilder();
+
+        secFilingData.ifPresentOrElse(secData -> {
+            secData.getTenKFilings().stream().max(Comparator.comparing(tenKFiling -> tenKFiling.getFiledAt()))
+                    .ifPresent(latestTenKFiling -> {
+                        stringBuilder.append(latestTenKFiling.getBusinessDescription());
+                    });
+        }, () -> {
+            LOGGER.warn("No 10k found for ticker: {}", ticker);
+            sendSseEvent(sseEmitter, "No 10k available to get business description.");
+        });
+
+        String opexAsPercentageOfRevenueTrend = calculateOpexAsPercentageOfRevenueTrend3y(ticker)
+                .stream()
+                .map(BigDecimal::toPlainString).collect(Collectors.joining(", "));
+
+        PromptTemplate promptTemplate = new PromptTemplate(operatingLeveragePrompt);
+        var ferolLlmResponseOutputConverter = new BeanOutputConverter<>(FerolLlmResponse.class);
+
+        Map<String, Object> promptParameters = new HashMap<>();
+        promptParameters.put("company_name", companyOverview.get().getName());
+        promptParameters.put("business_description", stringBuilder.toString());
+        promptParameters.put("rev_cagr_3y", calculateRevenueCAGR3y(ticker));
+        promptParameters.put("expected_rev_growth", calculateExpectedRevenueGrowth(ticker));
+        promptParameters.put("opex_to_rev_list", opexAsPercentageOfRevenueTrend);
+        promptParameters.put("format", ferolLlmResponseOutputConverter.getFormat());
+        Prompt prompt = promptTemplate.create(promptParameters);
+
+        try {
+            sendSseEvent(sseEmitter, "Sending data to LLM for operating leverage analysis...");
+            LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
+            String llmResponse = llmService.callLlm(prompt);
+            sendSseEvent(sseEmitter, "Received LLM response for operating leverage analysis.");
+            FerolLlmResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
+
+            return new FerolReportItem("operatingLeverage", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
+        } catch (Exception e) {
+            String errorMessage = "Operation 'calculateOperatingLeverage' failed.";
+            LOGGER.error(errorMessage, e);
+            sendSseErrorEvent(sseEmitter, errorMessage);
+            throw new RuntimeException(errorMessage, e);
+        }
+    }
+
     private BigDecimal calculateRevenueCAGRPerShare(String ticker) {
         Optional<IncomeStatementData> incomeStatementDataOpt = incomeStatementRepository.findBySymbol(ticker);
         Optional<SharesOutstandingData> sharesOutstandingDataOpt = sharesOutstandingRepository.findBySymbol(ticker);
@@ -980,6 +1042,127 @@ public class FerolService {
         double ratio = latestRevenuePerShare.divide(oldRevenuePerShare, 4, java.math.RoundingMode.HALF_UP).doubleValue();
         double cagr = Math.pow(ratio, 1.0 / 3.0) - 1.0;
         return BigDecimal.valueOf(cagr * 100).setScale(2, java.math.RoundingMode.HALF_UP);
+    }
+
+    private double calculateExpectedRevenueGrowth(String ticker){
+        Optional<IncomeStatementData> incomeStatementDataOpt = incomeStatementRepository.findBySymbol(ticker);
+        List<IncomeReport> incomeReports = incomeStatementDataOpt.get().getAnnualReports();
+        // Sort reports by fiscal date ending in descending order
+        incomeReports.sort(Comparator.comparing(IncomeReport::getFiscalDateEnding).reversed());
+        IncomeReport lastAnualIncomeReport = incomeReports.getFirst();
+        var lastYearRevenue = Double.parseDouble(lastAnualIncomeReport.getTotalRevenue());
+
+        var earningEstimates = earningsEstimatesRepository.findBySymbol(ticker);
+        if (earningEstimates.isEmpty() || earningEstimates.get().getEstimates().isEmpty() || lastYearRevenue == 0){
+            return 0.0;
+        }
+        List<Estimate> estimates = earningEstimates.get().getEstimates();
+
+        // 1. Filter for valid dates and Sort by Date (Ascending) to find the NEAREST future estimate
+        // We only want annual estimates (usually end in 12-31 or similar, but sorting finds the nearest)
+        List<Estimate> sortedEstimates = estimates.stream()
+                .filter(e -> e.getDate() != null && e.getRevenueEstimateAverage() != null)
+                .sorted(Comparator.comparing(e -> LocalDate.parse(e.getDate(), DateTimeFormatter.ofPattern("yyyy-MM-dd"))))
+                .collect(Collectors.toList());
+
+        Estimate targetEst = null;
+        int estimateYear = 0;
+
+        LocalDate lastIncomeReportFiscalDate = LocalDate.parse(lastAnualIncomeReport.getFiscalDateEnding(), DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        // Find the first estimate that is clearly in the future compared to last report
+        for (Estimate e : sortedEstimates) {
+            LocalDate d = LocalDate.parse(e.getDate(), DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+            if (d.getYear() >  lastIncomeReportFiscalDate.getYear()) {
+                targetEst = e;
+                estimateYear = d.getYear();
+                break; // Stop at the nearest one (FY1 or FY2)
+            }
+        }
+
+        if (targetEst == null) {
+            LOGGER.warn("No future estimates found.");
+            return 0.0;
+        }
+
+        // 2. Calculate the Time Gap
+        int yearsGap = estimateYear - lastIncomeReportFiscalDate.getYear();
+        if (yearsGap < 1) yearsGap = 1; // Safety check
+
+        // 3. Calculate CAGR
+        // Formula: (Future / Past)^(1/n) - 1
+        double futureRev = Double.parseDouble(targetEst.getRevenueEstimateAverage());
+
+        double cagr = (Math.pow((futureRev / lastYearRevenue), 1.0 / yearsGap) - 1) * 100;
+
+        return Math.round(cagr * 100.0) / 100.0;
+    }
+
+    private BigDecimal calculateRevenueCAGR3y(String ticker) {
+        Optional<IncomeStatementData> incomeStatementDataOpt = incomeStatementRepository.findBySymbol(ticker);
+
+        if (incomeStatementDataOpt.isEmpty() || incomeStatementDataOpt.get().getAnnualReports() == null || incomeStatementDataOpt.get().getAnnualReports().size() < 4) {
+            LOGGER.warn("Not enough annual income reports for {}. Found {}.", ticker, incomeStatementDataOpt.map(d -> d.getAnnualReports().size()).orElse(0));
+            return BigDecimal.ZERO;
+        }
+
+        List<IncomeReport> annualReports = incomeStatementDataOpt.get().getAnnualReports().stream()
+                .sorted(Comparator.comparing(IncomeReport::getFiscalDateEnding))
+                .collect(Collectors.toList());
+
+        IncomeReport latestReport = annualReports.get(annualReports.size() - 1);
+        IncomeReport oldReport = annualReports.get(annualReports.size() - 4);
+
+        BigDecimal latestRevenue = safeParseBigDecimal(latestReport.getTotalRevenue());
+        BigDecimal oldRevenue = safeParseBigDecimal(oldReport.getTotalRevenue());
+
+        if (oldRevenue.compareTo(BigDecimal.ZERO) <= 0) {
+            LOGGER.warn("Initial revenue was zero or negative, cannot calculate CAGR for ticker: " + ticker);
+            return BigDecimal.ZERO;
+        }
+
+        double ratio = latestRevenue.divide(oldRevenue, 4, java.math.RoundingMode.HALF_UP).doubleValue();
+        double cagr = Math.pow(ratio, 1.0 / 3.0) - 1.0;
+        return BigDecimal.valueOf(cagr * 100).setScale(2, java.math.RoundingMode.HALF_UP);
+    }
+
+    private List<BigDecimal> calculateOpexAsPercentageOfRevenueTrend3y(String ticker) {
+        Optional<IncomeStatementData> incomeStatementDataOpt = incomeStatementRepository.findBySymbol(ticker);
+
+        if (incomeStatementDataOpt.isEmpty() || incomeStatementDataOpt.get().getAnnualReports() == null || incomeStatementDataOpt.get().getAnnualReports().size() < 3) {
+            LOGGER.warn("Not enough annual income reports for {}. Found {}.", ticker, incomeStatementDataOpt.map(d -> d.getAnnualReports().size()).orElse(0));
+            return Collections.emptyList();
+        }
+
+        List<IncomeReport> annualReports = incomeStatementDataOpt.get().getAnnualReports().stream()
+                .sorted(Comparator.comparing(IncomeReport::getFiscalDateEnding).reversed())
+                .limit(3)
+                .collect(Collectors.toList());
+
+        if (annualReports.size() < 3) {
+            LOGGER.warn("Not enough annual income reports for 3 year trend for {}. Found {}.", ticker, annualReports.size());
+            return Collections.emptyList();
+        }
+
+        List<BigDecimal> opexPercentages = new ArrayList<>();
+        for (IncomeReport report : annualReports) {
+            BigDecimal sga = safeParseBigDecimal(report.getSellingGeneralAndAdministrative());
+            BigDecimal rd = safeParseBigDecimal(report.getResearchAndDevelopment());
+            BigDecimal totalRevenue = safeParseBigDecimal(report.getTotalRevenue());
+
+            if (totalRevenue.compareTo(BigDecimal.ZERO) == 0) {
+                LOGGER.warn("Total revenue is zero for ticker: " + ticker + " for fiscal date: " + report.getFiscalDateEnding());
+                opexPercentages.add(BigDecimal.ZERO); // or handle as an error
+            } else {
+                BigDecimal opex = sga.add(rd);
+                BigDecimal opexPercentage = opex.divide(totalRevenue, 4, java.math.RoundingMode.HALF_UP)
+                        .multiply(BigDecimal.valueOf(100));
+                opexPercentages.add(opexPercentage.setScale(2, java.math.RoundingMode.HALF_UP));
+            }
+        }
+
+        // The list is sorted from newest to oldest, let's reverse it to show trend over time
+        Collections.reverse(opexPercentages);
+        return opexPercentages;
     }
 
     private SharesOutstandingReport findClosestSharesOutstanding(List<SharesOutstandingReport> reports, String dateString) {

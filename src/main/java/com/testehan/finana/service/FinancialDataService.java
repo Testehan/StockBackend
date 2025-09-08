@@ -53,6 +53,7 @@ public class FinancialDataService {
         getIncomeStatements(ticker).block();
         getBalanceSheet(ticker).block();
         getCashFlow(ticker).block();
+        getEarningsEstimates(ticker).block();
         CompanyOverview companyOverview = getCompanyOverview(ticker).block();
 
         if (companyOverview != null && companyOverview.getLatestQuarter() != null) {

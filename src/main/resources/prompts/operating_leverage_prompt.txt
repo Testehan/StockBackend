@@ -16,14 +16,12 @@ Incremental EBIT margins >70%.
 
 Input Data:
 Company: {company_name}
-Business Model / Description: {business_description_snippet}
+Business Model / Description: {business_description}
 
 Revenue CAGR (3y): {rev_cagr_3y}%
 Consensus Revenue Growth (Next 2y): {expected_rev_growth}%
-Gross Margin (Latest vs 2y Avg): {gm_latest}% vs {gm_2y_avg}%
 Opex (SG&A+R&D) as % of Rev (Last 3y trend): {opex_to_rev_list}
-Incremental EBIT Margin (LTM): {inc_ebit_12m}%
-Headcount Growth vs. Revenue Growth Delta: {headcount_vs_rev} (e.g., "Rev +20%, Headcount +5%")
 
+Provide a 2-3 sentence explanation for the provided score.
 
 {format}
