@@ -8,6 +8,8 @@ import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 @Service
@@ -98,7 +100,7 @@ public class FinancialDataService {
         });
     }
 
-    public Mono<StockQuotes> getGlobalQuote(String symbol) {
+    public Mono<GlobalQuote> getGlobalQuote(String symbol) {
         return Mono.defer(() -> {
             Optional<StockQuotes> stockQuotesFromDb = stockQuotesRepository.findBySymbol(symbol.toUpperCase());
             if (stockQuotesFromDb.isPresent() && isRecent(stockQuotesFromDb.get().getLastUpdated(), 1000)) {
@@ -120,7 +122,13 @@ public class FinancialDataService {
                             return Mono.just(stockQuotesRepository.save(stockQuotes));
                         });
             }
-        });
+        }).map(stockQuotes -> {
+            List<GlobalQuote> quotes = stockQuotes.getQuotes();
+            if (quotes != null && !quotes.isEmpty()) {
+                return quotes.get(quotes.size() - 1);
+            }
+            return null;
+        }).filter(Objects::nonNull);
     }
 
     public Mono<CompanyOverview> getCompanyOverview(String symbol) {
