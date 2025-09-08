@@ -9,4 +9,6 @@ import java.util.Optional;
 @Repository
 public interface BalanceSheetRepository extends MongoRepository<BalanceSheetData, String> {
     Optional<BalanceSheetData> findBySymbol(String symbol);
+
+    void deleteBySymbol(String symbol);
 }

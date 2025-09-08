@@ -10,4 +10,6 @@ import java.util.Optional;
 @Repository
 public interface StockQuotesRepository extends MongoRepository<StockQuotes, String> {
     Optional<StockQuotes> findBySymbol(String symbol);
+
+    void deleteBySymbol(String symbol);
 }

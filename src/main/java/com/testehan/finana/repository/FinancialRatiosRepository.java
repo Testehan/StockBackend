@@ -7,4 +7,6 @@ import java.util.Optional;
 
 public interface FinancialRatiosRepository extends MongoRepository<FinancialRatiosData, String> {
     Optional<FinancialRatiosData> findBySymbol(String symbol);
+
+    void deleteBySymbol(String symbol);
 }

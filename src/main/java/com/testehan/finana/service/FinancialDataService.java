@@ -3,6 +3,8 @@ package com.testehan.finana.service;
 import com.testehan.finana.model.*;
 import com.testehan.finana.repository.*;
 import com.testehan.finana.util.DateUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
@@ -15,6 +17,8 @@ import java.util.Optional;
 @Service
 public class FinancialDataService {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(FinancialDataService.class);
+
     private final AlphaVantageService alphaVantageService;
 
     private final CompanyOverviewRepository companyOverviewRepository;
@@ -26,6 +30,9 @@ public class FinancialDataService {
     private final StockQuotesRepository stockQuotesRepository;
     private final SecApiService secApiService;
     private final EarningsEstimatesRepository earningsEstimatesRepository;
+    private final FinancialRatiosRepository financialRatiosRepository;
+    private final GeneratedReportRepository generatedReportRepository;
+    private final SecFilingRepository secFilingRepository;
 
     private final DateUtils dateUtils;
 
@@ -33,7 +40,7 @@ public class FinancialDataService {
     private final CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository;
 
 
-    public FinancialDataService(AlphaVantageService alphaVantageService, IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository, CashFlowRepository cashFlowRepository, SharesOutstandingRepository sharesOutstandingRepository, CompanyOverviewRepository companyOverviewRepository, EarningsHistoryRepository earningsHistoryRepository, StockQuotesRepository stockQuotesRepository, CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository, SecApiService secApiService, DateUtils dateUtils, EarningsEstimatesRepository earningsEstimatesRepository) {
+    public FinancialDataService(AlphaVantageService alphaVantageService, IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository, CashFlowRepository cashFlowRepository, SharesOutstandingRepository sharesOutstandingRepository, CompanyOverviewRepository companyOverviewRepository, EarningsHistoryRepository earningsHistoryRepository, StockQuotesRepository stockQuotesRepository, CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository, SecApiService secApiService, DateUtils dateUtils, EarningsEstimatesRepository earningsEstimatesRepository, FinancialRatiosRepository financialRatiosRepository, GeneratedReportRepository generatedReportRepository, SecFilingRepository secFilingRepository) {
         this.alphaVantageService = alphaVantageService;
         this.incomeStatementRepository = incomeStatementRepository;
         this.balanceSheetRepository = balanceSheetRepository;
@@ -46,6 +53,9 @@ public class FinancialDataService {
         this.secApiService = secApiService;
         this.dateUtils = dateUtils;
         this.earningsEstimatesRepository = earningsEstimatesRepository;
+        this.financialRatiosRepository = financialRatiosRepository;
+        this.generatedReportRepository = generatedReportRepository;
+        this.secFilingRepository = secFilingRepository;
     }
 
     public void ensureFinancialDataIsPresent(String ticker) {
@@ -214,5 +224,24 @@ public class FinancialDataService {
             return false;
         }
         return ChronoUnit.MINUTES.between(lastUpdated, LocalDateTime.now()) < minutes;
+    }
+
+    public void deleteFinancialData(String symbol) {
+        String upperCaseSymbol = symbol.toUpperCase();
+
+        balanceSheetRepository.deleteBySymbol(upperCaseSymbol);
+        cashFlowRepository.deleteBySymbol(upperCaseSymbol);
+        companyEarningsTranscriptsRepository.deleteById(upperCaseSymbol);
+        companyOverviewRepository.deleteBySymbol(upperCaseSymbol);
+        earningsHistoryRepository.deleteBySymbol(upperCaseSymbol);
+        incomeStatementRepository.deleteBySymbol(upperCaseSymbol);
+        sharesOutstandingRepository.deleteBySymbol(upperCaseSymbol);
+        stockQuotesRepository.deleteBySymbol(upperCaseSymbol);
+        earningsEstimatesRepository.deleteBySymbol(upperCaseSymbol);
+        financialRatiosRepository.deleteBySymbol(upperCaseSymbol);
+        generatedReportRepository.deleteBySymbol(upperCaseSymbol);
+        secFilingRepository.deleteBySymbol(upperCaseSymbol);
+
+        LOGGER.info("Deleted all financial data for ticker: {}", upperCaseSymbol);
     }
 }

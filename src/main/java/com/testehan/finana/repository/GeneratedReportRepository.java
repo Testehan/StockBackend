@@ -9,4 +9,6 @@ import java.util.Optional;
 @Repository
 public interface GeneratedReportRepository extends MongoRepository<GeneratedReport, String> {
     Optional<GeneratedReport> findBySymbol(String symbol);
+
+    void deleteBySymbol(String symbol);
 }

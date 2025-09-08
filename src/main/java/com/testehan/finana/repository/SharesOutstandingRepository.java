@@ -9,4 +9,6 @@ import java.util.Optional;
 @Repository
 public interface SharesOutstandingRepository extends MongoRepository<SharesOutstandingData, String> {
     Optional<SharesOutstandingData> findBySymbol(String symbol);
+
+    void deleteBySymbol(String upperCaseSymbol);
 }

@@ -9,4 +9,6 @@ import java.util.Optional;
 @Repository
 public interface CompanyOverviewRepository extends MongoRepository<CompanyOverview, String> {
     Optional<CompanyOverview> findBySymbol(String symbol);
+
+    void deleteBySymbol(String symbol);
 }

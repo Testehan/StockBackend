@@ -6,4 +6,6 @@ import java.util.Optional;
 
 public interface EarningsEstimatesRepository extends MongoRepository<EarningsEstimate, String> {
     Optional<EarningsEstimate> findBySymbol(String symbol);
+
+    void deleteBySymbol(String upperCaseSymbol);
 }

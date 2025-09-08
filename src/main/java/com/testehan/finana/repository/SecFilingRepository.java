@@ -7,4 +7,6 @@ import java.util.Optional;
 
 public interface SecFilingRepository extends MongoRepository<SecFiling, String> {
     Optional<SecFiling> findBySymbol(String symbol);
+
+    void deleteBySymbol(String symbol);
 }

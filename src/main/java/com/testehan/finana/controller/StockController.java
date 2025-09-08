@@ -6,6 +6,7 @@ import com.testehan.finana.service.FinancialDataService;
 import com.testehan.finana.service.FinancialMetricsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -79,5 +80,11 @@ public class StockController {
     @GetMapping("/earnings-call-transcript/{symbol}/{quarter}")
     public Mono<QuarterlyEarningsTranscript> getEarningsCallTranscript(@PathVariable String symbol, @PathVariable String quarter) {
         return financialDataService.getEarningsCallTranscript(symbol, quarter);
+    }
+
+    @DeleteMapping("/delete/{symbol}")
+    public Mono<ResponseEntity<Void>> deleteStockData(@PathVariable String symbol) {
+        return Mono.fromRunnable(() -> financialDataService.deleteFinancialData(symbol.toUpperCase()))
+                .then(Mono.just(ResponseEntity.noContent().build()));
     }
 }

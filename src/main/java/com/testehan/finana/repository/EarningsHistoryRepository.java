@@ -10,4 +10,6 @@ import java.util.Optional;
 @Repository
 public interface EarningsHistoryRepository extends MongoRepository<EarningsHistory, String> {
     Optional<EarningsHistory> findBySymbol(String symbol);
+
+    void deleteBySymbol(String symbol);
 }

@@ -9,4 +9,6 @@ import java.util.Optional;
 @Repository
 public interface IncomeStatementRepository extends MongoRepository<IncomeStatementData, String> {
     Optional<IncomeStatementData> findBySymbol(String symbol);
+
+    void deleteBySymbol(String symbol);
 }
