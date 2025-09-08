@@ -77,13 +77,13 @@ public class FinancialMetricsService {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
         Map<String, BalanceSheetReport> balanceSheetMap = balanceSheetReports.stream()
-                .collect(Collectors.toMap(BalanceSheetReport::getFiscalDateEnding, Function.identity(), (a, b) -> a));
+                .collect(Collectors.toMap(BalanceSheetReport::getDate, Function.identity(), (a, b) -> a));
 
         Map<String, CashFlowReport> cashFlowMap = cashFlowReports.stream()
-                .collect(Collectors.toMap(CashFlowReport::getFiscalDateEnding, Function.identity(), (a, b) -> a));
+                .collect(Collectors.toMap(CashFlowReport::getDate, Function.identity(), (a, b) -> a));
 
         for (IncomeReport incomeReport : incomeReports) {
-            String fiscalDateEnding = incomeReport.getFiscalDateEnding();
+            String fiscalDateEnding = incomeReport.getDate();
 
             // Find corresponding reports
             BalanceSheetReport balanceSheet = balanceSheetMap.get(fiscalDateEnding);

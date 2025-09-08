@@ -295,9 +295,9 @@ public class FerolService {
 
         balanceSheetData.ifPresent(balance -> {
             balance.getQuarterlyReports().stream()
-                    .max(Comparator.comparing(report -> ((BalanceSheetReport) report).getFiscalDateEnding()))
+                    .max(Comparator.comparing(report -> ((BalanceSheetReport) report).getDate()))
                     .ifPresent(latestBalanceSheet -> {
-                        totalCashAndEquivalents[0] = safeParseBigDecimal(latestBalanceSheet.getCashAndCashEquivalentsAtCarryingValue())
+                        totalCashAndEquivalents[0] = safeParseBigDecimal(latestBalanceSheet.getCashAndCashEquivalents())
                                 .add(safeParseBigDecimal(latestBalanceSheet.getShortTermInvestments()));
                         BigDecimal shortTermDebt = safeParseBigDecimal(latestBalanceSheet.getShortTermDebt());
                         BigDecimal longTermDebt = safeParseBigDecimal(latestBalanceSheet.getLongTermDebt());
@@ -307,7 +307,7 @@ public class FerolService {
 
         incomeStatementData.ifPresent(income -> {
             List<IncomeReport> quarterlyReports = income.getQuarterlyReports().stream()
-                    .sorted(Comparator.comparing(report -> ((IncomeReport) report).getFiscalDateEnding()).reversed())
+                    .sorted(Comparator.comparing(report -> ((IncomeReport) report).getDate()).reversed())
                     .limit(4)
                     .collect(Collectors.toList());
 
@@ -550,11 +550,11 @@ public class FerolService {
 
         // Sort reports by fiscal date ending in descending order
         financialRatiosReports.sort(Comparator.comparing(FinancialRatiosReport::getFiscalDateEnding).reversed());
-        incomeReports.sort(Comparator.comparing(IncomeReport::getFiscalDateEnding).reversed());
+        incomeReports.sort(Comparator.comparing(IncomeReport::getDate).reversed());
 
         // Helper to get income report for a specific date
         Map<String, IncomeReport> incomeReportMap = incomeReports.stream()
-                .collect(Collectors.toMap(IncomeReport::getFiscalDateEnding, report -> report, (r1, r2) -> r1)); // Handle potential duplicates
+                .collect(Collectors.toMap(IncomeReport::getDate, report -> report, (r1, r2) -> r1)); // Handle potential duplicates
 
 
         // Calculate TTM FCFs (Current and Previous Year)
@@ -758,11 +758,11 @@ public class FerolService {
                 sendSseEvent(sseEmitter, "Calculating R&D intensity from last 3 annual reports...");
                 List<BigDecimal> rdIntensities = new ArrayList<>();
                 annualReports.stream()
-                        .sorted(Comparator.comparing(IncomeReport::getFiscalDateEnding).reversed())
+                        .sorted(Comparator.comparing(IncomeReport::getDate).reversed())
                         .limit(3)
                         .forEach(report -> {
-                            BigDecimal rd = safeParseBigDecimal(report.getResearchAndDevelopment());
-                            BigDecimal revenue = safeParseBigDecimal(report.getTotalRevenue());
+                            BigDecimal rd = safeParseBigDecimal(report.getResearchAndDevelopmentExpenses());
+                            BigDecimal revenue = safeParseBigDecimal(report.getRevenue());
                             if (revenue.compareTo(BigDecimal.ZERO) != 0) {
                                 rdIntensities.add(rd.divide(revenue, 4, BigDecimal.ROUND_HALF_UP));
                             }
@@ -780,11 +780,11 @@ public class FerolService {
                 if (quarterlyReports != null && !quarterlyReports.isEmpty()) {
                     List<BigDecimal> rdIntensities = new ArrayList<>();
                     quarterlyReports.stream()
-                            .sorted(Comparator.comparing(IncomeReport::getFiscalDateEnding).reversed())
+                            .sorted(Comparator.comparing(IncomeReport::getDate).reversed())
                             .limit(6)
                             .forEach(report -> {
-                                BigDecimal rd = safeParseBigDecimal(report.getResearchAndDevelopment());
-                                BigDecimal revenue = safeParseBigDecimal(report.getTotalRevenue());
+                                BigDecimal rd = safeParseBigDecimal(report.getResearchAndDevelopmentExpenses());
+                                BigDecimal revenue = safeParseBigDecimal(report.getRevenue());
                                 if (revenue.compareTo(BigDecimal.ZERO) != 0) {
                                     rdIntensities.add(rd.divide(revenue, 4, BigDecimal.ROUND_HALF_UP));
                                 }
@@ -1003,7 +1003,7 @@ public class FerolService {
         }
 
         List<IncomeReport> annualReports = incomeStatementDataOpt.get().getAnnualReports().stream()
-                .sorted(Comparator.comparing(IncomeReport::getFiscalDateEnding))
+                .sorted(Comparator.comparing(IncomeReport::getDate))
                 .collect(Collectors.toList());
 
         List<SharesOutstandingReport> sharesOutstandingReports = sharesOutstandingDataOpt.get().getData();
@@ -1012,11 +1012,11 @@ public class FerolService {
         IncomeReport latestReport = annualReports.get(annualReports.size() - 1);
         IncomeReport oldReport = annualReports.get(annualReports.size() - 4);
 
-        BigDecimal latestRevenue = safeParseBigDecimal(latestReport.getTotalRevenue());
-        BigDecimal oldRevenue = safeParseBigDecimal(oldReport.getTotalRevenue());
+        BigDecimal latestRevenue = safeParseBigDecimal(latestReport.getRevenue());
+        BigDecimal oldRevenue = safeParseBigDecimal(oldReport.getRevenue());
 
-        SharesOutstandingReport latestSharesReport = findClosestSharesOutstanding(sharesOutstandingReports, latestReport.getFiscalDateEnding());
-        SharesOutstandingReport oldSharesReport = findClosestSharesOutstanding(sharesOutstandingReports, oldReport.getFiscalDateEnding());
+        SharesOutstandingReport latestSharesReport = findClosestSharesOutstanding(sharesOutstandingReports, latestReport.getDate());
+        SharesOutstandingReport oldSharesReport = findClosestSharesOutstanding(sharesOutstandingReports, oldReport.getDate());
 
         if (latestSharesReport == null || oldSharesReport == null) {
             LOGGER.warn("Could not find matching shares outstanding data for the period for ticker: " + ticker);
@@ -1048,9 +1048,9 @@ public class FerolService {
         Optional<IncomeStatementData> incomeStatementDataOpt = incomeStatementRepository.findBySymbol(ticker);
         List<IncomeReport> incomeReports = incomeStatementDataOpt.get().getAnnualReports();
         // Sort reports by fiscal date ending in descending order
-        incomeReports.sort(Comparator.comparing(IncomeReport::getFiscalDateEnding).reversed());
+        incomeReports.sort(Comparator.comparing(IncomeReport::getDate).reversed());
         IncomeReport lastAnualIncomeReport = incomeReports.getFirst();
-        var lastYearRevenue = Double.parseDouble(lastAnualIncomeReport.getTotalRevenue());
+        var lastYearRevenue = Double.parseDouble(lastAnualIncomeReport.getRevenue());
 
         var earningEstimates = earningsEstimatesRepository.findBySymbol(ticker);
         if (earningEstimates.isEmpty() || earningEstimates.get().getEstimates().isEmpty() || lastYearRevenue == 0){
@@ -1068,7 +1068,7 @@ public class FerolService {
         Estimate targetEst = null;
         int estimateYear = 0;
 
-        LocalDate lastIncomeReportFiscalDate = LocalDate.parse(lastAnualIncomeReport.getFiscalDateEnding(), DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        LocalDate lastIncomeReportFiscalDate = LocalDate.parse(lastAnualIncomeReport.getDate(), DateTimeFormatter.ofPattern("yyyy-MM-dd"));
         // Find the first estimate that is clearly in the future compared to last report
         for (Estimate e : sortedEstimates) {
             LocalDate d = LocalDate.parse(e.getDate(), DateTimeFormatter.ofPattern("yyyy-MM-dd"));
@@ -1106,14 +1106,14 @@ public class FerolService {
         }
 
         List<IncomeReport> annualReports = incomeStatementDataOpt.get().getAnnualReports().stream()
-                .sorted(Comparator.comparing(IncomeReport::getFiscalDateEnding))
+                .sorted(Comparator.comparing(IncomeReport::getDate))
                 .collect(Collectors.toList());
 
         IncomeReport latestReport = annualReports.get(annualReports.size() - 1);
         IncomeReport oldReport = annualReports.get(annualReports.size() - 4);
 
-        BigDecimal latestRevenue = safeParseBigDecimal(latestReport.getTotalRevenue());
-        BigDecimal oldRevenue = safeParseBigDecimal(oldReport.getTotalRevenue());
+        BigDecimal latestRevenue = safeParseBigDecimal(latestReport.getRevenue());
+        BigDecimal oldRevenue = safeParseBigDecimal(oldReport.getRevenue());
 
         if (oldRevenue.compareTo(BigDecimal.ZERO) <= 0) {
             LOGGER.warn("Initial revenue was zero or negative, cannot calculate CAGR for ticker: " + ticker);
@@ -1134,7 +1134,7 @@ public class FerolService {
         }
 
         List<IncomeReport> annualReports = incomeStatementDataOpt.get().getAnnualReports().stream()
-                .sorted(Comparator.comparing(IncomeReport::getFiscalDateEnding).reversed())
+                .sorted(Comparator.comparing(IncomeReport::getDate).reversed())
                 .limit(3)
                 .collect(Collectors.toList());
 
@@ -1145,12 +1145,12 @@ public class FerolService {
 
         List<BigDecimal> opexPercentages = new ArrayList<>();
         for (IncomeReport report : annualReports) {
-            BigDecimal sga = safeParseBigDecimal(report.getSellingGeneralAndAdministrative());
-            BigDecimal rd = safeParseBigDecimal(report.getResearchAndDevelopment());
-            BigDecimal totalRevenue = safeParseBigDecimal(report.getTotalRevenue());
+            BigDecimal sga = safeParseBigDecimal(report.getSellingGeneralAndAdministrativeExpenses());
+            BigDecimal rd = safeParseBigDecimal(report.getResearchAndDevelopmentExpenses());
+            BigDecimal totalRevenue = safeParseBigDecimal(report.getRevenue());
 
             if (totalRevenue.compareTo(BigDecimal.ZERO) == 0) {
-                LOGGER.warn("Total revenue is zero for ticker: " + ticker + " for fiscal date: " + report.getFiscalDateEnding());
+                LOGGER.warn("Total revenue is zero for ticker: " + ticker + " for fiscal date: " + report.getDate());
                 opexPercentages.add(BigDecimal.ZERO); // or handle as an error
             } else {
                 BigDecimal opex = sga.add(rd);

@@ -16,7 +16,7 @@ public class FinancialRatiosCalculator {
                                                  CashFlowReport cashFlowReport,
                                                  SharesOutstandingReport sharesOutstandingReport) {
         FinancialRatiosReport ratios = new FinancialRatiosReport();
-        ratios.setFiscalDateEnding(incomeReport.getFiscalDateEnding());
+        ratios.setFiscalDateEnding(incomeReport.getDate());
 
         // Parse all values once
         ParsedFinancialData data = parseFinancialData(incomeReport, balanceSheetReport, cashFlowReport, sharesOutstandingReport);
@@ -89,7 +89,7 @@ public class FinancialRatiosCalculator {
         ParsedFinancialData data = new ParsedFinancialData();
 
         // Income Statement
-        data.totalRevenue = safeParser.parse(income.getTotalRevenue());
+        data.totalRevenue = safeParser.parse(income.getRevenue());
         data.grossProfit = safeParser.parse(income.getGrossProfit());
         data.costOfRevenue = safeParser.parse(income.getCostOfRevenue());
         data.netIncome = safeParser.parse(income.getNetIncome());
@@ -104,12 +104,12 @@ public class FinancialRatiosCalculator {
         data.totalCurrentAssets = safeParser.parse(balance.getTotalCurrentAssets());
         data.cash = safeParser.parse(balance.getCashAndShortTermInvestments());
         data.shortTermInvestments = safeParser.parse(balance.getShortTermInvestments());
-        data.netReceivables = safeParser.parse(balance.getCurrentNetReceivables());
+        data.netReceivables = safeParser.parse(balance.getNetReceivables());
         data.inventory = safeParser.parse(balance.getInventory());
         data.otherCurrentAssets = safeParser.parse(balance.getOtherCurrentAssets());
 
         // Balance Sheet - Assets (Non-Current)
-        data.propertyPlantEquipment = safeParser.parse(balance.getPropertyPlantEquipment());
+        data.propertyPlantEquipment = safeParser.parse(balance.getPropertyPlantEquipmentNet());
         data.goodwill = safeParser.parse(balance.getGoodwill());
         data.intangibleAssets = safeParser.parse(balance.getIntangibleAssets());
         data.longTermInvestments = safeParser.parse(balance.getLongTermInvestments());
@@ -117,7 +117,7 @@ public class FinancialRatiosCalculator {
 
         // Balance Sheet - Liabilities (Current)
         data.totalLiabilities = safeParser.parse(balance.getTotalLiabilities());
-        data.currentAccountsPayable = safeParser.parse(balance.getCurrentAccountsPayable());
+        data.currentAccountsPayable = safeParser.parse(balance.getAccountPayables());
         data.deferredRevenue = safeParser.parse(balance.getDeferredRevenue());
         data.shortTermDebt = safeParser.parse(balance.getShortTermDebt());
         data.otherCurrentLiabilities = safeParser.parse(balance.getOtherCurrentLiabilities());
@@ -128,18 +128,18 @@ public class FinancialRatiosCalculator {
         data.capitalLeaseObligations = safeParser.parse(balance.getCapitalLeaseObligations());
 
         // Balance Sheet - Equity
-        data.totalShareholderEquity = safeParser.parse(balance.getTotalShareholderEquity());
+        data.totalShareholderEquity = safeParser.parse(balance.getTotalStockholdersEquity());
         data.commonStock = safeParser.parse(balance.getCommonStock());
         data.retainedEarnings = safeParser.parse(balance.getRetainedEarnings());
         data.treasuryStock = safeParser.parse(balance.getTreasuryStock());
 
 
         // Cash Flow Statement
-        data.operatingCashflow = safeParser.parse(cashFlow.getOperatingCashflow());
-        data.capitalExpenditures = safeParser.parse(cashFlow.getCapitalExpenditures());
-        data.dividendPayout = safeParser.parse(cashFlow.getDividendPayout());
-        data.dividendPayoutCommonStock = safeParser.parse(cashFlow.getDividendPayoutCommonStock());
-        data.dividendPayoutPreferredStock = safeParser.parse(cashFlow.getDividendPayoutPreferredStock());
+        data.operatingCashflow = safeParser.parse(cashFlow.getOperatingCashFlow());
+        data.capitalExpenditures = safeParser.parse(cashFlow.getCapitalExpenditure());
+        data.dividendPayout = safeParser.parse(cashFlow.getNetDividendsPaid());
+        data.dividendPayoutCommonStock = safeParser.parse(cashFlow.getCommonDividendsPaid());
+        data.dividendPayoutPreferredStock = safeParser.parse(cashFlow.getPreferredDividendsPaid());
 
         // Shares Outstanding
         data.sharesOutstanding = safeParser.parse(shares.getSharesOutstandingDiluted());

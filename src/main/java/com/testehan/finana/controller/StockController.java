@@ -2,6 +2,7 @@ package com.testehan.finana.controller;
 
 import com.testehan.finana.model.*;
 import com.testehan.finana.service.AlphaVantageService;
+import com.testehan.finana.service.FMPService;
 import com.testehan.finana.service.FinancialDataService;
 import com.testehan.finana.service.FinancialMetricsService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 
+import java.util.List;
 import java.util.Optional;
 
 @RestController
@@ -22,12 +24,14 @@ public class StockController {
     private final AlphaVantageService alphaVantageService;
     private final FinancialDataService financialDataService;
     private final FinancialMetricsService financialMetricsService;
+    private final FMPService fmpService;
 
     @Autowired
-    public StockController(AlphaVantageService alphaVantageService, FinancialDataService financialDataService, FinancialMetricsService financialMetricsService) {
+    public StockController(AlphaVantageService alphaVantageService, FinancialDataService financialDataService, FinancialMetricsService financialMetricsService, FMPService fmpService) {
         this.alphaVantageService = alphaVantageService;
         this.financialDataService = financialDataService;
         this.financialMetricsService = financialMetricsService;
+        this.fmpService = fmpService;
     }
 
     @GetMapping("/overview/{symbol}")
@@ -38,6 +42,21 @@ public class StockController {
     @GetMapping("/income-statement/{symbol}")
     public Mono<IncomeStatementData> getIncomeStatements(@PathVariable String symbol) {
         return financialDataService.getIncomeStatements(symbol);
+    }
+
+    @GetMapping("/fmp/income-statement/{symbol}/{period}")
+    public Mono<List<IncomeReport>> getIncomeStatement(@PathVariable String symbol, @PathVariable String period) {
+        return fmpService.getIncomeStatement(symbol,period);
+    }
+
+    @GetMapping("/fmp/balance-sheet-statement/{symbol}/{period}")
+    public Mono<List<BalanceSheetReport>> getBalanceSheetStatement(@PathVariable String symbol, @PathVariable String period) {
+        return fmpService.getBalanceSheetStatement(symbol, period);
+    }
+
+    @GetMapping("/fmp/cash-flow-statement/{symbol}/{period}")
+    public Mono<List<CashFlowReport>> getCashFlowStatement(@PathVariable String symbol, @PathVariable String period) {
+        return fmpService.getCashflowStatement(symbol, period);
     }
 
     @GetMapping("/balance-sheet/{symbol}")
