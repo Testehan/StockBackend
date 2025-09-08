@@ -25,6 +25,7 @@ public class FinancialDataService {
     private final EarningsHistoryRepository earningsHistoryRepository;
     private final StockQuotesRepository stockQuotesRepository;
     private final SecApiService secApiService;
+    private final EarningsEstimatesRepository earningsEstimatesRepository;
 
     private final DateUtils dateUtils;
 
@@ -32,7 +33,7 @@ public class FinancialDataService {
     private final CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository;
 
 
-    public FinancialDataService(AlphaVantageService alphaVantageService, IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository, CashFlowRepository cashFlowRepository, SharesOutstandingRepository sharesOutstandingRepository, CompanyOverviewRepository companyOverviewRepository, EarningsHistoryRepository earningsHistoryRepository, StockQuotesRepository stockQuotesRepository, CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository, SecApiService secApiService, DateUtils dateUtils) {
+    public FinancialDataService(AlphaVantageService alphaVantageService, IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository, CashFlowRepository cashFlowRepository, SharesOutstandingRepository sharesOutstandingRepository, CompanyOverviewRepository companyOverviewRepository, EarningsHistoryRepository earningsHistoryRepository, StockQuotesRepository stockQuotesRepository, CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository, SecApiService secApiService, DateUtils dateUtils, EarningsEstimatesRepository earningsEstimatesRepository) {
         this.alphaVantageService = alphaVantageService;
         this.incomeStatementRepository = incomeStatementRepository;
         this.balanceSheetRepository = balanceSheetRepository;
@@ -44,6 +45,7 @@ public class FinancialDataService {
         this.companyEarningsTranscriptsRepository = companyEarningsTranscriptsRepository;
         this.secApiService = secApiService;
         this.dateUtils = dateUtils;
+        this.earningsEstimatesRepository = earningsEstimatesRepository;
     }
 
     public void ensureFinancialDataIsPresent(String ticker) {
@@ -96,6 +98,21 @@ public class FinancialDataService {
             } else {
                 return alphaVantageService.fetchEarningsHistoryFromApiAndSave(symbol.toUpperCase())
                         .flatMap(earningsHistory -> Mono.just(earningsHistoryRepository.save(earningsHistory)));
+            }
+        });
+    }
+
+    public Mono<EarningsEstimate> getEarningsEstimates(String symbol) {
+        return Mono.defer(() -> {
+            Optional<EarningsEstimate> earningsEstimateFromDb = earningsEstimatesRepository.findBySymbol(symbol.toUpperCase());
+            if (earningsEstimateFromDb.isPresent() && isRecent(earningsEstimateFromDb.get().getLastUpdated(), 10080)) {
+                return Mono.just(earningsEstimateFromDb.get());
+            } else {
+                return alphaVantageService.fetchEarningsEstimatesFromApi(symbol.toUpperCase())
+                        .flatMap(earningsEstimate -> {
+                            earningsEstimate.setLastUpdated(LocalDateTime.now());
+                            return Mono.just(earningsEstimatesRepository.save(earningsEstimate));
+                        });
             }
         });
     }
