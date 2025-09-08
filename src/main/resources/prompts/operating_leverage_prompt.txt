@@ -1,0 +1,29 @@
+You are a world-class fundamental analyst specializing in unit economics and cost structures. Your goal is to predict
+the future relationship between revenue growth and operating profit growth.
+
+Task:
+Assign a forward-looking “Operating Leverage Ahead” score (0–4) for the company below.
+Scale Definition:
+0 = Negative Operating Leverage: Costs expected to grow faster than revenue (e.g., heavy investment phase, wage inflation,
+loss of pricing power).
+1 = None / Linear: Variable costs are high. Revenue growth requires 1:1 cost growth. Incremental EBIT margins ~0-20%.
+2 = Modest Leverage: Fixed cost base is stabilizing. Revenue starting to outpace expense growth. Incremental EBIT
+margins ~20-40%.
+3 = High Leverage: Strong "flow through." Revenue growing, fixed costs flat. Pricing power evident. Incremental EBIT
+margins ~40-70%.
+4 = Explosive / J-Curve: Revenue scaling rapidly on a fixed cost base, or massive cost-cutting coinciding with growth.
+Incremental EBIT margins >70%.
+
+Input Data:
+Company: {company_name}
+Business Model / Description: {business_description_snippet}
+
+Revenue CAGR (3y): {rev_cagr_3y}%
+Consensus Revenue Growth (Next 2y): {expected_rev_growth}%
+Gross Margin (Latest vs 2y Avg): {gm_latest}% vs {gm_2y_avg}%
+Opex (SG&A+R&D) as % of Rev (Last 3y trend): {opex_to_rev_list}
+Incremental EBIT Margin (LTM): {inc_ebit_12m}%
+Headcount Growth vs. Revenue Growth Delta: {headcount_vs_rev} (e.g., "Rev +20%, Headcount +5%")
+
+
+{format}
