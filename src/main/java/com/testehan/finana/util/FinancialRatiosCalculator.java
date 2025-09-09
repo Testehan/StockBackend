@@ -10,16 +10,19 @@ import java.math.RoundingMode;
 public class FinancialRatiosCalculator {
 
     private final SafeParser safeParser = new SafeParser();
+// TODO if you compare some of the numbers resulted from the calculator with other apps, you will see differences...so
+    // maybe there are some mistakes... you can get key metrics and ratios directly from FMP but it is only anual data..
+    // i think i sould keep this calculator, maybe fixed it add tests..since i can use it to calculate quartely data as well
+    // on the paid version..you need to pay $49 per month for this..
 
     public FinancialRatiosReport calculateRatios(IncomeReport incomeReport,
                                                  BalanceSheetReport balanceSheetReport,
-                                                 CashFlowReport cashFlowReport,
-                                                 SharesOutstandingReport sharesOutstandingReport) {
+                                                 CashFlowReport cashFlowReport) {
         FinancialRatiosReport ratios = new FinancialRatiosReport();
-        ratios.setFiscalDateEnding(incomeReport.getDate());
+        ratios.setDate(incomeReport.getDate());
 
         // Parse all values once
-        ParsedFinancialData data = parseFinancialData(incomeReport, balanceSheetReport, cashFlowReport, sharesOutstandingReport);
+        ParsedFinancialData data = parseFinancialData(incomeReport, balanceSheetReport, cashFlowReport);
 
         // Profitability Ratios
         calculateGrossProfitMargin(ratios, data);
@@ -84,8 +87,7 @@ public class FinancialRatiosCalculator {
 
     private ParsedFinancialData parseFinancialData(IncomeReport income,
                                                    BalanceSheetReport balance,
-                                                   CashFlowReport cashFlow,
-                                                   SharesOutstandingReport shares) {
+                                                   CashFlowReport cashFlow) {
         ParsedFinancialData data = new ParsedFinancialData();
 
         // Income Statement
@@ -142,8 +144,8 @@ public class FinancialRatiosCalculator {
         data.dividendPayoutPreferredStock = safeParser.parse(cashFlow.getPreferredDividendsPaid());
 
         // Shares Outstanding
-        data.sharesOutstanding = safeParser.parse(shares.getSharesOutstandingDiluted());
-        data.sharesOutstandingBasic = safeParser.parse(shares.getSharesOutstandingBasic());
+        data.sharesOutstanding = safeParser.parse(income.getWeightedAverageShsOutDil());
+        data.sharesOutstandingBasic = safeParser.parse(income.getWeightedAverageShsOut());
 
         // Calculate composite values
         data.totalDebt = data.shortTermDebt.add(data.longTermDebt);

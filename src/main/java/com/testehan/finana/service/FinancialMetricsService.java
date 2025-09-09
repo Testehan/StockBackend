@@ -1,14 +1,16 @@
 package com.testehan.finana.service;
 
 import com.testehan.finana.model.*;
-import com.testehan.finana.repository.*;
+import com.testehan.finana.repository.FinancialRatiosRepository;
 import com.testehan.finana.util.FinancialRatiosCalculator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -93,39 +95,10 @@ public class FinancialMetricsService {
                 continue; // Skip if we don't have all required reports
             }
 
-            // Find the most recent shares outstanding report on or before fiscal date
-            LocalDate reportFiscalDate = LocalDate.parse(fiscalDateEnding, formatter);
-            Optional<SharesOutstandingReport> sharesOutstanding = findLatestSharesOutstanding(
-                    sharesOutstandingReports, reportFiscalDate, formatter);
+            FinancialRatiosReport ratios = financialRatiosCalculator.calculateRatios(incomeReport, balanceSheet, cashFlow);
+            targetList.add(ratios);
 
-            sharesOutstanding.ifPresent(shares -> {
-                FinancialRatiosReport ratios = financialRatiosCalculator.calculateRatios(incomeReport, balanceSheet, cashFlow, shares);
-                targetList.add(ratios);
-            });
         }
-    }
-
-    private Optional<SharesOutstandingReport> findLatestSharesOutstanding(
-            List<SharesOutstandingReport> reports,
-            LocalDate fiscalDate,
-            DateTimeFormatter formatter) {
-
-        return reports.stream()
-                .filter(report -> isValidDateOnOrBefore(report.getDate(), fiscalDate, formatter))
-                .max(Comparator.comparing(report -> parseDate(report.getDate(), formatter)));
-    }
-
-    private boolean isValidDateOnOrBefore(String dateStr, LocalDate fiscalDate, DateTimeFormatter formatter) {
-        try {
-            LocalDate date = LocalDate.parse(dateStr, formatter);
-            return !date.isAfter(fiscalDate);
-        } catch (Exception e) {
-            return false; // Malformed date
-        }
-    }
-
-    private LocalDate parseDate(String dateStr, DateTimeFormatter formatter) {
-        return LocalDate.parse(dateStr, formatter);
     }
 
 }

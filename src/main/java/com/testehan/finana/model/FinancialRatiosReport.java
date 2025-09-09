@@ -6,7 +6,7 @@ import java.math.BigDecimal;
 
 @Data
 public class FinancialRatiosReport {
-    private String fiscalDateEnding;
+    private String date;        // fical ending date
 
     // Profitability
     private BigDecimal grossProfitMargin;

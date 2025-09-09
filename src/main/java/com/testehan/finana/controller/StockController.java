@@ -44,6 +44,11 @@ public class StockController {
         return financialDataService.getIncomeStatements(symbol);
     }
 
+    @GetMapping("/balance-sheet/{symbol}")
+    public Mono<BalanceSheetData> getBalanceSheetStatement(@PathVariable String symbol) {
+        return financialDataService.getBalanceSheet(symbol);
+    }
+
     @GetMapping("/fmp/income-statement/{symbol}/{period}")
     public Mono<List<IncomeReport>> getIncomeStatement(@PathVariable String symbol, @PathVariable String period) {
         return fmpService.getIncomeStatement(symbol,period);
@@ -64,19 +69,9 @@ public class StockController {
         return Mono.just(financialDataService.getCompanyOverview(symbol).block().getFirst());
     }
 
-    @GetMapping("/balance-sheet/{symbol}")
-    public Mono<BalanceSheetData> getBalanceSheet(@PathVariable String symbol) {
-        return financialDataService.getBalanceSheet(symbol);
-    }
-
     @GetMapping("/cash-flow/{symbol}")
     public Mono<CashFlowData> getCashFlow(@PathVariable String symbol) {
         return financialDataService.getCashFlow(symbol);
-    }
-
-    @GetMapping("/shares-outstanding/{symbol}")
-    public Mono<SharesOutstandingData> getSharesOutstanding(@PathVariable String symbol) {
-        return financialDataService.getSharesOutstanding(symbol);
     }
 
     @GetMapping("/earnings-history/{symbol}")

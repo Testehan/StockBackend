@@ -406,7 +406,7 @@ public class FerolService {
         }
 
         List<FinancialRatiosReport> quarterlyReports = financialRatiosData.get().getQuarterlyReports().stream()
-                .sorted(Comparator.comparing(FinancialRatiosReport::getFiscalDateEnding).reversed())
+                .sorted(Comparator.comparing(FinancialRatiosReport::getDate).reversed())
                 .limit(4)
                 .collect(Collectors.toList());
 
@@ -462,7 +462,7 @@ public class FerolService {
         // Get annual ROIC for 5-year median
         List<BigDecimal> annualRoicValues = financialRatiosData.get().getAnnualReports().stream()
                 .filter(report -> report.getRoic() != null)
-                .sorted(Comparator.comparing(FinancialRatiosReport::getFiscalDateEnding).reversed())
+                .sorted(Comparator.comparing(FinancialRatiosReport::getDate).reversed())
                 .limit(5)
                 .map(FinancialRatiosReport::getRoic)
                 .collect(Collectors.toList());
@@ -491,7 +491,7 @@ public class FerolService {
         BigDecimal currentTtmRoic = BigDecimal.ZERO;
         Optional<FinancialRatiosReport> latestQuarterlyReport = financialRatiosData.get().getQuarterlyReports().stream()
                 .filter(report -> report.getRoic() != null)
-                .max(Comparator.comparing(FinancialRatiosReport::getFiscalDateEnding));
+                .max(Comparator.comparing(FinancialRatiosReport::getDate));
 
         if (latestQuarterlyReport.isPresent()) {
             currentTtmRoic = latestQuarterlyReport.get().getRoic();
@@ -549,7 +549,7 @@ public class FerolService {
         List<IncomeReport> incomeReports = incomeStatementDataOptional.get().getQuarterlyReports();
 
         // Sort reports by fiscal date ending in descending order
-        financialRatiosReports.sort(Comparator.comparing(FinancialRatiosReport::getFiscalDateEnding).reversed());
+        financialRatiosReports.sort(Comparator.comparing(FinancialRatiosReport::getDate).reversed());
         incomeReports.sort(Comparator.comparing(IncomeReport::getDate).reversed());
 
         // Helper to get income report for a specific date
@@ -566,7 +566,7 @@ public class FerolService {
         for (int i = 0; i < 8; i++) { // Need up to 8 quarters for current and previous TTM
             if (i < financialRatiosReports.size()) {
                 FinancialRatiosReport fr = financialRatiosReports.get(i);
-                IncomeReport ir = incomeReportMap.get(fr.getFiscalDateEnding());
+                IncomeReport ir = incomeReportMap.get(fr.getDate());
 
                 if (fr.getFreeCashFlow() != null && ir != null && ir.getOperatingIncome() != null && ir.getDepreciationAndAmortization() != null) {
                     BigDecimal operatingIncome = safeParseBigDecimal(ir.getOperatingIncome());
@@ -813,7 +813,7 @@ public class FerolService {
         promptParameters.put("latest_earnings_transcript", latestEarningsTranscript);
         financialRatios.ifPresentOrElse(financialRatiosData -> {
             var latestAnualReportRadios = financialRatiosData.getAnnualReports().stream()
-                    .max(Comparator.comparing(tenKFiling -> tenKFiling.getFiscalDateEnding()))
+                    .max(Comparator.comparing(tenKFiling -> tenKFiling.getDate()))
                     .get();
             promptParameters.put("free_cash_flow",latestAnualReportRadios.getFreeCashFlow());
             promptParameters.put("net_debt_ebitda",latestAnualReportRadios.getNetDebtToEbitda());
@@ -1193,7 +1193,7 @@ public class FerolService {
         }
 
         List<FinancialRatiosReport> annualReports = financialRatiosDataOpt.get().getAnnualReports().stream()
-                .sorted(Comparator.comparing(FinancialRatiosReport::getFiscalDateEnding).reversed())
+                .sorted(Comparator.comparing(FinancialRatiosReport::getDate).reversed())
                 .limit(3)
                 .collect(Collectors.toList());
 
