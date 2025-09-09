@@ -15,6 +15,8 @@ public class FinancialRatiosReport {
     private BigDecimal returnOnEquity;
     private BigDecimal operatingProfitMargin;      // EBIT / Revenue (True operational performance)
     private BigDecimal ebitdaMargin;               // Proxy for operating cash flow margin
+    private BigDecimal adjustedEbitdaMargin;        // includes Stockbased compensation...it is used in tech this way
+    private BigDecimal freeCashflowMargin;
     private BigDecimal roic; // Added ROIC
 
     // Liquidity

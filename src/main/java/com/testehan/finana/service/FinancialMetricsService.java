@@ -7,10 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -41,6 +38,7 @@ public class FinancialMetricsService {
     }
 
     public FinancialRatiosData calculateAndSaveRatios(String symbol) {
+        CompanyOverview companyOverview = financialDataService.getCompanyOverview(symbol).block().getFirst();
         Optional<IncomeStatementData> incomeStatementDataOptional = financialDataService.getIncomeStatements(symbol).blockOptional();
         Optional<BalanceSheetData> balanceSheetDataOptional = financialDataService.getBalanceSheet(symbol).blockOptional();
         Optional<CashFlowData> cashFlowDataOptional = financialDataService.getCashFlow(symbol).blockOptional();
@@ -60,9 +58,9 @@ public class FinancialMetricsService {
             financialRatiosData.setQuarterlyReports(new ArrayList<>());
 
             // Process Annual Reports
-            processAndAddReports(symbol, incomeStatementData.getAnnualReports(), balanceSheetData.getAnnualReports(), cashFlowData.getAnnualReports(), sharesOutstandingData.getData(), financialRatiosData.getAnnualReports()); // Update this
+            processAndAddReports(symbol, companyOverview, incomeStatementData.getAnnualReports(), balanceSheetData.getAnnualReports(), cashFlowData.getAnnualReports(), sharesOutstandingData.getData(), financialRatiosData.getAnnualReports()); // Update this
             // Process Quarterly Reports
-            processAndAddReports(symbol, incomeStatementData.getQuarterlyReports(), balanceSheetData.getQuarterlyReports(), cashFlowData.getQuarterlyReports(), sharesOutstandingData.getData(), financialRatiosData.getQuarterlyReports()); // Update this
+            processAndAddReports(symbol, companyOverview, incomeStatementData.getQuarterlyReports(), balanceSheetData.getQuarterlyReports(), cashFlowData.getQuarterlyReports(), sharesOutstandingData.getData(), financialRatiosData.getQuarterlyReports()); // Update this
 
             return financialRatiosRepository.save(financialRatiosData);
         }
@@ -70,6 +68,7 @@ public class FinancialMetricsService {
     }
 
     private void processAndAddReports(String symbol,
+                                      CompanyOverview companyOverview,
                                       List<IncomeReport> incomeReports,
                                       List<BalanceSheetReport> balanceSheetReports,
                                       List<CashFlowReport> cashFlowReports,
@@ -95,7 +94,7 @@ public class FinancialMetricsService {
                 continue; // Skip if we don't have all required reports
             }
 
-            FinancialRatiosReport ratios = financialRatiosCalculator.calculateRatios(incomeReport, balanceSheet, cashFlow);
+            FinancialRatiosReport ratios = financialRatiosCalculator.calculateRatios(companyOverview, incomeReport, balanceSheet, cashFlow);
             targetList.add(ratios);
 
         }
