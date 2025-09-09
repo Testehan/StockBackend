@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -62,6 +63,9 @@ public class FerolService {
 
     @Value("classpath:/prompts/operating_leverage_prompt.txt")
     private Resource operatingLeveragePrompt;
+
+    @Value("classpath:/prompts/customers_cyclicality.txt")
+    private Resource companyCyclicality;
 
     public FerolService(BalanceSheetRepository balanceSheetRepository,
                         IncomeStatementRepository incomeStatementRepository,
@@ -125,107 +129,127 @@ public class FerolService {
                 sendSseEvent(sseEmitter, "Financial data retrieved.");
 
                 // Launch all calculations in parallel using CompletableFuture
-                CompletableFuture<FerolReportItem> financialResilienceFuture = CompletableFuture.supplyAsync(() -> {
-                    sendSseEvent(sseEmitter, "Calculating financial resilience...");
-                    FerolReportItem item = calculateFinancialResilience(ticker, incomeStatementData, balanceSheetData, sseEmitter);
-                    sendSseEvent(sseEmitter, "Financial resilience calculation complete.");
-                    return item;
-                });
+//                CompletableFuture<FerolReportItem> financialResilienceFuture = CompletableFuture.supplyAsync(() -> {
+//                    sendSseEvent(sseEmitter, "Calculating financial resilience...");
+//                    FerolReportItem item = calculateFinancialResilience(ticker, incomeStatementData, balanceSheetData, sseEmitter);
+//                    sendSseEvent(sseEmitter, "Financial resilience calculation complete.");
+//                    return item;
+//                });
+//
+//                CompletableFuture<FerolReportItem> grossMarginFuture = CompletableFuture.supplyAsync(() -> {
+//                    sendSseEvent(sseEmitter, "Calculating Gross Margin...");
+//                    FerolReportItem item = calculateGrossMargin(ticker, sseEmitter);
+//                    sendSseEvent(sseEmitter, "Gross Margin calculation complete.");
+//                    return item;
+//                });
+//
+//                CompletableFuture<FerolReportItem> roicFuture = CompletableFuture.supplyAsync(() -> {
+//                    sendSseEvent(sseEmitter, "Calculating Return on Invested Capital (ROIC)...");
+//                    FerolReportItem item = calculateReturnOnInvestedCapital(ticker, sseEmitter);
+//                    sendSseEvent(sseEmitter, "Return on Invested Capital (ROIC) calculation complete.");
+//                    return item;
+//                });
+//
+//                CompletableFuture<FerolReportItem> fcfFuture = CompletableFuture.supplyAsync(() -> {
+//                    sendSseEvent(sseEmitter, "Calculating Free Cash Flow...");
+//                    FerolReportItem item = calculateFreeCashFlow(ticker, sseEmitter);
+//                    sendSseEvent(sseEmitter, "Free Cash Flow calculation complete.");
+//                    return item;
+//                });
+//
+//                CompletableFuture<FerolReportItem> epsFuture = CompletableFuture.supplyAsync(() -> {
+//                    sendSseEvent(sseEmitter, "Calculating Earnings Per Share (EPS)...");
+//                    FerolReportItem item = calculateEarningsPerShare(ticker, sseEmitter);
+//                    sendSseEvent(sseEmitter, "Earnings Per Share (EPS) calculation complete.");
+//                    return item;
+//                });
+//
+//                Optional<SecFiling> secFilingData = secFilingRepository.findBySymbol(ticker);
+//                Optional<CompanyOverview> companyOverview = companyOverviewRepository.findBySymbol(ticker);
+//                CompletableFuture<FerolMoatAnalysisLlmResponse> moatsFuture = CompletableFuture.supplyAsync(() -> {
+//                    sendSseEvent(sseEmitter, "Thinking about moats...");
+//                    FerolMoatAnalysisLlmResponse item = calculateMoats(ticker, secFilingData,companyOverview, sseEmitter);
+//                    sendSseEvent(sseEmitter, "Moats analysis is complete.");
+//                    return item;
+//                });
+//
+//                CompletableFuture<FerolReportItem> optionalityFuture = CompletableFuture.supplyAsync(() -> {
+//                    sendSseEvent(sseEmitter, "Thinking about optionality...");
+//                    FerolReportItem item = calculateOptionality(ticker, sseEmitter);
+//                    sendSseEvent(sseEmitter, "Optionality analysis is complete.");
+//                    return item;
+//                });
+//
+//                CompletableFuture<FerolReportItem> organicGrowthRunawayFuture = CompletableFuture.supplyAsync(() -> {
+//                    sendSseEvent(sseEmitter, "Thinking about organic growth runaway...");
+//                    FerolReportItem item = calculateOrganicGrowthRunaway(ticker, sseEmitter);
+//                    sendSseEvent(sseEmitter, "Organic growth runaway analysis is complete.");
+//                    return item;
+//                });
+//
+//                CompletableFuture<FerolReportItem> topDogFuture = CompletableFuture.supplyAsync(() -> {
+//                    sendSseEvent(sseEmitter, "Thinking about top dog or first mover...");
+//                    FerolReportItem item = calculateTopDogOrFirstMover(ticker, sseEmitter);
+//                    sendSseEvent(sseEmitter, "Top dog or first mover analysis is complete.");
+//                    return item;
+//                });
+//
+//                CompletableFuture<FerolReportItem> operatingLeverageFuture = CompletableFuture.supplyAsync(() -> {
+//                    sendSseEvent(sseEmitter, "Thinking about operating leverage...");
+//                    FerolReportItem item = calculateOperatingLeverage(ticker, sseEmitter);
+//                    sendSseEvent(sseEmitter, "Operating leverage analysis is complete.");
+//                    return item;
+//                });
+//
+//                CompletableFuture<FerolReportItem> acquisitionsFuture = CompletableFuture.supplyAsync(() -> {
+//                    sendSseEvent(sseEmitter, "Thinking about Sales & Marketing % of gross profit...");
+//                    FerolReportItem item = calculateAcquisitions(ticker, sseEmitter);
+//                    sendSseEvent(sseEmitter, "Sales & Marketing % of gross profit analysis is complete.");
+//                    return item;
+//                });
 
-                CompletableFuture<FerolReportItem> grossMarginFuture = CompletableFuture.supplyAsync(() -> {
-                    sendSseEvent(sseEmitter, "Calculating Gross Margin...");
-                    FerolReportItem item = calculateGrossMargin(ticker, sseEmitter);
-                    sendSseEvent(sseEmitter, "Gross Margin calculation complete.");
-                    return item;
-                });
-
-                CompletableFuture<FerolReportItem> roicFuture = CompletableFuture.supplyAsync(() -> {
-                    sendSseEvent(sseEmitter, "Calculating Return on Invested Capital (ROIC)...");
-                    FerolReportItem item = calculateReturnOnInvestedCapital(ticker, sseEmitter);
-                    sendSseEvent(sseEmitter, "Return on Invested Capital (ROIC) calculation complete.");
-                    return item;
-                });
-
-                CompletableFuture<FerolReportItem> fcfFuture = CompletableFuture.supplyAsync(() -> {
-                    sendSseEvent(sseEmitter, "Calculating Free Cash Flow...");
-                    FerolReportItem item = calculateFreeCashFlow(ticker, sseEmitter);
-                    sendSseEvent(sseEmitter, "Free Cash Flow calculation complete.");
-                    return item;
-                });
-
-                CompletableFuture<FerolReportItem> epsFuture = CompletableFuture.supplyAsync(() -> {
-                    sendSseEvent(sseEmitter, "Calculating Earnings Per Share (EPS)...");
-                    FerolReportItem item = calculateEarningsPerShare(ticker, sseEmitter);
-                    sendSseEvent(sseEmitter, "Earnings Per Share (EPS) calculation complete.");
-                    return item;
-                });
-
-                Optional<SecFiling> secFilingData = secFilingRepository.findBySymbol(ticker);
-                Optional<CompanyOverview> companyOverview = companyOverviewRepository.findBySymbol(ticker);
-                CompletableFuture<FerolMoatAnalysisLlmResponse> moatsFuture = CompletableFuture.supplyAsync(() -> {
-                    sendSseEvent(sseEmitter, "Thinking about moats...");
-                    FerolMoatAnalysisLlmResponse item = calculateMoats(ticker, secFilingData,companyOverview, sseEmitter);
-                    sendSseEvent(sseEmitter, "Moats analysis is complete.");
-                    return item;
-                });
-
-                CompletableFuture<FerolReportItem> optionalityFuture = CompletableFuture.supplyAsync(() -> {
-                    sendSseEvent(sseEmitter, "Thinking about optionality...");
-                    FerolReportItem item = calculateOptionality(ticker, sseEmitter);
-                    sendSseEvent(sseEmitter, "Optionality analysis is complete.");
-                    return item;
-                });
-
-                CompletableFuture<FerolReportItem> organicGrowthRunawayFuture = CompletableFuture.supplyAsync(() -> {
-                    sendSseEvent(sseEmitter, "Thinking about organic growth runaway...");
-                    FerolReportItem item = calculateOrganicGrowthRunaway(ticker, sseEmitter);
-                    sendSseEvent(sseEmitter, "Organic growth runaway analysis is complete.");
-                    return item;
-                });
-
-                CompletableFuture<FerolReportItem> topDogFuture = CompletableFuture.supplyAsync(() -> {
-                    sendSseEvent(sseEmitter, "Thinking about top dog or first mover...");
-                    FerolReportItem item = calculateTopDogOrFirstMover(ticker, sseEmitter);
-                    sendSseEvent(sseEmitter, "Top dog or first mover analysis is complete.");
-                    return item;
-                });
-
-                CompletableFuture<FerolReportItem> operatingLeverageFuture = CompletableFuture.supplyAsync(() -> {
-                    sendSseEvent(sseEmitter, "Thinking about operating leverage...");
-                    FerolReportItem item = calculateOperatingLeverage(ticker, sseEmitter);
-                    sendSseEvent(sseEmitter, "Operating leverage analysis is complete.");
+                CompletableFuture<FerolReportItem> cyclicalityFuture = CompletableFuture.supplyAsync(() -> {
+                    sendSseEvent(sseEmitter, "Thinking how cyclical is this business..");
+                    FerolReportItem item = calculateCyclicality(ticker, sseEmitter);
+                    sendSseEvent(sseEmitter, "Business cyclicality analysis is complete.");
                     return item;
                 });
 
                 // Wait for all futures to complete
                 CompletableFuture.allOf(
-                        financialResilienceFuture, grossMarginFuture, roicFuture, fcfFuture, epsFuture,
-                        moatsFuture,
-                        optionalityFuture, organicGrowthRunawayFuture, topDogFuture, operatingLeverageFuture)
+          //              financialResilienceFuture, grossMarginFuture, roicFuture, fcfFuture, epsFuture,
+             //           moatsFuture,
+            //            optionalityFuture, organicGrowthRunawayFuture, topDogFuture, operatingLeverageFuture,
+                 //       acquisitionsFuture,
+                                cyclicalityFuture)
                 .join(); // Blocks until all complete or one fails
 
                 // Financials
                 List<FerolReportItem> ferolReportItems = new ArrayList<>();
-                ferolReportItems.add(financialResilienceFuture.get());
-                ferolReportItems.add(grossMarginFuture.get());
-                ferolReportItems.add(roicFuture.get());
-                ferolReportItems.add(fcfFuture.get());
-                ferolReportItems.add(epsFuture.get());
+//                ferolReportItems.add(financialResilienceFuture.get());
+//                ferolReportItems.add(grossMarginFuture.get());
+//                ferolReportItems.add(roicFuture.get());
+//                ferolReportItems.add(fcfFuture.get());
+//                ferolReportItems.add(epsFuture.get());
 
                 // Moat
-                FerolMoatAnalysisLlmResponse moatAnalysis = moatsFuture.get();
-                ferolReportItems.add(new FerolReportItem("networkEffect",moatAnalysis.getNetworkEffectScore(), moatAnalysis.getNetworkEffectExplanation()));
-                ferolReportItems.add(new FerolReportItem("switchingCosts",moatAnalysis.getSwitchingCostsScore(), moatAnalysis.getSwitchingCostsExplanation()));
-                ferolReportItems.add(new FerolReportItem("durableCostAdvantage",moatAnalysis.getDurableCostAdvantageScore(), moatAnalysis.getDurableCostAdvantageExplanation()));
-                ferolReportItems.add(new FerolReportItem("intangibles",moatAnalysis.getIntangiblesScore(), moatAnalysis.getIntangiblesExplanation()));
-                ferolReportItems.add(new FerolReportItem("counterPositioning",moatAnalysis.getCounterPositioningScore(), moatAnalysis.getCounterPositioningExplanation()));
-                ferolReportItems.add(new FerolReportItem("moatDirection",moatAnalysis.getMoatDirectionScore(), moatAnalysis.getMoatDirectionExplanation()));
+//                FerolMoatAnalysisLlmResponse moatAnalysis = moatsFuture.get();
+//                ferolReportItems.add(new FerolReportItem("networkEffect",moatAnalysis.getNetworkEffectScore(), moatAnalysis.getNetworkEffectExplanation()));
+//                ferolReportItems.add(new FerolReportItem("switchingCosts",moatAnalysis.getSwitchingCostsScore(), moatAnalysis.getSwitchingCostsExplanation()));
+//                ferolReportItems.add(new FerolReportItem("durableCostAdvantage",moatAnalysis.getDurableCostAdvantageScore(), moatAnalysis.getDurableCostAdvantageExplanation()));
+//                ferolReportItems.add(new FerolReportItem("intangibles",moatAnalysis.getIntangiblesScore(), moatAnalysis.getIntangiblesExplanation()));
+//                ferolReportItems.add(new FerolReportItem("counterPositioning",moatAnalysis.getCounterPositioningScore(), moatAnalysis.getCounterPositioningExplanation()));
+//                ferolReportItems.add(new FerolReportItem("moatDirection",moatAnalysis.getMoatDirectionScore(), moatAnalysis.getMoatDirectionExplanation()));
 
-                // Potential
-                ferolReportItems.add(optionalityFuture.get());
-                ferolReportItems.add(organicGrowthRunawayFuture.get());
-                ferolReportItems.add(topDogFuture.get());
-                ferolReportItems.add(operatingLeverageFuture.get());
+//                // Potential
+//                ferolReportItems.add(optionalityFuture.get());
+//                ferolReportItems.add(organicGrowthRunawayFuture.get());
+//                ferolReportItems.add(topDogFuture.get());
+//                ferolReportItems.add(operatingLeverageFuture.get());
+
+                // Customers
+//                ferolReportItems.add(acquisitionsFuture.get());
+                ferolReportItems.add(cyclicalityFuture.get());
 
                 sendSseEvent(sseEmitter, "Building and saving FEROL report...");
                 FerolReport ferolReport = buildAndSaveReport(ticker, ferolReportItems);
@@ -1014,6 +1038,169 @@ public class FerolService {
         }
     }
 
+
+    private FerolReportItem calculateAcquisitions(String ticker, SseEmitter sseEmitter) {
+        var incomeDataOptional = incomeStatementRepository.findBySymbol(ticker);
+        if (incomeDataOptional.isPresent()){
+            var incomeData = incomeDataOptional.get();
+
+            List<IncomeReport> reports = incomeData.getAnnualReports();
+
+            if (reports == null || reports.isEmpty()) {
+                String errorMessage = "No income annual reports found for symbol " + ticker;
+                LOGGER.error(errorMessage);
+                sendSseErrorEvent(sseEmitter, errorMessage);
+            }
+
+            // 1. Sort reports by date (Descending) to ensure we get the most recent ones first
+            List<IncomeReport> sortedReports = reports.stream()
+                    .sorted(Comparator.comparing(IncomeReport::getDate).reversed())
+                    .limit(3) // We only care about the last 3 years
+                    .collect(Collectors.toList());
+
+            BigDecimal totalWeightedPercentage = BigDecimal.ZERO;
+            int totalWeight = 0;
+
+            // Weights: Most recent = 3, Next = 2, Last = 1
+            int currentWeight = 3;
+
+            for (IncomeReport report : sortedReports) {
+                BigDecimal salesAndMarketExpense = new BigDecimal(report.getSellingAndMarketingExpenses());
+                BigDecimal grossProfit = new BigDecimal(report.getGrossProfit());
+
+                // 2. Fallback: If S&M is null or Zero, use SG&A
+                if (salesAndMarketExpense == null || salesAndMarketExpense.compareTo(BigDecimal.ZERO) == 0) {
+                    salesAndMarketExpense =  new BigDecimal(report.getSellingGeneralAndAdministrativeExpenses());
+                    // Optional: You could log that you are using a proxy here
+                }
+
+                // Safety check: Skip if data is missing or Gross Profit is 0/Negative to avoid math errors
+                if (salesAndMarketExpense == null || grossProfit == null || grossProfit.compareTo(BigDecimal.ZERO) <= 0) {
+                    currentWeight--;
+                    continue;
+                }
+
+                // Calculate ratio for this year: (S&M / GP) * 100
+                BigDecimal yearRatio = salesAndMarketExpense.divide(grossProfit, 4, RoundingMode.HALF_UP)
+                        .multiply(new BigDecimal("100"));
+
+                // Apply Weight
+                totalWeightedPercentage = totalWeightedPercentage.add(yearRatio.multiply(new BigDecimal(currentWeight)));
+                totalWeight += currentWeight;
+
+                currentWeight--;
+            }
+
+            if (totalWeight == 0) {
+                String errorMessage = "Data invalid for calculation of s&m % out of gross profit ";
+                LOGGER.error(errorMessage);
+                sendSseErrorEvent(sseEmitter, errorMessage);
+            }
+
+            // Final Calculation
+            BigDecimal finalAverage = totalWeightedPercentage.divide(new BigDecimal(totalWeight), 2, RoundingMode.HALF_UP);
+
+            // Calculate Score (0-5)
+            int score = calculateAquisitionScore(finalAverage);
+
+            return new FerolReportItem("customerAcquisition", score, "The average weighted (last year has highest weight) S&M % of Gross Profit for last 3 years is " + finalAverage.toPlainString() + "%");
+
+        } else {
+            String errorMessage = "Operation 'calculateAcquisitions' failed.";
+            LOGGER.error(errorMessage + " No income data found for {}",ticker);
+            sendSseErrorEvent(sseEmitter, errorMessage);
+        }
+
+        return new FerolReportItem("customerAcquisition", 0, "Something went wrong and score could not be calculated ");
+    }
+
+
+    private FerolReportItem calculateCyclicality(String ticker, SseEmitter sseEmitter) {
+        Optional<CompanyOverview> companyOverview = companyOverviewRepository.findBySymbol(ticker);
+        if (companyOverview.isEmpty()){
+            LOGGER.warn("No Company overview found for ticker: {}", ticker);
+            sendSseErrorEvent(sseEmitter, "No Company overview found for ticker " + ticker);
+            return new FerolReportItem("customerDependence", 0, "Something went wrong and score could not be calculated ");
+        }
+        Optional<SecFiling> secFilingData = secFilingRepository.findBySymbol(ticker);
+        StringBuilder riskFactors = new StringBuilder();
+        StringBuilder businessDescription = new StringBuilder();
+
+        secFilingData.ifPresentOrElse(secData -> {
+            if (Objects.nonNull(secData.getTenKFilings()) && !secData.getTenKFilings().isEmpty()) {
+                secData.getTenKFilings().stream().max(Comparator.comparing(tenKFiling -> tenKFiling.getFiledAt()))
+                        .ifPresent(latestTenKFiling -> {
+                            riskFactors.append(latestTenKFiling.getRiskFactors());
+                            businessDescription.append(latestTenKFiling.getBusinessDescription());
+                        });
+            } else {
+                LOGGER.warn("No 10k found for ticker: {}", ticker);
+                sendSseEvent(sseEmitter, "No 10k available to get risk factors.");
+            }
+        }, () -> {
+            LOGGER.warn("No 10k found for ticker: {}", ticker);
+            sendSseEvent(sseEmitter, "No 10k available to get risk factors.");
+        });
+
+        PromptTemplate promptTemplate = new PromptTemplate(companyCyclicality);
+        Map<String, Object> promptParameters = new HashMap<>();
+
+        Optional<IncomeStatementData> incomeStatementDataOptional = incomeStatementRepository.findBySymbol(ticker);
+        if (incomeStatementDataOptional.isEmpty()) {
+            LOGGER.warn("No income statement data found for ticker: {}", ticker);
+            sendSseErrorEvent(sseEmitter, "No income statement data found for ticker " + ticker);
+        } else {
+            var incomeStatementData = incomeStatementDataOptional.get();
+            StringBuilder companyRevenueTrend = new StringBuilder();
+            incomeStatementData.getAnnualReports().stream()
+                    .sorted(Comparator.comparing(r -> LocalDate.parse(r.getDate())))
+                    .forEachOrdered(r -> companyRevenueTrend.append(r.getRevenue()).append(" -> "));
+
+            promptParameters.put("company_revenue_trend", companyRevenueTrend.toString());
+        }
+
+        Optional<FinancialRatiosData> financialRatiosDataOptional = financialRatiosRepository.findBySymbol(ticker);
+        if (financialRatiosDataOptional.isEmpty()) {
+            LOGGER.warn("No financial ratios data found for ticker: {}", ticker);
+            sendSseErrorEvent(sseEmitter, "No financial ratios data found for ticker " + ticker);
+        } else {
+            var financialRatiosData = financialRatiosDataOptional.get();
+            StringBuilder operatingMarginTrend = new StringBuilder();
+            financialRatiosData.getAnnualReports().stream()
+                    .sorted(Comparator.comparing(r -> LocalDate.parse(r.getDate())))
+                    .forEachOrdered(r -> operatingMarginTrend.append(r.getOperatingProfitMargin()).append(" -> "));
+
+            promptParameters.put("company_operating_margin_trend", operatingMarginTrend.toString());
+        }
+
+        var ferolLlmResponseOutputConverter = new BeanOutputConverter<>(FerolLlmResponse.class);
+
+        promptParameters.put("company_name", companyOverview.get().getCompanyName());
+        promptParameters.put("company_industry", companyOverview.get().getIndustry());
+        promptParameters.put("company_beta", companyOverview.get().getBeta());
+
+        promptParameters.put("business_description", businessDescription.toString());
+        promptParameters.put("risk_factors", riskFactors.toString());
+
+        promptParameters.put("format", ferolLlmResponseOutputConverter.getFormat());
+        Prompt prompt = promptTemplate.create(promptParameters);
+
+        try {
+            sendSseEvent(sseEmitter, "Sending data to LLM for company cyclicality analysis...");
+            LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
+            String llmResponse = llmService.callLlm(prompt);
+            sendSseEvent(sseEmitter, "Received LLM response for company cyclicality analysis.");
+            FerolLlmResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
+
+            return new FerolReportItem("companyCyclicality", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
+        } catch (Exception e) {
+            String errorMessage = "Operation 'calculateCyclicality' failed.";
+            LOGGER.error(errorMessage, e);
+            sendSseErrorEvent(sseEmitter, errorMessage);
+            throw new RuntimeException(errorMessage, e);
+        }
+    }
+
     private BigDecimal calculateRevenueCAGRPerShare(String ticker) {
         Optional<IncomeStatementData> incomeStatementDataOpt = incomeStatementRepository.findBySymbol(ticker);
         Optional<SharesOutstandingData> sharesOutstandingDataOpt = sharesOutstandingRepository.findBySymbol(ticker);
@@ -1248,5 +1435,16 @@ public class FerolService {
         BigDecimal avgSgr = sumSgr.divide(new BigDecimal(sgrValues.size()), 4, java.math.RoundingMode.HALF_UP);
 
         return avgSgr.multiply(BigDecimal.valueOf(100)).setScale(2, java.math.RoundingMode.HALF_UP);
+    }
+
+    private int calculateAquisitionScore(BigDecimal percentage) {
+        double val = percentage.doubleValue();
+
+        if (val < 10) return 5;       // Word of Mouth / Product Led Growth
+        if (val < 20) return 4;       // Very Efficient
+        if (val < 40) return 3;       // Normal / Benchmark
+        if (val < 60) return 2;       // Getting Expensive
+        if (val < 80) return 1;       // Expensive
+        return 0;                     // Very Expensive / Burning Cash
     }
 }

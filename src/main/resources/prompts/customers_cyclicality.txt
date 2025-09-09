@@ -1,0 +1,56 @@
+Role: Senior Equity Research Analyst.
+
+Task: Assign a final Cyclicality Score from 0 to 5 to {company_name} where
+0–1 = Highly cyclical
+2–3 = Moderately cyclical
+4–5 = Recession-resistant / defensive
+(Higher score = more recession-proof)
+
+You must stay strictly within 0–5. Use only the data provided.
+
+Constraint: We only have recent financial data. You must rely heavily on the Industry Classification, Business Model
+Analysis (from text), and Margin Volatility (from data) to infer how this stock would perform in a deep recession.
+
+Input Data:
+Company Profile:
+    Industry/Sector: {company_industry}
+    Beta: {company_beta}
+Financial Stability (Last Available Years):
+    Revenue Trend (from oldest to recent starting with oldest): {company_revenue_trend}
+    Operating Margin Trend (from oldest to recent starting with oldest): {company_operating_margin_trend}
+Business Model Insights (from SEC Filings):
+    Business Description: {business_description}
+    Risk Factors: {risk_factors}
+
+Analysis Instructions:
+Step 1 : Industry Baseline (choose only one)
+    Semiconductors, Autos, Luxury, Airlines, Hotels, Oil & Gas E&P, Metals & Mining, Construction, Banks, Capital Goods → 0–1
+    Software/SaaS, Food & Beverage, Pharma, Utilities, Telecom, Discount Retailers, Waste, Insurance → 4–5
+    Everything else → 2–3
+
+Step 2: Margin Volatility Check
+    If operating margins stayed inside a ±5 pp band across all years shown → +1.5 to +2 added to score
+    If ±5–12 pp band → +0.5 added to score
+    If >12 pp swing or revenue collapsed in any year 0 added to score
+
+3. Business-Model Modifier (add or subtract max ±1.0 total from the running total)
+   Strong recurring/contractual/regulatory revenue (>60 %), or must-have product → +0.8 to +1.0
+   Visible pricing power repeatedly mentioned → +0.5
+   High operating leverage, heavy capex, commodity exposure, discretionary demand, or concentrated cyclical
+   customers → –0.8 to –1.0
+
+Final score = Industry baseline + Margin Volatility Check + Business-model modifier
+→ Round to nearest 0.5 and clamp between 0 and 5.
+
+Assign a Score from 0 to 5 based on this logic:
+A higher score means more recession-proof, not more cyclical:
+0–1: Highly cyclical. Demand collapses in downturns; margins volatile; high operating leverage; industry is recession-sensitive.
+2–3: Moderately cyclical. Mixed signals: some defensive attributes but meaningful economic exposure.
+4–5: Recession-resistant / stable. Defensive industry, resilient margins, predictable demand, or strong recurring revenue.
+Score must be consistent with all three pillars.
+
+Output Requirement:
+1. Provide the Score (0-5).
+2. Explanation of the score : write 1 sentence explanation about each of the 3 pillars of analysis.
+
+{format}
