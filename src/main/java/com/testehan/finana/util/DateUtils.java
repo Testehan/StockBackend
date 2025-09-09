@@ -1,6 +1,5 @@
 package com.testehan.finana.util;
 
-import com.testehan.finana.model.CompanyOverview;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Component;
 
@@ -9,8 +8,9 @@ import java.time.LocalDate;
 @Component
 public class DateUtils {
     @NotNull
-    public String getDateQuarter(CompanyOverview companyOverview) {
-        LocalDate date = LocalDate.parse(companyOverview.getLatestQuarter());
+    public String getDateQuarter(String dateString) {
+
+        LocalDate date = LocalDate.parse(dateString);
 
         int month = date.getMonthValue();
         int quarter = (month - 1) / 3 + 1;

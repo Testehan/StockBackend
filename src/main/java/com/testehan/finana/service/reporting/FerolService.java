@@ -355,7 +355,7 @@ public class FerolService {
         StringBuilder stringBuilder = new StringBuilder();
 
         companyOverview.ifPresent( overview -> {
-            stringBuilder.append(overview.getName());
+            stringBuilder.append(overview.getCompanyName());
             stringBuilder.append(overview.getDescription()).append("\n");
         });
 
@@ -737,7 +737,7 @@ public class FerolService {
         StringBuilder stringBuilder = new StringBuilder();
 
         companyOverview.ifPresent( overview -> {
-            stringBuilder.append(overview.getName());
+            stringBuilder.append(overview.getCompanyName());
             stringBuilder.append(overview.getDescription()).append("\n");
         });
 
@@ -800,7 +800,7 @@ public class FerolService {
             sendSseEvent(sseEmitter, "R&D intensity calculated: " + avgRdIntensity[0]);
         });
 
-        var latestQuarter = dateUtils.getDateQuarter(companyOverview.get());
+        var latestQuarter = dateUtils.getDateQuarter(financialDataService.getLatestReportedDate(ticker));
         var latestEarningsTranscript = financialDataService.getEarningsCallTranscript(ticker, latestQuarter).block().getTranscript().stream()
                 .map(t -> t.getSpeaker() + " (" + t.getTitle() + "): " + t.getContent() + " [" + t.getSentiment() + "]")
                 .collect(Collectors.joining("\n"));;
@@ -863,7 +863,7 @@ public class FerolService {
             sendSseEvent(sseEmitter, "No 10k available to get management discussion.");
         });
 
-        var latestQuarter = dateUtils.getDateQuarter(companyOverview.get());
+        var latestQuarter = dateUtils.getDateQuarter(financialDataService.getLatestReportedDate(ticker));
         var latestEarningsTranscript = financialDataService.getEarningsCallTranscript(ticker, latestQuarter).block().getTranscript().stream()
                 .map(t -> t.getSpeaker() + " (" + t.getTitle() + "): " + t.getContent() + " [" + t.getSentiment() + "]")
                 .collect(Collectors.joining("\n"));;
@@ -910,7 +910,7 @@ public class FerolService {
             sendSseEvent(sseEmitter, "No 10k available to get business description.");
         });
 
-        var latestQuarter = dateUtils.getDateQuarter(companyOverview.get());
+        var latestQuarter = dateUtils.getDateQuarter(financialDataService.getLatestReportedDate(ticker));
         var latestEarningsTranscript = financialDataService.getEarningsCallTranscript(ticker, latestQuarter).block().getTranscript().stream()
                 .map(t -> t.getSpeaker() + " (" + t.getTitle() + "): " + t.getContent() + " [" + t.getSentiment() + "]")
                 .collect(Collectors.joining("\n"));;
@@ -919,7 +919,7 @@ public class FerolService {
         var ferolLlmResponseOutputConverter = new BeanOutputConverter<>(FerolLlmResponse.class);
 
         Map<String, Object> promptParameters = new HashMap<>();
-        promptParameters.put("company_name", companyOverview.get().getName());
+        promptParameters.put("company_name", companyOverview.get().getCompanyName());
         promptParameters.put("business_description", stringBuilder.toString());
         promptParameters.put("latest_earnings_transcript", latestEarningsTranscript);
         promptParameters.put("format", ferolLlmResponseOutputConverter.getFormat());
@@ -965,7 +965,7 @@ public class FerolService {
         var ferolLlmResponseOutputConverter = new BeanOutputConverter<>(FerolLlmResponse.class);
 
         Map<String, Object> promptParameters = new HashMap<>();
-        promptParameters.put("company_name", companyOverview.get().getName());
+        promptParameters.put("company_name", companyOverview.get().getCompanyName());
         promptParameters.put("business_description", stringBuilder.toString());
         promptParameters.put("rev_cagr_3y", calculateRevenueCAGR3y(ticker));
         promptParameters.put("expected_rev_growth", calculateExpectedRevenueGrowth(ticker));

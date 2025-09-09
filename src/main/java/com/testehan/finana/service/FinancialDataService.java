@@ -3,13 +3,17 @@ package com.testehan.finana.service;
 import com.testehan.finana.model.*;
 import com.testehan.finana.repository.*;
 import com.testehan.finana.util.DateUtils;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -18,8 +22,10 @@ import java.util.Optional;
 public class FinancialDataService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(FinancialDataService.class);
+    private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     private final AlphaVantageService alphaVantageService;
+    private final FMPService fmpService;
 
     private final CompanyOverviewRepository companyOverviewRepository;
     private final IncomeStatementRepository incomeStatementRepository;
@@ -40,8 +46,9 @@ public class FinancialDataService {
     private final CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository;
 
 
-    public FinancialDataService(AlphaVantageService alphaVantageService, IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository, CashFlowRepository cashFlowRepository, SharesOutstandingRepository sharesOutstandingRepository, CompanyOverviewRepository companyOverviewRepository, EarningsHistoryRepository earningsHistoryRepository, StockQuotesRepository stockQuotesRepository, CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository, SecApiService secApiService, DateUtils dateUtils, EarningsEstimatesRepository earningsEstimatesRepository, FinancialRatiosRepository financialRatiosRepository, GeneratedReportRepository generatedReportRepository, SecFilingRepository secFilingRepository) {
+    public FinancialDataService(AlphaVantageService alphaVantageService, FMPService fmpService, IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository, CashFlowRepository cashFlowRepository, SharesOutstandingRepository sharesOutstandingRepository, CompanyOverviewRepository companyOverviewRepository, EarningsHistoryRepository earningsHistoryRepository, StockQuotesRepository stockQuotesRepository, CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository, SecApiService secApiService, DateUtils dateUtils, EarningsEstimatesRepository earningsEstimatesRepository, FinancialRatiosRepository financialRatiosRepository, GeneratedReportRepository generatedReportRepository, SecFilingRepository secFilingRepository) {
         this.alphaVantageService = alphaVantageService;
+        this.fmpService = fmpService;
         this.incomeStatementRepository = incomeStatementRepository;
         this.balanceSheetRepository = balanceSheetRepository;
         this.cashFlowRepository = cashFlowRepository;
@@ -64,10 +71,12 @@ public class FinancialDataService {
         getBalanceSheet(ticker).block();
         getCashFlow(ticker).block();
         getEarningsEstimates(ticker).block();
-        CompanyOverview companyOverview = getCompanyOverview(ticker).block();
+        getCompanyOverview(ticker).block().get(0);
 
-        if (companyOverview != null && companyOverview.getLatestQuarter() != null) {
-            String dateQuarter = dateUtils.getDateQuarter(companyOverview);
+        var latestReportDate = getLatestReportedDate(ticker);
+
+        if (latestReportDate != null) {
+            String dateQuarter = dateUtils.getDateQuarter(latestReportDate);
             getEarningsCallTranscript(ticker, dateQuarter).block();
         }
 
@@ -76,6 +85,13 @@ public class FinancialDataService {
         secApiService.getSectionFrom10K(ticker, "business_description").block();
         secApiService.getSectionFrom10Q(ticker, "risk_factors").block();
         secApiService.getSectionFrom10Q(ticker, "management_discussion").block();
+    }
+
+    @NotNull
+    public String getLatestReportedDate(String ticker) {
+        var incomeData = getIncomeStatements(ticker).block();
+        var latestIncomeReport = incomeData.getQuarterlyReports().stream().max(Comparator.comparing(report -> parseDate(report.getDate(), formatter))).get();
+        return latestIncomeReport.getDate();
     }
 
 
@@ -159,14 +175,14 @@ public class FinancialDataService {
         }).filter(Objects::nonNull);
     }
 
-    public Mono<CompanyOverview> getCompanyOverview(String symbol) {
+    public Mono<List<CompanyOverview>> getCompanyOverview(String symbol) {
         return Mono.defer(() -> {
             Optional<CompanyOverview> overviewFromDb = companyOverviewRepository.findBySymbol(symbol.toUpperCase());
             if (overviewFromDb.isPresent() && isRecent(overviewFromDb.get().getLastUpdated(), 10080)) {
-                return Mono.just(overviewFromDb.get());
+                return Mono.just(List.of(overviewFromDb.get()));
             } else {
-                return alphaVantageService.fetchCompanyOverviewFromApiAndSave(symbol.toUpperCase(), overviewFromDb)
-                        .flatMap(overview -> Mono.just(companyOverviewRepository.save(overview)));
+                return fmpService.getCompanyOverview(symbol.toUpperCase(), overviewFromDb)
+                        .flatMap(overview -> Mono.just(List.of(companyOverviewRepository.save(overview))));
             }
         });
     }
@@ -177,8 +193,12 @@ public class FinancialDataService {
             if (incomeStatementsFromDb.isPresent()) {
                 return Mono.just(incomeStatementsFromDb.get());
             } else {
-                return alphaVantageService.fetchIncomeStatementsFromApiAndSave(symbol.toUpperCase())
-                        .flatMap(incomeStatementData -> Mono.just(incomeStatementRepository.save(incomeStatementData)));
+                IncomeStatementData incomeStatementData = new IncomeStatementData();
+                incomeStatementData.setSymbol(symbol);
+                incomeStatementData.setAnnualReports(fmpService.getIncomeStatement(symbol.toUpperCase(),"annual").block());
+                incomeStatementData.setQuarterlyReports(fmpService.getIncomeStatement(symbol.toUpperCase(),"quarter").block());
+
+                return Mono.just(incomeStatementRepository.save(incomeStatementData));
             }
         });
     }
@@ -189,8 +209,12 @@ public class FinancialDataService {
             if (balanceSheetFromDb.isPresent()) {
                 return Mono.just(balanceSheetFromDb.get());
             } else {
-                return alphaVantageService.fetchBalanceSheetFromApiAndSave(symbol.toUpperCase())
-                        .flatMap(balanceSheetData -> Mono.just(balanceSheetRepository.save(balanceSheetData)));
+                BalanceSheetData balanceSheetData = new BalanceSheetData();
+                balanceSheetData.setSymbol(symbol);
+                balanceSheetData.setAnnualReports(fmpService.getBalanceSheetStatement(symbol.toUpperCase(),"annual").block());
+                balanceSheetData.setQuarterlyReports(fmpService.getBalanceSheetStatement(symbol.toUpperCase(),"quarter").block());
+
+                return Mono.just(balanceSheetRepository.save(balanceSheetData));
             }
         });
     }
@@ -201,8 +225,12 @@ public class FinancialDataService {
             if (cashFlowFromDb.isPresent()) {
                 return Mono.just(cashFlowFromDb.get());
             } else {
-                return alphaVantageService.fetchCashFlowFromApiAndSave(symbol.toUpperCase())
-                        .flatMap(cashFlowData -> Mono.just(cashFlowRepository.save(cashFlowData)));
+                CashFlowData cashFlowData = new CashFlowData();
+                cashFlowData.setSymbol(symbol);
+                cashFlowData.setAnnualReports(fmpService.getCashflowStatement(symbol.toUpperCase(),"annual").block());
+                cashFlowData.setQuarterlyReports(fmpService.getCashflowStatement(symbol.toUpperCase(),"quarter").block());
+
+                return Mono.just(cashFlowRepository.save(cashFlowData));
             }
         });
     }
@@ -243,5 +271,9 @@ public class FinancialDataService {
         secFilingRepository.deleteBySymbol(upperCaseSymbol);
 
         LOGGER.info("Deleted all financial data for ticker: {}", upperCaseSymbol);
+    }
+
+    private LocalDate parseDate(String dateStr, DateTimeFormatter formatter) {
+        return LocalDate.parse(dateStr, formatter);
     }
 }
