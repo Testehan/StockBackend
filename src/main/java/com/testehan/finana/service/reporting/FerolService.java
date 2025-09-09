@@ -360,10 +360,15 @@ public class FerolService {
         });
 
         secFilingData.ifPresentOrElse(secData -> {
-            secData.getTenKFilings().stream().max(Comparator.comparing(tenKFiling -> tenKFiling.getFiledAt()))
-                    .ifPresent(latestTenKFiling -> {
-                        stringBuilder.append(latestTenKFiling.getBusinessDescription());
-                    });
+            if (Objects.nonNull(secData.getTenKFilings()) && !secData.getTenKFilings().isEmpty()) {
+                secData.getTenKFilings().stream().max(Comparator.comparing(tenKFiling -> tenKFiling.getFiledAt()))
+                        .ifPresent(latestTenKFiling -> {
+                            stringBuilder.append(latestTenKFiling.getBusinessDescription());
+                        });
+            } else {
+                LOGGER.warn("No 10k found for ticker: {}", ticker);
+                sendSseEvent(sseEmitter, "No 10k available to get business description.");
+            }
         }, () -> {
             LOGGER.warn("No 10k found for ticker: {}", ticker);
             sendSseEvent(sseEmitter, "No 10k available to get business description.");
@@ -742,10 +747,15 @@ public class FerolService {
         });
 
         secFilingData.ifPresentOrElse(secData -> {
-            secData.getTenKFilings().stream().max(Comparator.comparing(tenKFiling -> tenKFiling.getFiledAt()))
-                    .ifPresent(latestTenKFiling -> {
-                        stringBuilder.append(latestTenKFiling.getManagementDiscussion());
-                    });
+            if (Objects.nonNull( secData.getTenKFilings()) && !secData.getTenKFilings().isEmpty()) {
+                secData.getTenKFilings().stream().max(Comparator.comparing(tenKFiling -> tenKFiling.getFiledAt()))
+                        .ifPresent(latestTenKFiling -> {
+                            stringBuilder.append(latestTenKFiling.getManagementDiscussion());
+                        });
+            } else {
+                LOGGER.warn("No 10k found for ticker: {}", ticker);
+                sendSseEvent(sseEmitter, "No 10k available to get management discussion.");
+            }
         }, () -> {
             LOGGER.warn("No 10k found for ticker: {}", ticker);
             sendSseEvent(sseEmitter, "No 10k available to get management discussion.");
@@ -854,10 +864,15 @@ public class FerolService {
         StringBuilder stringBuilder = new StringBuilder();
 
         secFilingData.ifPresentOrElse(secData -> {
-            secData.getTenKFilings().stream().max(Comparator.comparing(tenKFiling -> tenKFiling.getFiledAt()))
-                    .ifPresent(latestTenKFiling -> {
-                        stringBuilder.append(latestTenKFiling.getManagementDiscussion());
-                    });
+            if (Objects.nonNull(secData.getTenKFilings()) && !secData.getTenKFilings().isEmpty()) {
+                secData.getTenKFilings().stream().max(Comparator.comparing(tenKFiling -> tenKFiling.getFiledAt()))
+                        .ifPresent(latestTenKFiling -> {
+                            stringBuilder.append(latestTenKFiling.getManagementDiscussion());
+                        });
+            } else {
+                LOGGER.warn("No 10k found for ticker: {}", ticker);
+                sendSseEvent(sseEmitter, "No 10k available to get management discussion.");
+            }
         }, () -> {
             LOGGER.warn("No 10k found for ticker: {}", ticker);
             sendSseEvent(sseEmitter, "No 10k available to get management discussion.");
@@ -901,10 +916,15 @@ public class FerolService {
         StringBuilder stringBuilder = new StringBuilder();
 
         secFilingData.ifPresentOrElse(secData -> {
-            secData.getTenKFilings().stream().max(Comparator.comparing(tenKFiling -> tenKFiling.getFiledAt()))
-                    .ifPresent(latestTenKFiling -> {
-                        stringBuilder.append(latestTenKFiling.getBusinessDescription());
-                    });
+            if (Objects.nonNull(secData.getTenKFilings()) && !secData.getTenKFilings().isEmpty()) {
+                secData.getTenKFilings().stream().max(Comparator.comparing(tenKFiling -> tenKFiling.getFiledAt()))
+                        .ifPresent(latestTenKFiling -> {
+                            stringBuilder.append(latestTenKFiling.getBusinessDescription());
+                        });
+            } else {
+                LOGGER.warn("No 10k found for ticker: {}", ticker);
+                sendSseEvent(sseEmitter, "No 10k available to get business description.");
+            }
         }, () -> {
             LOGGER.warn("No 10k found for ticker: {}", ticker);
             sendSseEvent(sseEmitter, "No 10k available to get business description.");
@@ -948,10 +968,15 @@ public class FerolService {
         StringBuilder stringBuilder = new StringBuilder();
 
         secFilingData.ifPresentOrElse(secData -> {
-            secData.getTenKFilings().stream().max(Comparator.comparing(tenKFiling -> tenKFiling.getFiledAt()))
-                    .ifPresent(latestTenKFiling -> {
-                        stringBuilder.append(latestTenKFiling.getBusinessDescription());
-                    });
+            if (Objects.nonNull(secData.getTenKFilings()) && !secData.getTenKFilings().isEmpty()) {
+                secData.getTenKFilings().stream().max(Comparator.comparing(tenKFiling -> tenKFiling.getFiledAt()))
+                        .ifPresent(latestTenKFiling -> {
+                            stringBuilder.append(latestTenKFiling.getBusinessDescription());
+                        });
+            } else {
+                LOGGER.warn("No 10k found for ticker: {}", ticker);
+                sendSseEvent(sseEmitter, "No 10k available to get business description.");
+            }
         }, () -> {
             LOGGER.warn("No 10k found for ticker: {}", ticker);
             sendSseEvent(sseEmitter, "No 10k available to get business description.");
