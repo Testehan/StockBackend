@@ -74,6 +74,11 @@ public class StockController {
         return financialDataService.getCashFlow(symbol);
     }
 
+    @GetMapping("/revenue-segmentation/{symbol}")
+    public Mono<RevenueSegmentationData> getRevenueSegmentation(@PathVariable String symbol) {
+        return financialDataService.getRevenueSegmentation(symbol);
+    }
+
     @GetMapping("/earnings-history/{symbol}")
     public Mono<EarningsHistory> getEarningsHistory(@PathVariable String symbol) {
         return financialDataService.getEarningsHistory(symbol);

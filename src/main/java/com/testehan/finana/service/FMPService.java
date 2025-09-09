@@ -1,9 +1,6 @@
 package com.testehan.finana.service;
 
-import com.testehan.finana.model.BalanceSheetReport;
-import com.testehan.finana.model.CashFlowReport;
-import com.testehan.finana.model.CompanyOverview;
-import com.testehan.finana.model.IncomeReport;
+import com.testehan.finana.model.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -66,6 +63,18 @@ public class FMPService {
                         .build())
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<List<CashFlowReport>>() {});
+    }
+
+    public Mono<List<RevenueSegmentationReport>> getRevenueSegmentation(String symbol, String period) {
+        return webClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/stable/revenue-product-segmentation")
+                        .queryParam("symbol", symbol)
+                        .queryParam("period", period)
+                        .queryParam("apikey", apiKey)
+                        .build())
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<List<RevenueSegmentationReport>>() {});
     }
 
     public Mono<CompanyOverview> getCompanyOverview(String symbol, Optional<CompanyOverview> existingOverview) {

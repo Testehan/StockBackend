@@ -39,6 +39,7 @@ public class FinancialDataService {
     private final FinancialRatiosRepository financialRatiosRepository;
     private final GeneratedReportRepository generatedReportRepository;
     private final SecFilingRepository secFilingRepository;
+    private final RevenueSegmentationDataRepository revenueSegmentationDataRepository;
 
     private final DateUtils dateUtils;
 
@@ -46,7 +47,7 @@ public class FinancialDataService {
     private final CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository;
 
 
-    public FinancialDataService(AlphaVantageService alphaVantageService, FMPService fmpService, IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository, CashFlowRepository cashFlowRepository, SharesOutstandingRepository sharesOutstandingRepository, CompanyOverviewRepository companyOverviewRepository, EarningsHistoryRepository earningsHistoryRepository, StockQuotesRepository stockQuotesRepository, CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository, SecApiService secApiService, DateUtils dateUtils, EarningsEstimatesRepository earningsEstimatesRepository, FinancialRatiosRepository financialRatiosRepository, GeneratedReportRepository generatedReportRepository, SecFilingRepository secFilingRepository) {
+    public FinancialDataService(AlphaVantageService alphaVantageService, FMPService fmpService, IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository, CashFlowRepository cashFlowRepository, SharesOutstandingRepository sharesOutstandingRepository, CompanyOverviewRepository companyOverviewRepository, EarningsHistoryRepository earningsHistoryRepository, StockQuotesRepository stockQuotesRepository, CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository, SecApiService secApiService, DateUtils dateUtils, EarningsEstimatesRepository earningsEstimatesRepository, FinancialRatiosRepository financialRatiosRepository, GeneratedReportRepository generatedReportRepository, SecFilingRepository secFilingRepository, RevenueSegmentationDataRepository revenueSegmentationDataRepository) {
         this.alphaVantageService = alphaVantageService;
         this.fmpService = fmpService;
         this.incomeStatementRepository = incomeStatementRepository;
@@ -63,6 +64,7 @@ public class FinancialDataService {
         this.financialRatiosRepository = financialRatiosRepository;
         this.generatedReportRepository = generatedReportRepository;
         this.secFilingRepository = secFilingRepository;
+        this.revenueSegmentationDataRepository = revenueSegmentationDataRepository;
     }
 
     public void ensureFinancialDataIsPresent(String ticker) {
@@ -231,6 +233,23 @@ public class FinancialDataService {
                 cashFlowData.setQuarterlyReports(fmpService.getCashflowStatement(symbol.toUpperCase(),"quarter").block());
 
                 return Mono.just(cashFlowRepository.save(cashFlowData));
+            }
+        });
+    }
+
+    public Mono<RevenueSegmentationData> getRevenueSegmentation(String symbol) {
+        return Mono.defer(() -> {
+            Optional<RevenueSegmentationData> revenueSegmentationFromDb = revenueSegmentationDataRepository.findBySymbol(symbol.toUpperCase());
+            if (revenueSegmentationFromDb.isPresent()) {
+                return Mono.just(revenueSegmentationFromDb.get());
+            } else {
+                RevenueSegmentationData revenueSegmentationData = new RevenueSegmentationData();
+                revenueSegmentationData.setSymbol(symbol);
+                revenueSegmentationData.setAnnualReports(fmpService.getRevenueSegmentation(symbol.toUpperCase(),"annual").block());
+                // below is part of the paid plan...anual info is good enough
+//                revenueSegmentationData.setQuarterlyReports(fmpService.getRevenueSegmentation(symbol.toUpperCase(),"quarter").block());
+
+                return Mono.just(revenueSegmentationDataRepository.save(revenueSegmentationData));
             }
         });
     }
