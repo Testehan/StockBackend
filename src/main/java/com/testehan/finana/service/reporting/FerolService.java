@@ -7,6 +7,7 @@ import com.testehan.finana.repository.*;
 import com.testehan.finana.service.FinancialDataService;
 import com.testehan.finana.service.LlmService;
 import com.testehan.finana.util.DateUtils;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.prompt.Prompt;
@@ -70,6 +71,9 @@ public class FerolService {
 
     @Value("classpath:/prompts/recurring_revenue_prompt.txt")
     private Resource recurringRevenuePrompt;
+
+    @Value("classpath:/prompts/pricing_power_prompt.txt")
+    private Resource pricingPowerPrompt;
 
     public FerolService(BalanceSheetRepository balanceSheetRepository,
                         IncomeStatementRepository incomeStatementRepository,
@@ -220,10 +224,17 @@ public class FerolService {
 //                    return item;
 //                });
 
-                CompletableFuture<FerolReportItem> recurringRevenueFuture = CompletableFuture.supplyAsync(() -> {
-                    sendSseEvent(sseEmitter, "Does this company have recurring revenue..?");
-                    FerolReportItem item = calculateRecurringRevenue(ticker, sseEmitter);
-                    sendSseEvent(sseEmitter, "Recurring revenue analysis is complete.");
+//                CompletableFuture<FerolReportItem> recurringRevenueFuture = CompletableFuture.supplyAsync(() -> {
+//                    sendSseEvent(sseEmitter, "Does this company have recurring revenue..?");
+//                    FerolReportItem item = calculateRecurringRevenue(ticker, sseEmitter);
+//                    sendSseEvent(sseEmitter, "Recurring revenue analysis is complete.");
+//                    return item;
+//                });
+
+                CompletableFuture<FerolReportItem> pricingPowerFuture = CompletableFuture.supplyAsync(() -> {
+                    sendSseEvent(sseEmitter, "How about their pricing power..?");
+                    FerolReportItem item = calculatePricingPower(ticker, sseEmitter);
+                    sendSseEvent(sseEmitter, "Pricing power analysis is complete.");
                     return item;
                 });
 
@@ -234,7 +245,8 @@ public class FerolService {
             //            optionalityFuture, organicGrowthRunawayFuture, topDogFuture, operatingLeverageFuture,
                  //       acquisitionsFuture,
 //                        cyclicalityFuture,
-                        recurringRevenueFuture)
+                        //recurringRevenueFuture,
+                            pricingPowerFuture)
                 .join(); // Blocks until all complete or one fails
 
                 // Financials
@@ -265,7 +277,8 @@ public class FerolService {
 //                ferolReportItems.add(cyclicalityFuture.get());
 
                 // Company specific factors
-                ferolReportItems.add(recurringRevenueFuture.get());
+//                ferolReportItems.add(recurringRevenueFuture.get());
+                ferolReportItems.add(pricingPowerFuture.get());
 
                 sendSseEvent(sseEmitter, "Building and saving FEROL report...");
                 FerolReport ferolReport = buildAndSaveReport(ticker, ferolReportItems);
@@ -850,10 +863,7 @@ public class FerolService {
             sendSseEvent(sseEmitter, "R&D intensity calculated: " + avgRdIntensity[0]);
         });
 
-        var latestQuarter = dateUtils.getDateQuarter(financialDataService.getLatestReportedDate(ticker));
-        var latestEarningsTranscript = financialDataService.getEarningsCallTranscript(ticker, latestQuarter).block().getTranscript().stream()
-                .map(t -> t.getSpeaker() + " (" + t.getTitle() + "): " + t.getContent() + " [" + t.getSentiment() + "]")
-                .collect(Collectors.joining("\n"));;
+        var latestEarningsTranscript = getLatestEarningsTranscript(ticker);
 
         PromptTemplate promptTemplate = new PromptTemplate(optionalityPrompt);
         var ferolLlmResponseOutputConverter = new BeanOutputConverter<>(FerolLlmResponse.class);
@@ -892,6 +902,15 @@ public class FerolService {
         }
     }
 
+    @NotNull
+    private String getLatestEarningsTranscript(String ticker) {
+        var latestQuarter = dateUtils.getDateQuarter(financialDataService.getLatestReportedDate(ticker));
+        var latestEarningsTranscript = financialDataService.getEarningsCallTranscript(ticker, latestQuarter).block().getTranscript().stream()
+                .map(t -> t.getSpeaker() + " (" + t.getTitle() + "): " + t.getContent() + " [" + t.getSentiment() + "]")
+                .collect(Collectors.joining("\n"));
+        return latestEarningsTranscript;
+    }
+
 
     private FerolReportItem calculateOrganicGrowthRunaway(String ticker, SseEmitter sseEmitter) {
         Optional<CompanyOverview> companyOverview = companyOverviewRepository.findBySymbol(ticker);
@@ -918,10 +937,8 @@ public class FerolService {
             sendSseEvent(sseEmitter, "No 10k available to get management discussion.");
         });
 
-        var latestQuarter = dateUtils.getDateQuarter(financialDataService.getLatestReportedDate(ticker));
-        var latestEarningsTranscript = financialDataService.getEarningsCallTranscript(ticker, latestQuarter).block().getTranscript().stream()
-                .map(t -> t.getSpeaker() + " (" + t.getTitle() + "): " + t.getContent() + " [" + t.getSentiment() + "]")
-                .collect(Collectors.joining("\n"));;
+        var latestEarningsTranscript = getLatestEarningsTranscript(ticker);
+        ;
 
         PromptTemplate promptTemplate = new PromptTemplate(organicGrowthPrompt);
         var ferolLlmResponseOutputConverter = new BeanOutputConverter<>(FerolLlmResponse.class);
@@ -970,10 +987,8 @@ public class FerolService {
             sendSseEvent(sseEmitter, "No 10k available to get business description.");
         });
 
-        var latestQuarter = dateUtils.getDateQuarter(financialDataService.getLatestReportedDate(ticker));
-        var latestEarningsTranscript = financialDataService.getEarningsCallTranscript(ticker, latestQuarter).block().getTranscript().stream()
-                .map(t -> t.getSpeaker() + " (" + t.getTitle() + "): " + t.getContent() + " [" + t.getSentiment() + "]")
-                .collect(Collectors.joining("\n"));;
+        var latestEarningsTranscript = getLatestEarningsTranscript(ticker);
+        ;
 
         PromptTemplate promptTemplate = new PromptTemplate(topDogPrompt);
         var ferolLlmResponseOutputConverter = new BeanOutputConverter<>(FerolLlmResponse.class);
@@ -1135,7 +1150,7 @@ public class FerolService {
         if (companyOverview.isEmpty()){
             LOGGER.warn("No Company overview found for ticker: {}", ticker);
             sendSseErrorEvent(sseEmitter, "No Company overview found for ticker " + ticker);
-            return new FerolReportItem("customerDependence", 0, "Something went wrong and score could not be calculated ");
+            return new FerolReportItem("companyCyclicality", 0, "Something went wrong and score could not be calculated ");
         }
         Optional<SecFiling> secFilingData = secFilingRepository.findBySymbol(ticker);
         StringBuilder riskFactors = new StringBuilder();
@@ -1216,13 +1231,12 @@ public class FerolService {
         }
     }
 
-
     private FerolReportItem calculateRecurringRevenue(String ticker, SseEmitter sseEmitter) {
         Optional<CompanyOverview> companyOverview = companyOverviewRepository.findBySymbol(ticker);
         if (companyOverview.isEmpty()){
             LOGGER.warn("No Company overview found for ticker: {}", ticker);
             sendSseErrorEvent(sseEmitter, "No Company overview found for ticker " + ticker);
-            return new FerolReportItem("customerDependence", 0, "Something went wrong and score could not be calculated ");
+            return new FerolReportItem("recurringRevenue", 0, "Something went wrong and score could not be calculated ");
         }
         Optional<SecFiling> secFilingData = secFilingRepository.findBySymbol(ticker);
         StringBuilder businessDescription = new StringBuilder();
@@ -1260,7 +1274,6 @@ public class FerolService {
                     .distinct()                                  // remove duplicates
                     .sorted(Comparator.reverseOrder())          // newest first
                     .limit(5)                                    // take only 5
-                    .sorted()                                    // optional: return in ascending order [2021,2022,2023,2024,2025]
                     .collect(Collectors.toList());
 
             // Step 2: Filter the original stream to keep only reports from those years
@@ -1314,6 +1327,115 @@ public class FerolService {
             return new FerolReportItem("recurringRevenue", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
         } catch (Exception e) {
             String errorMessage = "Operation 'calculateRecurringRevenue' failed.";
+            LOGGER.error(errorMessage, e);
+            sendSseErrorEvent(sseEmitter, errorMessage);
+            throw new RuntimeException(errorMessage, e);
+        }
+    }
+
+    private FerolReportItem calculatePricingPower(String ticker, SseEmitter sseEmitter) {
+        Optional<CompanyOverview> companyOverview = companyOverviewRepository.findBySymbol(ticker);
+        if (companyOverview.isEmpty()){
+            LOGGER.warn("No Company overview found for ticker: {}", ticker);
+            sendSseErrorEvent(sseEmitter, "No Company overview found for ticker " + ticker);
+            return new FerolReportItem("pricingPower", 0, "Something went wrong and score could not be calculated ");
+        }
+        Optional<SecFiling> secFilingData = secFilingRepository.findBySymbol(ticker);
+        StringBuilder businessDescription = new StringBuilder();
+        StringBuilder managementDiscussion = new StringBuilder();
+
+        secFilingData.ifPresentOrElse(secData -> {
+            if (Objects.nonNull(secData.getTenKFilings()) && !secData.getTenKFilings().isEmpty()) {
+                secData.getTenKFilings().stream().max(Comparator.comparing(tenKFiling -> tenKFiling.getFiledAt()))
+                        .ifPresent(latestTenKFiling -> {
+                            managementDiscussion.append(latestTenKFiling.getManagementDiscussion());
+                            businessDescription.append(latestTenKFiling.getBusinessDescription());
+                        });
+            } else {
+                LOGGER.warn("No 10k found for ticker: {}", ticker);
+                sendSseErrorEvent(sseEmitter, "No 10k available to get data.");
+            }
+        }, () -> {
+            LOGGER.warn("No 10k found for ticker: {}", ticker);
+            sendSseErrorEvent(sseEmitter, "No 10k available to get data.");
+        });
+
+        PromptTemplate promptTemplate = new PromptTemplate(pricingPowerPrompt);
+        Map<String, Object> promptParameters = new HashMap<>();
+
+        StringBuilder financialTable = new StringBuilder();
+        Optional<IncomeStatementData> incomeStatementDataOptional = incomeStatementRepository.findBySymbol(ticker);
+        Optional<FinancialRatiosData> financialRatiosDataOptional = financialRatiosRepository.findBySymbol(ticker);
+        if (incomeStatementDataOptional.isEmpty() || financialRatiosDataOptional.isEmpty()) {
+            LOGGER.warn("No income statement data found for ticker: {}", ticker);
+            sendSseErrorEvent(sseEmitter, "No income statement data found for ticker " + ticker);
+        } else {
+            var incomeStatementData = incomeStatementDataOptional.get();
+            var financialRatiosData = financialRatiosDataOptional.get();
+
+            List<String> lastFiveYears = incomeStatementData.getAnnualReports().stream()
+                    .map(IncomeReport::getDate)
+                    .filter(Objects::nonNull)                    // safety
+                    .distinct()                                  // remove duplicates
+                    .sorted(Comparator.reverseOrder())          // newest first
+                    .limit(5)                                    // take only 5
+                    .collect(Collectors.toList());
+
+            lastFiveYears.forEach(year -> financialTable.append(year + " "));
+            financialTable.append("\n");
+
+            // Step 2: Filter the original stream to keep only reports from those years
+            incomeStatementData.getAnnualReports().stream()
+                    .filter(r ->  lastFiveYears.contains(r.getDate()))
+                    .forEach(incomeReport -> {
+                        financialTable.append(incomeReport.getRevenue() + " ");
+                    });
+
+            financialTable.append("\n");
+            incomeStatementData.getAnnualReports().stream()
+                    .filter(r ->  lastFiveYears.contains(r.getDate()))
+                    .forEach(incomeReport -> {
+                        financialTable.append(incomeReport.getSellingGeneralAndAdministrativeExpenses() + " ");
+                    });
+
+            financialTable.append("\n");
+            financialRatiosData.getAnnualReports().stream()
+                    .filter(r ->  lastFiveYears.contains(r.getDate()))
+                    .forEach(ratiosReport -> {
+                        financialTable.append(ratiosReport.getGrossProfitMargin() + " ");
+                    });
+
+            financialTable.append("\n");
+            financialRatiosData.getAnnualReports().stream()
+                    .filter(r ->  lastFiveYears.contains(r.getDate()))
+                    .forEach(ratiosReport -> {
+                        financialTable.append(ratiosReport.getEbitdaMargin() + " ");
+                    });
+
+            promptParameters.put("financial_table", financialTable);
+        }
+
+        var ferolLlmResponseOutputConverter = new BeanOutputConverter<>(FerolLlmResponse.class);
+
+        promptParameters.put("company_name", companyOverview.get().getCompanyName());
+
+        promptParameters.put("business_description", businessDescription.toString());
+        promptParameters.put("management_discussion", managementDiscussion.toString());
+        promptParameters.put("latest_earnings_transcript", getLatestEarningsTranscript(ticker));
+
+        promptParameters.put("format", ferolLlmResponseOutputConverter.getFormat());
+        Prompt prompt = promptTemplate.create(promptParameters);
+
+        try {
+            sendSseEvent(sseEmitter, "Sending data to LLM for pricing power analysis...");
+            LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
+            String llmResponse = llmService.callLlm(prompt);
+            sendSseEvent(sseEmitter, "Received LLM response for pricing power analysis.");
+            FerolLlmResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
+
+            return new FerolReportItem("pricingPower", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
+        } catch (Exception e) {
+            String errorMessage = "Operation 'calculatePricingPower' failed.";
             LOGGER.error(errorMessage, e);
             sendSseErrorEvent(sseEmitter, errorMessage);
             throw new RuntimeException(errorMessage, e);
