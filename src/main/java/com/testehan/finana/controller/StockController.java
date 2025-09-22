@@ -4,7 +4,6 @@ import com.testehan.finana.model.*;
 import com.testehan.finana.service.AlphaVantageService;
 import com.testehan.finana.service.FMPService;
 import com.testehan.finana.service.FinancialDataService;
-import com.testehan.finana.service.FinancialMetricsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -23,14 +22,12 @@ public class StockController {
 
     private final AlphaVantageService alphaVantageService;
     private final FinancialDataService financialDataService;
-    private final FinancialMetricsService financialMetricsService;
     private final FMPService fmpService;
 
     @Autowired
-    public StockController(AlphaVantageService alphaVantageService, FinancialDataService financialDataService, FinancialMetricsService financialMetricsService, FMPService fmpService) {
+    public StockController(AlphaVantageService alphaVantageService, FinancialDataService financialDataService, FMPService fmpService) {
         this.alphaVantageService = alphaVantageService;
         this.financialDataService = financialDataService;
-        this.financialMetricsService = financialMetricsService;
         this.fmpService = fmpService;
     }
 
@@ -91,7 +88,7 @@ public class StockController {
 
     @GetMapping("/financial-ratios/{symbol}")
     public ResponseEntity<FinancialRatiosData> getFinancialRatios(@PathVariable String symbol) {
-        Optional<FinancialRatiosData> financialRatiosData = financialMetricsService.getFinancialRatios(symbol);
+        Optional<FinancialRatiosData> financialRatiosData = financialDataService.getFinancialRatios(symbol);
         return financialRatiosData.map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }

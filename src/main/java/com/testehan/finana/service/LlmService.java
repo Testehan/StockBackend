@@ -19,7 +19,8 @@ public class LlmService {
     }
 
     public String callLlm(Prompt query) {
-        return chatModel.call(new Prompt(new UserMessage(query.getContents()))).getResult().getOutput().getText();
+        return "{\"score\":0,\"explanation\":\"The dummy response cause tokens are expensive.\"}";
+        //chatModel.call(new Prompt(new UserMessage(query.getContents()))).getResult().getOutput().getText();
     }
 
 }

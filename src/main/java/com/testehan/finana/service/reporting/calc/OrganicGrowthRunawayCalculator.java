@@ -77,7 +77,6 @@ public class OrganicGrowthRunawayCalculator {
         });
 
         var latestEarningsTranscript = optionalityCalculator.getLatestEarningsTranscript(ticker);
-        ;
 
         PromptTemplate promptTemplate = new PromptTemplate(organicGrowthPrompt);
         var ferolLlmResponseOutputConverter = new BeanOutputConverter<>(FerolLlmResponse.class);

@@ -1,12 +1,15 @@
 package com.testehan.finana.service.reporting;
 
-import com.testehan.finana.model.*;
+import com.testehan.finana.model.FerolReport;
+import com.testehan.finana.model.FerolReportItem;
+import com.testehan.finana.model.GeneratedReport;
 import com.testehan.finana.model.llm.responses.FerolMoatAnalysisLlmResponse;
-import com.testehan.finana.repository.*;
+import com.testehan.finana.repository.GeneratedReportRepository;
 import com.testehan.finana.service.FinancialDataService;
 import com.testehan.finana.service.reporting.calc.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -15,6 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 @Service
 public class FerolReportOrchestrator {
@@ -40,9 +44,10 @@ public class FerolReportOrchestrator {
     private final RecurringRevenueCalculator recurringRevenueCalculator;
     private final PricingPowerCalculator pricingPowerCalculator;
     private final GeneratedReportRepository generatedReportRepository;
+    private final Executor ferolExecutor;
 
 
-    public FerolReportOrchestrator(FinancialDataService financialDataService, FerolSseService ferolSseService, FerolReportPersistenceService ferolReportPersistenceService, FinancialResilienceCalculator financialResilienceCalculator, GrossMarginCalculator grossMarginCalculator, RoicCalculator roicCalculator, FcfCalculator fcfCalculator, EpsCalculator epsCalculator, MoatCalculator moatCalculator, OptionalityCalculator optionalityCalculator, OrganicGrowthRunawayCalculator organicGrowthRunawayCalculator, TopDogCalculator topDogCalculator, OperatingLeverageCalculator operatingLeverageCalculator, AcquisitionsCalculator acquisitionsCalculator, CyclicalityCalculator cyclicalityCalculator, RecurringRevenueCalculator recurringRevenueCalculator, PricingPowerCalculator pricingPowerCalculator, GeneratedReportRepository generatedReportRepository) {
+    public FerolReportOrchestrator(FinancialDataService financialDataService, FerolSseService ferolSseService, FerolReportPersistenceService ferolReportPersistenceService, FinancialResilienceCalculator financialResilienceCalculator, GrossMarginCalculator grossMarginCalculator, RoicCalculator roicCalculator, FcfCalculator fcfCalculator, EpsCalculator epsCalculator, MoatCalculator moatCalculator, OptionalityCalculator optionalityCalculator, OrganicGrowthRunawayCalculator organicGrowthRunawayCalculator, TopDogCalculator topDogCalculator, OperatingLeverageCalculator operatingLeverageCalculator, AcquisitionsCalculator acquisitionsCalculator, CyclicalityCalculator cyclicalityCalculator, RecurringRevenueCalculator recurringRevenueCalculator, PricingPowerCalculator pricingPowerCalculator, GeneratedReportRepository generatedReportRepository, @Qualifier("ferolExecutor") Executor ferolExecutor) {
         this.financialDataService = financialDataService;
         this.ferolSseService = ferolSseService;
         this.ferolReportPersistenceService = ferolReportPersistenceService;
@@ -61,13 +66,14 @@ public class FerolReportOrchestrator {
         this.recurringRevenueCalculator = recurringRevenueCalculator;
         this.pricingPowerCalculator = pricingPowerCalculator;
         this.generatedReportRepository = generatedReportRepository;
+        this.ferolExecutor = ferolExecutor;
     }
 
 
     public SseEmitter getFerolReport(String ticker, boolean recreateReport) {
         SseEmitter sseEmitter = new SseEmitter(3600000L); // Timeout set to 1 hour
 
-        new Thread(() -> {
+        ferolExecutor.execute(() -> {
             try {
                 if (!recreateReport) {
                     ferolSseService.sendSseEvent(sseEmitter, "Attempting to load report from database...");
@@ -97,63 +103,63 @@ public class FerolReportOrchestrator {
                     FerolReportItem item = financialResilienceCalculator.calculate(ticker, sseEmitter);
                     ferolSseService.sendSseEvent(sseEmitter, "Financial resilience calculation complete.");
                     return item;
-                });
+                }, ferolExecutor);
 
                 CompletableFuture<FerolReportItem> grossMarginFuture = CompletableFuture.supplyAsync(() -> {
                     ferolSseService.sendSseEvent(sseEmitter, "Calculating Gross Margin...");
                     FerolReportItem item = grossMarginCalculator.calculate(ticker, sseEmitter);
                     ferolSseService.sendSseEvent(sseEmitter, "Gross Margin calculation complete.");
                     return item;
-                });
+                }, ferolExecutor);
 
                 CompletableFuture<FerolReportItem> roicFuture = CompletableFuture.supplyAsync(() -> {
                     ferolSseService.sendSseEvent(sseEmitter, "Calculating Return on Invested Capital (ROIC)...");
                     FerolReportItem item = roicCalculator.calculate(ticker, sseEmitter);
                     ferolSseService.sendSseEvent(sseEmitter, "Return on Invested Capital (ROIC) calculation complete.");
                     return item;
-                });
+                }, ferolExecutor);
 
                 CompletableFuture<FerolReportItem> fcfFuture = CompletableFuture.supplyAsync(() -> {
                     ferolSseService.sendSseEvent(sseEmitter, "Calculating Free Cash Flow...");
                     FerolReportItem item = fcfCalculator.calculate(ticker, sseEmitter);
                     ferolSseService.sendSseEvent(sseEmitter, "Free Cash Flow calculation complete.");
                     return item;
-                });
+                }, ferolExecutor);
 
                 CompletableFuture<FerolReportItem> epsFuture = CompletableFuture.supplyAsync(() -> {
                     ferolSseService.sendSseEvent(sseEmitter, "Calculating Earnings Per Share (EPS)...");
                     FerolReportItem item = epsCalculator.calculate(ticker, sseEmitter);
                     ferolSseService.sendSseEvent(sseEmitter, "Earnings Per Share (EPS) calculation complete.");
                     return item;
-                });
+                }, ferolExecutor);
 
                 CompletableFuture<FerolMoatAnalysisLlmResponse> moatsFuture = CompletableFuture.supplyAsync(() -> {
                     ferolSseService.sendSseEvent(sseEmitter, "Thinking about moats...");
                     FerolMoatAnalysisLlmResponse item = moatCalculator.calculate(ticker, sseEmitter);
                     ferolSseService.sendSseEvent(sseEmitter, "Moats analysis is complete.");
                     return item;
-                });
+                }, ferolExecutor);
 
                 CompletableFuture<FerolReportItem> optionalityFuture = CompletableFuture.supplyAsync(() -> {
                     ferolSseService.sendSseEvent(sseEmitter, "Thinking about optionality...");
                     FerolReportItem item = optionalityCalculator.calculate(ticker, sseEmitter);
                     ferolSseService.sendSseEvent(sseEmitter, "Optionality analysis is complete.");
                     return item;
-                });
+                }, ferolExecutor);
 
                 CompletableFuture<FerolReportItem> organicGrowthRunawayFuture = CompletableFuture.supplyAsync(() -> {
                     ferolSseService.sendSseEvent(sseEmitter, "Thinking about organic growth runaway...");
                     FerolReportItem item = organicGrowthRunawayCalculator.calculate(ticker, sseEmitter);
                     ferolSseService.sendSseEvent(sseEmitter, "Organic growth runaway analysis is complete.");
                     return item;
-                });
+                }, ferolExecutor);
 
                 CompletableFuture<FerolReportItem> topDogFuture = CompletableFuture.supplyAsync(() -> {
                     ferolSseService.sendSseEvent(sseEmitter, "Thinking about top dog or first mover...");
                     FerolReportItem item = topDogCalculator.calculate(ticker, sseEmitter);
                     ferolSseService.sendSseEvent(sseEmitter, "Top dog or first mover analysis is complete.");
                     return item;
-                });
+                }, ferolExecutor);
 
                 CompletableFuture<FerolReportItem> operatingLeverageFuture = CompletableFuture.supplyAsync(() -> {
                     ferolSseService.sendSseEvent(sseEmitter, "Thinking about operating leverage...");
@@ -162,35 +168,35 @@ public class FerolReportOrchestrator {
                     FerolReportItem item = operatingLeverageCalculator.calculate(ticker, sseEmitter);
                     ferolSseService.sendSseEvent(sseEmitter, "Operating leverage analysis is complete.");
                     return item;
-                });
+                }, ferolExecutor);
 
                 CompletableFuture<FerolReportItem> acquisitionsFuture = CompletableFuture.supplyAsync(() -> {
                     ferolSseService.sendSseEvent(sseEmitter, "Thinking about Sales & Marketing % of gross profit...");
                     FerolReportItem item = acquisitionsCalculator.calculate(ticker, sseEmitter);
                     ferolSseService.sendSseEvent(sseEmitter, "Sales & Marketing % of gross profit analysis is complete.");
                     return item;
-                });
+                }, ferolExecutor);
 
                 CompletableFuture<FerolReportItem> cyclicalityFuture = CompletableFuture.supplyAsync(() -> {
                     ferolSseService.sendSseEvent(sseEmitter, "Thinking how cyclical is this business..");
                     FerolReportItem item = cyclicalityCalculator.calculate(ticker, sseEmitter);
                     ferolSseService.sendSseEvent(sseEmitter, "Business cyclicality analysis is complete.");
                     return item;
-                });
+                }, ferolExecutor);
 
                 CompletableFuture<FerolReportItem> recurringRevenueFuture = CompletableFuture.supplyAsync(() -> {
                     ferolSseService.sendSseEvent(sseEmitter, "Does this company have recurring revenue..?");
                     FerolReportItem item = recurringRevenueCalculator.calculate(ticker, sseEmitter);
                     ferolSseService.sendSseEvent(sseEmitter, "Recurring revenue analysis is complete.");
                     return item;
-                });
+                }, ferolExecutor);
 
                 CompletableFuture<FerolReportItem> pricingPowerFuture = CompletableFuture.supplyAsync(() -> {
                     ferolSseService.sendSseEvent(sseEmitter, "How about their pricing power..?");
                     FerolReportItem item = pricingPowerCalculator.calculate(ticker, sseEmitter);
                     ferolSseService.sendSseEvent(sseEmitter, "Pricing power analysis is complete.");
                     return item;
-                });
+                }, ferolExecutor);
 
                 CompletableFuture.allOf(
                         financialResilienceFuture, grossMarginFuture, roicFuture, fcfFuture, epsFuture,
@@ -245,7 +251,7 @@ public class FerolReportOrchestrator {
                 LOGGER.error("Error generating FEROL report for {}: {}", ticker, e.getMessage(), e);
                 sseEmitter.completeWithError(e);
             }
-        }).start();
+        });
 
         return sseEmitter;
     }

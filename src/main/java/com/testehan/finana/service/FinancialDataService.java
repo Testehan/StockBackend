@@ -3,6 +3,7 @@ package com.testehan.finana.service;
 import com.testehan.finana.model.*;
 import com.testehan.finana.repository.*;
 import com.testehan.finana.util.DateUtils;
+import com.testehan.finana.util.FinancialRatiosCalculator;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,10 +14,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 public class FinancialDataService {
@@ -41,13 +41,15 @@ public class FinancialDataService {
     private final SecFilingRepository secFilingRepository;
     private final RevenueSegmentationDataRepository revenueSegmentationDataRepository;
 
+    private final FinancialRatiosCalculator financialRatiosCalculator;
+
     private final DateUtils dateUtils;
 
 
     private final CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository;
 
 
-    public FinancialDataService(AlphaVantageService alphaVantageService, FMPService fmpService, IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository, CashFlowRepository cashFlowRepository, SharesOutstandingRepository sharesOutstandingRepository, CompanyOverviewRepository companyOverviewRepository, EarningsHistoryRepository earningsHistoryRepository, StockQuotesRepository stockQuotesRepository, CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository, SecApiService secApiService, DateUtils dateUtils, EarningsEstimatesRepository earningsEstimatesRepository, FinancialRatiosRepository financialRatiosRepository, GeneratedReportRepository generatedReportRepository, SecFilingRepository secFilingRepository, RevenueSegmentationDataRepository revenueSegmentationDataRepository) {
+    public FinancialDataService(AlphaVantageService alphaVantageService, FMPService fmpService, IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository, CashFlowRepository cashFlowRepository, SharesOutstandingRepository sharesOutstandingRepository, CompanyOverviewRepository companyOverviewRepository, EarningsHistoryRepository earningsHistoryRepository, StockQuotesRepository stockQuotesRepository, CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository, SecApiService secApiService, DateUtils dateUtils, EarningsEstimatesRepository earningsEstimatesRepository, FinancialRatiosRepository financialRatiosRepository, GeneratedReportRepository generatedReportRepository, SecFilingRepository secFilingRepository, RevenueSegmentationDataRepository revenueSegmentationDataRepository, FinancialRatiosCalculator financialRatiosCalculator) {
         this.alphaVantageService = alphaVantageService;
         this.fmpService = fmpService;
         this.incomeStatementRepository = incomeStatementRepository;
@@ -65,6 +67,7 @@ public class FinancialDataService {
         this.generatedReportRepository = generatedReportRepository;
         this.secFilingRepository = secFilingRepository;
         this.revenueSegmentationDataRepository = revenueSegmentationDataRepository;
+        this.financialRatiosCalculator = financialRatiosCalculator;
     }
 
     public void ensureFinancialDataIsPresent(String ticker) {
@@ -76,6 +79,8 @@ public class FinancialDataService {
         getCompanyOverview(ticker).block().get(0);
         getRevenueSegmentation(ticker).block();
 
+        getFinancialRatios(ticker);
+
         var latestReportDate = getLatestReportedDate(ticker);
 
         if (latestReportDate != null) {
@@ -83,11 +88,15 @@ public class FinancialDataService {
             getEarningsCallTranscript(ticker, dateQuarter).block();
         }
 
-        secApiService.getSectionFrom10K(ticker, "risk_factors").block();
-        secApiService.getSectionFrom10K(ticker, "management_discussion").block();
-        secApiService.getSectionFrom10K(ticker, "business_description").block();
-        secApiService.getSectionFrom10Q(ticker, "risk_factors").block();
-        secApiService.getSectionFrom10Q(ticker, "management_discussion").block();
+        try {
+            secApiService.getSectionFrom10K(ticker, "risk_factors").block();
+            secApiService.getSectionFrom10K(ticker, "management_discussion").block();
+            secApiService.getSectionFrom10K(ticker, "business_description").block();
+            secApiService.getSectionFrom10Q(ticker, "risk_factors").block();
+            secApiService.getSectionFrom10Q(ticker, "management_discussion").block();
+        } catch (Exception e) {
+            LOGGER.error("Coul not get the SEC filings sections for ticker {}",ticker);
+        }
     }
 
     @NotNull
@@ -103,8 +112,11 @@ public class FinancialDataService {
             Optional<CompanyEarningsTranscripts> earningsCallTranscriptFromDb = companyEarningsTranscriptsRepository.findById(symbol.toUpperCase());
             if (earningsCallTranscriptFromDb.isPresent()) {
                 Optional<QuarterlyEarningsTranscript> quarterlyTranscript = earningsCallTranscriptFromDb.get().getTranscripts().stream()
-                        .filter(transcript -> transcript.getQuarter().equals(quarter))
-                        .findFirst();
+                        .filter(transcript -> {if (Objects.nonNull(transcript.getQuarter())) {
+                            return transcript.getQuarter().equals(quarter);
+                        } else {
+                            return false;
+                        }}).findFirst();
 
                 if (quarterlyTranscript.isPresent()) {
                     return Mono.just(quarterlyTranscript.get());
@@ -113,7 +125,11 @@ public class FinancialDataService {
 
             return alphaVantageService.fetchEarningsCallTranscriptFromApiAndSave(symbol.toUpperCase(), quarter)
                     .flatMap(companyTranscripts -> companyTranscripts.getTranscripts().stream()
-                            .filter(transcript -> transcript.getQuarter().equals(quarter))
+                            .filter(transcript -> {if (Objects.nonNull(transcript.getQuarter())) {
+                                return transcript.getQuarter().equals(quarter);
+                            } else {
+                                return false;
+                            }})
                             .findFirst()
                             .map(Mono::just)
                             .orElse(Mono.empty()));
@@ -247,7 +263,7 @@ public class FinancialDataService {
                 RevenueSegmentationData revenueSegmentationData = new RevenueSegmentationData();
                 revenueSegmentationData.setSymbol(symbol);
                 revenueSegmentationData.setAnnualReports(fmpService.getRevenueSegmentation(symbol.toUpperCase(),"annual").block());
-                // below is part of the paid plan...anual info is good enough
+                // below is part of the paid plan annual subscription for this API...yearly info is good enough
 //                revenueSegmentationData.setQuarterlyReports(fmpService.getRevenueSegmentation(symbol.toUpperCase(),"quarter").block());
 
                 return Mono.just(revenueSegmentationDataRepository.save(revenueSegmentationData));
@@ -295,5 +311,75 @@ public class FinancialDataService {
 
     private LocalDate parseDate(String dateStr, DateTimeFormatter formatter) {
         return LocalDate.parse(dateStr, formatter);
+    }
+
+    public Optional<FinancialRatiosData> getFinancialRatios(String symbol) {
+        Optional<FinancialRatiosData> existingRatiosData = financialRatiosRepository.findBySymbol(symbol);
+
+        if (existingRatiosData.isEmpty()) {
+            FinancialRatiosData newRatiosData = calculateAndSaveRatios(symbol);
+            return Optional.ofNullable(newRatiosData); // Return newly calculated data
+        }
+        return existingRatiosData;
+    }
+
+    private FinancialRatiosData calculateAndSaveRatios(String symbol) {
+        CompanyOverview companyOverview = getCompanyOverview(symbol).block().getFirst();
+        Optional<IncomeStatementData> incomeStatementDataOptional = getIncomeStatements(symbol).blockOptional();
+        Optional<BalanceSheetData> balanceSheetDataOptional = getBalanceSheet(symbol).blockOptional();
+        Optional<CashFlowData> cashFlowDataOptional = getCashFlow(symbol).blockOptional();
+        Optional<SharesOutstandingData> sharesOutstandingDataOptional = getSharesOutstanding(symbol).blockOptional();
+
+        if (incomeStatementDataOptional.isPresent() && balanceSheetDataOptional.isPresent()
+                && cashFlowDataOptional.isPresent() && sharesOutstandingDataOptional.isPresent()) {
+            IncomeStatementData incomeStatementData = incomeStatementDataOptional.get();
+            BalanceSheetData balanceSheetData = balanceSheetDataOptional.get();
+            CashFlowData cashFlowData = cashFlowDataOptional.get();
+
+            FinancialRatiosData financialRatiosData = financialRatiosRepository.findBySymbol(symbol)
+                    .orElse(new FinancialRatiosData());
+            financialRatiosData.setSymbol(symbol);
+            financialRatiosData.setAnnualReports(new ArrayList<>());
+            financialRatiosData.setQuarterlyReports(new ArrayList<>());
+
+            // Process Annual Reports
+            processAndAddReports(symbol, companyOverview, incomeStatementData.getAnnualReports(), balanceSheetData.getAnnualReports(), cashFlowData.getAnnualReports(), financialRatiosData.getAnnualReports()); // Update this
+            // Process Quarterly Reports
+            processAndAddReports(symbol, companyOverview, incomeStatementData.getQuarterlyReports(), balanceSheetData.getQuarterlyReports(), cashFlowData.getQuarterlyReports(), financialRatiosData.getQuarterlyReports()); // Update this
+
+            return financialRatiosRepository.save(financialRatiosData);
+        }
+        return null; // Or throw an exception if data is not found
+    }
+
+    private void processAndAddReports(String symbol,
+                                      CompanyOverview companyOverview,
+                                      List<IncomeReport> incomeReports,
+                                      List<BalanceSheetReport> balanceSheetReports,
+                                      List<CashFlowReport> cashFlowReports,
+                                      List<FinancialRatiosReport> targetList)
+    {
+
+        Map<String, BalanceSheetReport> balanceSheetMap = balanceSheetReports.stream()
+                .collect(Collectors.toMap(BalanceSheetReport::getDate, Function.identity(), (a, b) -> a));
+
+        Map<String, CashFlowReport> cashFlowMap = cashFlowReports.stream()
+                .collect(Collectors.toMap(CashFlowReport::getDate, Function.identity(), (a, b) -> a));
+
+        for (IncomeReport incomeReport : incomeReports) {
+            String fiscalDateEnding = incomeReport.getDate();
+
+            // Find corresponding reports
+            BalanceSheetReport balanceSheet = balanceSheetMap.get(fiscalDateEnding);
+            CashFlowReport cashFlow = cashFlowMap.get(fiscalDateEnding);
+
+            if (balanceSheet == null || cashFlow == null) {
+                continue; // Skip if we don't have all required reports
+            }
+
+            FinancialRatiosReport ratios = financialRatiosCalculator.calculateRatios(companyOverview, incomeReport, balanceSheet, cashFlow);
+            targetList.add(ratios);
+
+        }
     }
 }

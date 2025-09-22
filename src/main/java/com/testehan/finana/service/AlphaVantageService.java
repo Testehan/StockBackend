@@ -10,6 +10,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+import java.util.Objects;
+
 @Service
 public class AlphaVantageService {
 
@@ -58,7 +60,14 @@ public class AlphaVantageService {
                                 });
 
                                 boolean transcriptExists = companyEarningsTranscripts.getTranscripts() != null && companyEarningsTranscripts.getTranscripts().stream()
-                                        .anyMatch(transcript -> transcript.getQuarter().equals(quarter));
+                                        .anyMatch(transcript -> {
+                                         if (Objects.nonNull(transcript.getQuarter()))
+                                         {
+                                             return   transcript.getQuarter().equals(quarter);
+                                         } else {
+                                             return false;
+                                         }
+                                        });
 
                                 if (!transcriptExists) {
                                     if (companyEarningsTranscripts.getTranscripts() == null) {
