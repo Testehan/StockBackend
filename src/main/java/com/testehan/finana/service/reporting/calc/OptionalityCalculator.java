@@ -7,6 +7,10 @@ import com.testehan.finana.model.IncomeReport;
 import com.testehan.finana.model.IncomeStatementData;
 import com.testehan.finana.model.SecFiling;
 import com.testehan.finana.model.llm.responses.FerolLlmResponse;
+import com.testehan.finana.repository.CompanyOverviewRepository;
+import com.testehan.finana.repository.FinancialRatiosRepository;
+import com.testehan.finana.repository.IncomeStatementRepository;
+import com.testehan.finana.repository.SecFilingRepository;
 import com.testehan.finana.service.FinancialDataService;
 import com.testehan.finana.service.LlmService;
 import com.testehan.finana.service.reporting.FerolSseService;
@@ -37,6 +41,11 @@ import java.util.stream.Collectors;
 public class OptionalityCalculator {
     private static final Logger LOGGER = LoggerFactory.getLogger(OptionalityCalculator.class);
 
+    private final CompanyOverviewRepository companyOverviewRepository;
+    private final IncomeStatementRepository incomeStatementRepository;
+    private final SecFilingRepository secFilingRepository;
+    private final FinancialRatiosRepository financialRatiosRepository;
+
     private final LlmService llmService;
     private final FerolSseService ferolSseService;
     private final SafeParser safeParser;
@@ -47,7 +56,11 @@ public class OptionalityCalculator {
     @Value("classpath:/prompts/optionality_prompt.txt")
     private Resource optionalityPrompt;
 
-    public OptionalityCalculator(LlmService llmService, FerolSseService ferolSseService, SafeParser safeParser, DateUtils dateUtils, FinancialDataService financialDataService) {
+    public OptionalityCalculator(CompanyOverviewRepository companyOverviewRepository, IncomeStatementRepository incomeStatementRepository, SecFilingRepository secFilingRepository, FinancialRatiosRepository financialRatiosRepository, LlmService llmService, FerolSseService ferolSseService, SafeParser safeParser, DateUtils dateUtils, FinancialDataService financialDataService) {
+        this.companyOverviewRepository = companyOverviewRepository;
+        this.incomeStatementRepository = incomeStatementRepository;
+        this.secFilingRepository = secFilingRepository;
+        this.financialRatiosRepository = financialRatiosRepository;
         this.llmService = llmService;
         this.ferolSseService = ferolSseService;
         this.safeParser = safeParser;
@@ -55,7 +68,12 @@ public class OptionalityCalculator {
         this.financialDataService = financialDataService;
     }
 
-    public FerolReportItem calculate(String ticker, Optional<SecFiling> secFilingData, Optional<CompanyOverview> companyOverview, Optional<FinancialRatiosData> financialRatios, Optional<IncomeStatementData> incomeStatementData, SseEmitter sseEmitter) {
+    public FerolReportItem calculate(String ticker, SseEmitter sseEmitter) {
+        Optional<CompanyOverview> companyOverview = companyOverviewRepository.findBySymbol(ticker);
+        Optional<IncomeStatementData> incomeStatementData = incomeStatementRepository.findBySymbol(ticker);
+        Optional<SecFiling> secFilingData = secFilingRepository.findBySymbol(ticker);
+        Optional<FinancialRatiosData> financialRatios = financialRatiosRepository.findBySymbol(ticker);
+
         StringBuilder stringBuilder = new StringBuilder();
 
         companyOverview.ifPresent( overview -> {

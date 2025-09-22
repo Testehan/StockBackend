@@ -3,6 +3,8 @@ package com.testehan.finana.service.reporting.calc;
 import com.testehan.finana.model.CompanyOverview;
 import com.testehan.finana.model.SecFiling;
 import com.testehan.finana.model.llm.responses.FerolMoatAnalysisLlmResponse;
+import com.testehan.finana.repository.CompanyOverviewRepository;
+import com.testehan.finana.repository.SecFilingRepository;
 import com.testehan.finana.service.LlmService;
 import com.testehan.finana.service.reporting.FerolSseService;
 import org.slf4j.Logger;
@@ -25,18 +27,24 @@ import java.util.Optional;
 public class MoatCalculator {
     private static final Logger LOGGER = LoggerFactory.getLogger(MoatCalculator.class);
 
+    private final CompanyOverviewRepository companyOverviewRepository;
+    private final SecFilingRepository secFilingRepository;
     private final LlmService llmService;
     private final FerolSseService ferolSseService;
 
     @Value("classpath:/prompts/moat_prompt.txt")
     private Resource moatPrompt;
 
-    public MoatCalculator(LlmService llmService, FerolSseService ferolSseService) {
+    public MoatCalculator(CompanyOverviewRepository companyOverviewRepository, SecFilingRepository secFilingRepository, LlmService llmService, FerolSseService ferolSseService) {
+        this.companyOverviewRepository = companyOverviewRepository;
+        this.secFilingRepository = secFilingRepository;
         this.llmService = llmService;
         this.ferolSseService = ferolSseService;
     }
 
-    public FerolMoatAnalysisLlmResponse calculate(String ticker,  Optional<SecFiling> secFilingData, Optional<CompanyOverview> companyOverview, SseEmitter sseEmitter) {
+    public FerolMoatAnalysisLlmResponse calculate(String ticker, SseEmitter sseEmitter) {
+        Optional<SecFiling> secFilingData = secFilingRepository.findBySymbol(ticker);
+        Optional<CompanyOverview> companyOverview = companyOverviewRepository.findBySymbol(ticker);
 
         StringBuilder stringBuilder = new StringBuilder();
 

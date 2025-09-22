@@ -6,6 +6,8 @@ import com.testehan.finana.model.FerolReportItem;
 import com.testehan.finana.model.IncomeReport;
 import com.testehan.finana.model.IncomeStatementData;
 import com.testehan.finana.model.llm.responses.FerolLlmResponse;
+import com.testehan.finana.repository.BalanceSheetRepository;
+import com.testehan.finana.repository.IncomeStatementRepository;
 import com.testehan.finana.service.LlmService;
 import com.testehan.finana.service.reporting.FerolSseService;
 import com.testehan.finana.util.SafeParser;
@@ -31,6 +33,8 @@ import java.util.stream.Collectors;
 public class FinancialResilienceCalculator {
     private static final Logger LOGGER = LoggerFactory.getLogger(FinancialResilienceCalculator.class);
 
+    private final IncomeStatementRepository incomeStatementRepository;
+    private final BalanceSheetRepository balanceSheetRepository;
     private final LlmService llmService;
     private final FerolSseService ferolSseService;
     private final SafeParser safeParser;
@@ -38,13 +42,18 @@ public class FinancialResilienceCalculator {
     @Value("classpath:/prompts/financial_resilience_prompt.txt")
     private Resource financialResiliencePrompt;
 
-    public FinancialResilienceCalculator(LlmService llmService, FerolSseService ferolSseService, SafeParser safeParser) {
+    public FinancialResilienceCalculator(IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository, LlmService llmService, FerolSseService ferolSseService, SafeParser safeParser) {
+        this.incomeStatementRepository = incomeStatementRepository;
+        this.balanceSheetRepository = balanceSheetRepository;
         this.llmService = llmService;
         this.ferolSseService = ferolSseService;
         this.safeParser = safeParser;
     }
 
-    public FerolReportItem calculate(String ticker, Optional<IncomeStatementData> incomeStatementData, Optional<BalanceSheetData> balanceSheetData, SseEmitter sseEmitter) {
+    public FerolReportItem calculate(String ticker, SseEmitter sseEmitter) {
+        Optional<IncomeStatementData> incomeStatementData = incomeStatementRepository.findBySymbol(ticker);
+        Optional<BalanceSheetData> balanceSheetData = balanceSheetRepository.findBySymbol(ticker);
+
         final BigDecimal[] totalCashAndEquivalents = {BigDecimal.ZERO};
         final BigDecimal[] totalDebt = {BigDecimal.ZERO};
         final BigDecimal[] ttmEbitda = {BigDecimal.ZERO};
