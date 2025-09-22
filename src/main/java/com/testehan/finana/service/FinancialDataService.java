@@ -74,6 +74,7 @@ public class FinancialDataService {
         getCashFlow(ticker).block();
         getEarningsEstimates(ticker).block();
         getCompanyOverview(ticker).block().get(0);
+        getRevenueSegmentation(ticker).block();
 
         var latestReportDate = getLatestReportedDate(ticker);
 
