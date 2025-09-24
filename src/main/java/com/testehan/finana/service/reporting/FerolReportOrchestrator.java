@@ -7,10 +7,11 @@ import com.testehan.finana.model.llm.responses.FerolMoatAnalysisLlmResponse;
 import com.testehan.finana.model.llm.responses.FerolNegativesAnalysisLlmResponse;
 import com.testehan.finana.repository.GeneratedReportRepository;
 import com.testehan.finana.service.FinancialDataService;
-import com.testehan.finana.service.reporting.calc.*;
 import com.testehan.finana.service.reporting.calc.negatives.CurrencyRiskCalculator;
+import com.testehan.finana.service.reporting.calc.negatives.DilutionRiskCalculator;
 import com.testehan.finana.service.reporting.calc.negatives.HeadquarterRiskCalculator;
 import com.testehan.finana.service.reporting.calc.negatives.MultipleRisksCalculator;
+import com.testehan.finana.service.reporting.calc.positives.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -49,6 +50,7 @@ public class FerolReportOrchestrator {
     private final PricingPowerCalculator pricingPowerCalculator;
 
     private final MultipleRisksCalculator multipleRisksCalculator;
+    private final DilutionRiskCalculator dilutionRiskCalculator;
     private final HeadquarterRiskCalculator headquarterRiskCalculator;
     private final CurrencyRiskCalculator currencyRiskCalculator;
 
@@ -56,7 +58,7 @@ public class FerolReportOrchestrator {
     private final Executor ferolExecutor;
 
 
-    public FerolReportOrchestrator(FinancialDataService financialDataService, FerolSseService ferolSseService, FerolReportPersistenceService ferolReportPersistenceService, FinancialResilienceCalculator financialResilienceCalculator, GrossMarginCalculator grossMarginCalculator, RoicCalculator roicCalculator, FcfCalculator fcfCalculator, EpsCalculator epsCalculator, MoatCalculator moatCalculator, OptionalityCalculator optionalityCalculator, OrganicGrowthRunawayCalculator organicGrowthRunawayCalculator, TopDogCalculator topDogCalculator, OperatingLeverageCalculator operatingLeverageCalculator, AcquisitionsCalculator acquisitionsCalculator, CyclicalityCalculator cyclicalityCalculator, RecurringRevenueCalculator recurringRevenueCalculator, PricingPowerCalculator pricingPowerCalculator, MultipleRisksCalculator multipleRisksCalculator, HeadquarterRiskCalculator headquarterRiskCalculator, CurrencyRiskCalculator currencyRiskCalculator, GeneratedReportRepository generatedReportRepository, @Qualifier("ferolExecutor") Executor ferolExecutor) {
+    public FerolReportOrchestrator(FinancialDataService financialDataService, FerolSseService ferolSseService, FerolReportPersistenceService ferolReportPersistenceService, FinancialResilienceCalculator financialResilienceCalculator, GrossMarginCalculator grossMarginCalculator, RoicCalculator roicCalculator, FcfCalculator fcfCalculator, EpsCalculator epsCalculator, MoatCalculator moatCalculator, OptionalityCalculator optionalityCalculator, OrganicGrowthRunawayCalculator organicGrowthRunawayCalculator, TopDogCalculator topDogCalculator, OperatingLeverageCalculator operatingLeverageCalculator, AcquisitionsCalculator acquisitionsCalculator, CyclicalityCalculator cyclicalityCalculator, RecurringRevenueCalculator recurringRevenueCalculator, PricingPowerCalculator pricingPowerCalculator, MultipleRisksCalculator multipleRisksCalculator, DilutionRiskCalculator dilutionRiskCalculator, HeadquarterRiskCalculator headquarterRiskCalculator, CurrencyRiskCalculator currencyRiskCalculator, GeneratedReportRepository generatedReportRepository, @Qualifier("ferolExecutor") Executor ferolExecutor) {
         this.financialDataService = financialDataService;
         this.ferolSseService = ferolSseService;
         this.ferolReportPersistenceService = ferolReportPersistenceService;
@@ -75,6 +77,7 @@ public class FerolReportOrchestrator {
         this.recurringRevenueCalculator = recurringRevenueCalculator;
         this.pricingPowerCalculator = pricingPowerCalculator;
         this.multipleRisksCalculator = multipleRisksCalculator;
+        this.dilutionRiskCalculator = dilutionRiskCalculator;
         this.headquarterRiskCalculator = headquarterRiskCalculator;
         this.currencyRiskCalculator = currencyRiskCalculator;
         this.generatedReportRepository = generatedReportRepository;
@@ -216,6 +219,14 @@ public class FerolReportOrchestrator {
                     return item;
                 }, ferolExecutor);
 
+
+                CompletableFuture<FerolReportItem> dilutionRiskFuture = CompletableFuture.supplyAsync(() -> {
+                    ferolSseService.sendSseEvent(sseEmitter, "How was the dilution in the past years..?");
+                    FerolReportItem item = dilutionRiskCalculator.calculate(ticker, sseEmitter);
+                    ferolSseService.sendSseEvent(sseEmitter, "Dilution analysis is done.");
+                    return item;
+                }, ferolExecutor);
+
                 CompletableFuture<FerolReportItem> headquartersRiskFuture = CompletableFuture.supplyAsync(() -> {
                     ferolSseService.sendSseEvent(sseEmitter, "Any headquarters risk..?");
                     FerolReportItem item = headquarterRiskCalculator.calculate(ticker, sseEmitter);
@@ -240,6 +251,7 @@ public class FerolReportOrchestrator {
 
                         // negatives
                         multipleRiskFuture,
+                        dilutionRiskFuture,
                         headquartersRiskFuture,
                         currencyRiskFuture)
                         .join();
@@ -277,6 +289,7 @@ public class FerolReportOrchestrator {
                 ferolReportItems.add(new FerolReportItem("growthByAcquisition",negativesAnalysis.getGrowthByAcquisitionScore(), negativesAnalysis.getGrowthByAcquisitionExplanation()));
                 ferolReportItems.add(new FerolReportItem("complicatedFinancials",negativesAnalysis.getComplicatedFinancialsScore(), negativesAnalysis.getComplicatedFinancialsExplanation()));
                 ferolReportItems.add(new FerolReportItem("antitrustConcerns",negativesAnalysis.getAntitrustConcernsScore(), negativesAnalysis.getAntitrustConcernsExplanation()));
+                ferolReportItems.add(dilutionRiskFuture.get());
                 ferolReportItems.add(headquartersRiskFuture.get());
                 ferolReportItems.add(currencyRiskFuture.get());
 

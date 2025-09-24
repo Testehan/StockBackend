@@ -75,7 +75,7 @@ public class MultipleRisksCalculator {
         try {
             ferolSseService.sendSseEvent(sseEmitter, "Sending data to LLM for moat analysis...");
             LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
-            String llmResponse = llmService.callLlmLast(prompt);
+            String llmResponse = llmService.callLlm(prompt);
             ferolSseService.sendSseEvent(sseEmitter, "Received LLM response for moat analysis.");
             return ferolLlmResponseOutputConverter.convert(llmResponse);
 

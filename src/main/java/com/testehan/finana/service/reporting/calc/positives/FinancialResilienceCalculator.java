@@ -1,4 +1,4 @@
-package com.testehan.finana.service.reporting.calc;
+package com.testehan.finana.service.reporting.calc.positives;
 
 import com.testehan.finana.model.BalanceSheetData;
 import com.testehan.finana.model.BalanceSheetReport;
