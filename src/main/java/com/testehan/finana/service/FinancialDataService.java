@@ -74,7 +74,7 @@ public class FinancialDataService {
     }
 
     public void ensureFinancialDataIsPresent(String ticker) {
-        getGlobalQuote(ticker).block();
+        getLastStockQuote(ticker).block();
         getIncomeStatements(ticker).block();
         getBalanceSheet(ticker).block();
         getCashFlow(ticker).block();
@@ -167,23 +167,22 @@ public class FinancialDataService {
         });
     }
 
-    public Mono<GlobalQuote> getGlobalQuote(String symbol) {
+    public Mono<GlobalQuote> getLastStockQuote(String symbol) {
         return Mono.defer(() -> {
-            Optional<StockQuotes> stockQuotesFromDb = stockQuotesRepository.findBySymbol(symbol.toUpperCase());
-            if (stockQuotesFromDb.isPresent() && isRecent(stockQuotesFromDb.get().getLastUpdated(), 1000)) {
+            Optional<StockQuotes> stockQuotesFromDb = stockQuotesRepository.findBySymbol(symbol);
+            if (stockQuotesFromDb.isPresent() && isRecent(stockQuotesFromDb.get().getLastUpdated(), 100)) {
                 return Mono.just(stockQuotesFromDb.get());
             } else {
-                return alphaVantageService.fetchGlobalQuoteFromApi(symbol.toUpperCase())
-                        .flatMap(globalQuote -> {
+                return fmpService.getHistoricalDividendAdjustedEodPrice(symbol)
+                        .flatMap(globalQuotes -> {
                             StockQuotes stockQuotes;
                             if (stockQuotesFromDb.isPresent()) {
                                 stockQuotes = stockQuotesFromDb.get();
-                                stockQuotes.getQuotes().add(globalQuote);
+                                stockQuotes.setQuotes(globalQuotes);
                             } else {
                                 stockQuotes = new StockQuotes();
                                 stockQuotes.setSymbol(symbol.toUpperCase());
-                                stockQuotes.setQuotes(new java.util.ArrayList<>());
-                                stockQuotes.getQuotes().add(globalQuote);
+                                stockQuotes.setQuotes(globalQuotes);
                             }
                             stockQuotes.setLastUpdated(LocalDateTime.now());
                             return Mono.just(stockQuotesRepository.save(stockQuotes));
@@ -192,7 +191,7 @@ public class FinancialDataService {
         }).map(stockQuotes -> {
             List<GlobalQuote> quotes = stockQuotes.getQuotes();
             if (quotes != null && !quotes.isEmpty()) {
-                return quotes.get(quotes.size() - 1);
+                return stockQuotesRepository.findLastQuoteBySymbol(symbol).get();
             }
             return null;
         }).filter(Objects::nonNull);

@@ -113,18 +113,6 @@ public class AlphaVantageService {
                 });
     }
 
-    public Mono<GlobalQuote> fetchGlobalQuoteFromApi(String symbol) {
-        return webClient.get()
-                .uri(uriBuilder -> uriBuilder.path("/query")
-                        .queryParam("function", "GLOBAL_QUOTE")
-                        .queryParam("symbol", symbol)
-                        .queryParam("apikey", apiKey)
-                        .build())
-                .retrieve()
-                .bodyToMono(GlobalQuoteResponse.class)
-                .map(GlobalQuoteResponse::getGlobalQuote);
-    }
-
     public Mono<EarningsEstimate> fetchEarningsEstimatesFromApi(String symbol) {
         LOGGER.info("Fetching earnings estimates for {}", symbol);
         return webClient.get()

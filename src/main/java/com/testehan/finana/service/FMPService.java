@@ -29,6 +29,21 @@ public class FMPService {
                 .build();
     }
 
+    public Mono<List<GlobalQuote>> getHistoricalDividendAdjustedEodPrice(String symbol) {
+        return webClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/stable/historical-price-eod/dividend-adjusted")
+                        .queryParam("symbol", symbol)
+                        .queryParam("apikey", apiKey)
+                        .build())
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<List<GlobalQuote>>() {})
+                .onErrorResume(e -> {
+                    LOGGER.error("Error fetching historical dividend adjusted EOD price for symbol: " + symbol, e);
+                    return Mono.just(java.util.Collections.emptyList());
+                });
+    }
+
     public Mono<List<IncomeReport>> getIncomeStatement(String symbol,String period) {
         return webClient.get()
                 .uri(uriBuilder -> uriBuilder

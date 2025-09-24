@@ -95,7 +95,7 @@ public class StockController {
 
     @GetMapping("/global-quote/{symbol}")
     public Mono<GlobalQuote> getGlobalQuote(@PathVariable String symbol) {
-        return financialDataService.getGlobalQuote(symbol);
+        return financialDataService.getLastStockQuote(symbol.toUpperCase());
     }
 
     @GetMapping("/earnings-call-transcript/{symbol}/{quarter}")

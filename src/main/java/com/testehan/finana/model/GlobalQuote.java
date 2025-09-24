@@ -12,33 +12,24 @@ import lombok.Setter;
 @NoArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class GlobalQuote {
-    @JsonProperty("01. symbol")
+    @JsonProperty("symbol")
     private String symbol;
 
-    @JsonProperty("02. open")
-    private String open;
+    @JsonProperty("date")
+    private String date;
 
-    @JsonProperty("03. high")
-    private String high;
+    @JsonProperty("adjOpen")
+    private String adjOpen;
 
-    @JsonProperty("04. low")
-    private String low;
+    @JsonProperty("adjHigh")
+    private String adjHigh;
 
-    @JsonProperty("05. price")
-    private String price;
+    @JsonProperty("adjLow")
+    private String adjLow;
 
-    @JsonProperty("06. volume")
+    @JsonProperty("adjClose")
+    private String adjClose;
+
+    @JsonProperty("volume")
     private String volume;
-
-    @JsonProperty("07. latest trading day")
-    private String latestTradingDay;
-
-    @JsonProperty("08. previous close")
-    private String previousClose;
-
-    @JsonProperty("09. change")
-    private String change;
-
-    @JsonProperty("10. change percent")
-    private String changePercent;
 }
