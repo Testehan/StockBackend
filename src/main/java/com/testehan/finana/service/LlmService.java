@@ -23,4 +23,8 @@ public class LlmService {
         //chatModel.call(new Prompt(new UserMessage(query.getContents()))).getResult().getOutput().getText();
     }
 
+    public String callLlmLast(Prompt query) {
+        return chatModel.call(new Prompt(new UserMessage(query.getContents()))).getResult().getOutput().getText();
+    }
+
 }

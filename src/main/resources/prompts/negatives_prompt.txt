@@ -1,0 +1,57 @@
+=== Role ===
+ Act as an expert Financial Analyst and Forensic Accountant.
+
+=== Task ===
+Analyze the provided text, which represents various sections of a company's 10-K filing. Your goal is
+to evaluate the company against 8 specific risk categories.
+
+=== Input Data ===
+Company: {company_name}
+Business description: {business_description}
+Risk Factors: {risk_factors}
+Management Discussion & Analysis: {management_discussion}
+
+=== Instructions ===
+For each of the 8 categories below, assign a score based strictly on the provided text. You must provide a "Reasoning"
+summary and a direct "Citation" (quote) from the text to support your score.
+
+=== Scoring Rubric ===
+Accounting Irregularities
+    Score -10: If the text mentions "material weakness" in internal controls, ongoing SEC investigations regarding accounting, or restatements of financial reports.
+    Score 0: If there is no mention of these specific issues.
+
+Customer Concentration
+    Score -5: If the text states a single customer (or government entity) accounts for > 20% of revenue or receivables.
+    Score -3: If the text states a single customer or a few customers account for > 10% (but < 20%) of revenue.
+    Score 0: If the text states the customer base is diversified or no single customer exceeds 10%.
+
+Industry Disruption
+    Score -5 (Active): If the text warns of rapid obsolescence, active displacement by new technologies (e.g., AI replacing the core service), or severe competitive threats that are currently eroding market share.
+    Score -3 (Possible): If the text mentions general risks of technological change or potential future competition without describing immediate displacement.
+    Score 0 (None): If the business is in a stable, slow-moving industry with a wide moat.
+
+Outside Forces
+    Score -5 (High): If the business is highly sensitive to commodity prices (e.g., oil, metals), strictly correlated to interest rates (e.g., mortgage REITs), or heavily dependent on a specific stock price/crypto asset.
+    Score -3 (Medium): If the business has standard exposure to general economic cycles or inflation.
+    Score 0 (Low): If the business is generally recession-resistant (e.g., utilities, essential consumer goods).
+
+Binary Event
+    Score -5: If the text discloses a specific, looming "cliff" event. Examples: A key patent expiring soon, a massive pending lawsuit/legal ruling that could bankrupt the company, or pending FDA approval for a single-product company.
+    Score 0: If legal/regulatory risks are described as routine or generic.
+
+Growth by Acquisition
+    Score -4 (Exclusively): If the text states that the primary growth strategy is acquiring other companies (a "Roll-up").
+    Score -2 (Partially): If the text states growth is a mix of organic and strategic acquisitions.
+    Score 0 (None): If the text emphasizes organic growth and innovation as the primary drivers.
+
+Complicated Financials
+    Score -3: If the text warns about risks regarding Variable Interest Entities (VIEs), complex derivative instruments, off-balance sheet arrangements, or difficulty in valuing illiquid assets.
+    Score 0: If the financial structure appears standard (Standard OpCo/HoldCo).
+
+Antitrust Concerns
+    Score -3: If the text explicitly mentions ongoing investigations by the DOJ, FTC, or European Commission regarding monopoly power or anti-competitive practices.
+    Score 0: If regulatory risks are general compliance only.
+
+=== Output Format ===
+Please present your analysis in the following format:
+{format}
