@@ -7,6 +7,7 @@ import com.testehan.finana.model.llm.responses.FerolMoatAnalysisLlmResponse;
 import com.testehan.finana.repository.GeneratedReportRepository;
 import com.testehan.finana.service.FinancialDataService;
 import com.testehan.finana.service.reporting.calc.*;
+import com.testehan.finana.service.reporting.calc.negatives.CurrencyRiskCalculator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -43,11 +44,13 @@ public class FerolReportOrchestrator {
     private final CyclicalityCalculator cyclicalityCalculator;
     private final RecurringRevenueCalculator recurringRevenueCalculator;
     private final PricingPowerCalculator pricingPowerCalculator;
+    private final CurrencyRiskCalculator currencyRiskCalculator;
+
     private final GeneratedReportRepository generatedReportRepository;
     private final Executor ferolExecutor;
 
 
-    public FerolReportOrchestrator(FinancialDataService financialDataService, FerolSseService ferolSseService, FerolReportPersistenceService ferolReportPersistenceService, FinancialResilienceCalculator financialResilienceCalculator, GrossMarginCalculator grossMarginCalculator, RoicCalculator roicCalculator, FcfCalculator fcfCalculator, EpsCalculator epsCalculator, MoatCalculator moatCalculator, OptionalityCalculator optionalityCalculator, OrganicGrowthRunawayCalculator organicGrowthRunawayCalculator, TopDogCalculator topDogCalculator, OperatingLeverageCalculator operatingLeverageCalculator, AcquisitionsCalculator acquisitionsCalculator, CyclicalityCalculator cyclicalityCalculator, RecurringRevenueCalculator recurringRevenueCalculator, PricingPowerCalculator pricingPowerCalculator, GeneratedReportRepository generatedReportRepository, @Qualifier("ferolExecutor") Executor ferolExecutor) {
+    public FerolReportOrchestrator(FinancialDataService financialDataService, FerolSseService ferolSseService, FerolReportPersistenceService ferolReportPersistenceService, FinancialResilienceCalculator financialResilienceCalculator, GrossMarginCalculator grossMarginCalculator, RoicCalculator roicCalculator, FcfCalculator fcfCalculator, EpsCalculator epsCalculator, MoatCalculator moatCalculator, OptionalityCalculator optionalityCalculator, OrganicGrowthRunawayCalculator organicGrowthRunawayCalculator, TopDogCalculator topDogCalculator, OperatingLeverageCalculator operatingLeverageCalculator, AcquisitionsCalculator acquisitionsCalculator, CyclicalityCalculator cyclicalityCalculator, RecurringRevenueCalculator recurringRevenueCalculator, PricingPowerCalculator pricingPowerCalculator, CurrencyRiskCalculator currencyRiskCalculator, GeneratedReportRepository generatedReportRepository, @Qualifier("ferolExecutor") Executor ferolExecutor) {
         this.financialDataService = financialDataService;
         this.ferolSseService = ferolSseService;
         this.ferolReportPersistenceService = ferolReportPersistenceService;
@@ -65,6 +68,7 @@ public class FerolReportOrchestrator {
         this.cyclicalityCalculator = cyclicalityCalculator;
         this.recurringRevenueCalculator = recurringRevenueCalculator;
         this.pricingPowerCalculator = pricingPowerCalculator;
+        this.currencyRiskCalculator = currencyRiskCalculator;
         this.generatedReportRepository = generatedReportRepository;
         this.ferolExecutor = ferolExecutor;
     }
@@ -163,14 +167,12 @@ public class FerolReportOrchestrator {
 
                 CompletableFuture<FerolReportItem> operatingLeverageFuture = CompletableFuture.supplyAsync(() -> {
                     ferolSseService.sendSseEvent(sseEmitter, "Thinking about operating leverage...");
-
-
                     FerolReportItem item = operatingLeverageCalculator.calculate(ticker, sseEmitter);
                     ferolSseService.sendSseEvent(sseEmitter, "Operating leverage analysis is complete.");
                     return item;
                 }, ferolExecutor);
 
-                CompletableFuture<FerolReportItem> acquisitionsFuture = CompletableFuture.supplyAsync(() -> {
+                CompletableFuture<FerolReportItem> customerAcquisitionsFuture = CompletableFuture.supplyAsync(() -> {
                     ferolSseService.sendSseEvent(sseEmitter, "Thinking about Sales & Marketing % of gross profit...");
                     FerolReportItem item = acquisitionsCalculator.calculate(ticker, sseEmitter);
                     ferolSseService.sendSseEvent(sseEmitter, "Sales & Marketing % of gross profit analysis is complete.");
@@ -198,17 +200,25 @@ public class FerolReportOrchestrator {
                     return item;
                 }, ferolExecutor);
 
+                // Negatives
+                CompletableFuture<FerolReportItem> currencyRiskFuture = CompletableFuture.supplyAsync(() -> {
+                    ferolSseService.sendSseEvent(sseEmitter, "Any currency risk..?");
+                    FerolReportItem item = currencyRiskCalculator.calculate(ticker, sseEmitter);
+                    ferolSseService.sendSseEvent(sseEmitter, "Currency risk analysis is done.");
+                    return item;
+                }, ferolExecutor);
+
+
                 CompletableFuture.allOf(
                         financialResilienceFuture, grossMarginFuture, roicFuture, fcfFuture, epsFuture,
                         moatsFuture,
-                        optionalityFuture,
-                        organicGrowthRunawayFuture,
-                        topDogFuture,
-                        operatingLeverageFuture,
-                        acquisitionsFuture,
-                        cyclicalityFuture,
-                        recurringRevenueFuture,
-                        pricingPowerFuture)
+                        optionalityFuture, organicGrowthRunawayFuture, topDogFuture, operatingLeverageFuture,
+                        customerAcquisitionsFuture, cyclicalityFuture,
+                        recurringRevenueFuture, pricingPowerFuture,
+
+                        // negatives
+                        currencyRiskFuture
+                        )
                         .join();
 
                 List<FerolReportItem> ferolReportItems = new ArrayList<>();
@@ -230,10 +240,14 @@ public class FerolReportOrchestrator {
                 ferolReportItems.add(organicGrowthRunawayFuture.get());
                 ferolReportItems.add(topDogFuture.get());
                 ferolReportItems.add(operatingLeverageFuture.get());
-                ferolReportItems.add(acquisitionsFuture.get());
+                ferolReportItems.add(customerAcquisitionsFuture.get());
                 ferolReportItems.add(cyclicalityFuture.get());
                 ferolReportItems.add(recurringRevenueFuture.get());
                 ferolReportItems.add(pricingPowerFuture.get());
+
+
+
+                ferolReportItems.add(currencyRiskFuture.get());
 
 
                 ferolSseService.sendSseEvent(sseEmitter, "Building and saving FEROL report...");

@@ -12,5 +12,5 @@ public class RevenueGeographicSegmentationReport {
     private String period;
     private String reportedCurrency;
     private String date;
-    private Map<String, Long> data;
+    private Map<String, String> data;
 }
