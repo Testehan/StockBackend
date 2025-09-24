@@ -40,16 +40,18 @@ public class FinancialDataService {
     private final GeneratedReportRepository generatedReportRepository;
     private final SecFilingRepository secFilingRepository;
     private final RevenueSegmentationDataRepository revenueSegmentationDataRepository;
+    private final RevenueGeographicSegmentationRepository revenueGeographicSegmentationRepository;
 
     private final FinancialRatiosCalculator financialRatiosCalculator;
 
     private final DateUtils dateUtils;
 
 
+
     private final CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository;
 
 
-    public FinancialDataService(AlphaVantageService alphaVantageService, FMPService fmpService, IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository, CashFlowRepository cashFlowRepository, SharesOutstandingRepository sharesOutstandingRepository, CompanyOverviewRepository companyOverviewRepository, EarningsHistoryRepository earningsHistoryRepository, StockQuotesRepository stockQuotesRepository, CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository, SecApiService secApiService, DateUtils dateUtils, EarningsEstimatesRepository earningsEstimatesRepository, FinancialRatiosRepository financialRatiosRepository, GeneratedReportRepository generatedReportRepository, SecFilingRepository secFilingRepository, RevenueSegmentationDataRepository revenueSegmentationDataRepository, FinancialRatiosCalculator financialRatiosCalculator) {
+    public FinancialDataService(AlphaVantageService alphaVantageService, FMPService fmpService, IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository, CashFlowRepository cashFlowRepository, SharesOutstandingRepository sharesOutstandingRepository, CompanyOverviewRepository companyOverviewRepository, EarningsHistoryRepository earningsHistoryRepository, StockQuotesRepository stockQuotesRepository, CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository, SecApiService secApiService, DateUtils dateUtils, EarningsEstimatesRepository earningsEstimatesRepository, FinancialRatiosRepository financialRatiosRepository, GeneratedReportRepository generatedReportRepository, SecFilingRepository secFilingRepository, RevenueSegmentationDataRepository revenueSegmentationDataRepository, RevenueGeographicSegmentationRepository revenueGeographicSegmentationRepository, FinancialRatiosCalculator financialRatiosCalculator) {
         this.alphaVantageService = alphaVantageService;
         this.fmpService = fmpService;
         this.incomeStatementRepository = incomeStatementRepository;
@@ -67,6 +69,7 @@ public class FinancialDataService {
         this.generatedReportRepository = generatedReportRepository;
         this.secFilingRepository = secFilingRepository;
         this.revenueSegmentationDataRepository = revenueSegmentationDataRepository;
+        this.revenueGeographicSegmentationRepository = revenueGeographicSegmentationRepository;
         this.financialRatiosCalculator = financialRatiosCalculator;
     }
 
@@ -78,6 +81,7 @@ public class FinancialDataService {
         getEarningsEstimates(ticker).block();
         getCompanyOverview(ticker).block().get(0);
         getRevenueSegmentation(ticker).block();
+        getRevenueGeographicSegmentation(ticker).block();
 
         getFinancialRatios(ticker);
 
@@ -271,6 +275,21 @@ public class FinancialDataService {
         });
     }
 
+    public Mono<RevenueGeographicSegmentationData> getRevenueGeographicSegmentation(String symbol) {
+        return Mono.defer(() -> {
+            Optional<RevenueGeographicSegmentationData> revenueGeographicSegmentationFromDb = revenueGeographicSegmentationRepository.findBySymbol(symbol.toUpperCase());
+            if (revenueGeographicSegmentationFromDb.isPresent()) {
+                return Mono.just(revenueGeographicSegmentationFromDb.get());
+            } else {
+                RevenueGeographicSegmentationData revenueGeographicSegmentationData = new RevenueGeographicSegmentationData();
+                revenueGeographicSegmentationData.setSymbol(symbol);
+                revenueGeographicSegmentationData.setReports(fmpService.getRevenueGeographicSegmentation(symbol.toUpperCase(),"annual").block());
+
+                return Mono.just(revenueGeographicSegmentationRepository.save(revenueGeographicSegmentationData));
+            }
+        });
+    }
+
     public Mono<SharesOutstandingData> getSharesOutstanding(String symbol) {
         return Mono.defer(() -> {
             Optional<SharesOutstandingData> sharesOutstandingFromDb = sharesOutstandingRepository.findBySymbol(symbol.toUpperCase());
@@ -305,6 +324,7 @@ public class FinancialDataService {
         financialRatiosRepository.deleteBySymbol(upperCaseSymbol);
         generatedReportRepository.deleteBySymbol(upperCaseSymbol);
         secFilingRepository.deleteBySymbol(upperCaseSymbol);
+        revenueGeographicSegmentationRepository.deleteBySymbol(upperCaseSymbol);
 
         LOGGER.info("Deleted all financial data for ticker: {}", upperCaseSymbol);
     }

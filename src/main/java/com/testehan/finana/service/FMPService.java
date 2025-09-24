@@ -77,6 +77,18 @@ public class FMPService {
                 .bodyToMono(new ParameterizedTypeReference<List<RevenueSegmentationReport>>() {});
     }
 
+    public Mono<List<RevenueGeographicSegmentationReport>> getRevenueGeographicSegmentation(String symbol, String period) {
+        return webClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/stable/revenue-geographic-segmentation")
+                        .queryParam("symbol", symbol)
+                        .queryParam("period", period)
+                        .queryParam("apikey", apiKey)
+                        .build())
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<List<RevenueGeographicSegmentationReport>>() {});
+    }
+
     public Mono<CompanyOverview> getCompanyOverview(String symbol, Optional<CompanyOverview> existingOverview) {
         return webClient.get()
                 .uri(uriBuilder -> uriBuilder
