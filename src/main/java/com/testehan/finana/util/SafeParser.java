@@ -16,4 +16,12 @@ public class SafeParser {
             return BigDecimal.ZERO;
         }
     }
+
+    public static Double tryParseDouble(String s) {
+        try {
+            return Double.parseDouble(s);
+        } catch (NumberFormatException | NullPointerException e) {
+            return null;
+        }
+    }
 }

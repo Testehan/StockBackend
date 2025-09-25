@@ -32,4 +32,12 @@ public interface StockQuotesRepository extends MongoRepository<StockQuotes, Stri
             "{ '$replaceRoot': { 'newRoot': '$quotes' } }"
     })
     Optional<GlobalQuote> findLastQuoteBySymbol(String symbol);
+
+    @Aggregation(pipeline = {
+            "{ '$match': { '_id': ?0 } }",
+            "{ '$unwind': '$quotes' }",
+            "{ '$match': { 'quotes.date': ?1 } }",
+            "{ '$replaceRoot': { 'newRoot': '$quotes' } }"
+    })
+    Optional<GlobalQuote> findQuoteBySymbolAndDate(String symbol, String date);
 }

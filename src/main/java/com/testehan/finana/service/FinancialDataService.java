@@ -222,6 +222,42 @@ public class FinancialDataService {
         });
     }
 
+    public Optional<GlobalQuote> getStockQuoteByDate(String symbol, LocalDate date) {
+        for (int i = 0; i < 7; i++) {       // because some days are weekends or holidays when the market is closed
+            LocalDate lookupDate = date.minusDays(i);
+            String dateStr = lookupDate.format(formatter);
+            Optional<GlobalQuote> quote = stockQuotesRepository.findQuoteBySymbolAndDate(symbol.toUpperCase(), dateStr);
+            if (quote.isPresent()) {
+                return quote;
+            }
+        }
+        return Optional.empty();
+    }
+
+    public Optional<IndexData> getIndexQuoteByDate(String symbol, LocalDate date) {
+        for (int i = 0; i < 7; i++) {   // because some days are weekends or holidays when the market is not opened
+            LocalDate lookupDate = date.minusDays(i);
+            String dateStr = lookupDate.format(formatter);
+            Optional<IndexData> quote = indexQuotesRepository.findQuoteBySymbolAndDate(symbol.toUpperCase(), dateStr);
+            if (quote.isPresent()) {
+                return quote;
+            }
+        }
+        return Optional.empty();
+    }
+
+    public Optional<GlobalQuote> getFirstStockQuote(String symbol) {
+        return stockQuotesRepository.findFirstQuoteBySymbol(symbol.toUpperCase());
+    }
+
+    public Optional<IndexData> getFirstIndexQuote(String symbol) {
+        return indexQuotesRepository.findFirstQuoteBySymbol(symbol.toUpperCase());
+    }
+
+    public Optional<IndexData> getLastIndexQuote(String symbol) {
+        return indexQuotesRepository.findLastQuoteBySymbol(symbol.toUpperCase());
+    }
+
     public Mono<List<CompanyOverview>> getCompanyOverview(String symbol) {
         return Mono.defer(() -> {
             Optional<CompanyOverview> overviewFromDb = companyOverviewRepository.findBySymbol(symbol.toUpperCase());
