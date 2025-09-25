@@ -32,4 +32,7 @@ public class GlobalQuote {
 
     @JsonProperty("volume")
     private String volume;
+
+    @JsonProperty("price")
+    private String price;
 }

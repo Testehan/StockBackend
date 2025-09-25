@@ -41,6 +41,7 @@ public class FinancialDataService {
     private final SecFilingRepository secFilingRepository;
     private final RevenueSegmentationDataRepository revenueSegmentationDataRepository;
     private final RevenueGeographicSegmentationRepository revenueGeographicSegmentationRepository;
+    private final IndexQuotesRepository indexQuotesRepository;
 
     private final FinancialRatiosCalculator financialRatiosCalculator;
 
@@ -51,7 +52,7 @@ public class FinancialDataService {
     private final CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository;
 
 
-    public FinancialDataService(AlphaVantageService alphaVantageService, FMPService fmpService, IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository, CashFlowRepository cashFlowRepository, SharesOutstandingRepository sharesOutstandingRepository, CompanyOverviewRepository companyOverviewRepository, EarningsHistoryRepository earningsHistoryRepository, StockQuotesRepository stockQuotesRepository, CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository, SecApiService secApiService, DateUtils dateUtils, EarningsEstimatesRepository earningsEstimatesRepository, FinancialRatiosRepository financialRatiosRepository, GeneratedReportRepository generatedReportRepository, SecFilingRepository secFilingRepository, RevenueSegmentationDataRepository revenueSegmentationDataRepository, RevenueGeographicSegmentationRepository revenueGeographicSegmentationRepository, FinancialRatiosCalculator financialRatiosCalculator) {
+    public FinancialDataService(AlphaVantageService alphaVantageService, FMPService fmpService, IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository, CashFlowRepository cashFlowRepository, SharesOutstandingRepository sharesOutstandingRepository, CompanyOverviewRepository companyOverviewRepository, EarningsHistoryRepository earningsHistoryRepository, StockQuotesRepository stockQuotesRepository, CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository, SecApiService secApiService, DateUtils dateUtils, EarningsEstimatesRepository earningsEstimatesRepository, FinancialRatiosRepository financialRatiosRepository, GeneratedReportRepository generatedReportRepository, SecFilingRepository secFilingRepository, RevenueSegmentationDataRepository revenueSegmentationDataRepository, RevenueGeographicSegmentationRepository revenueGeographicSegmentationRepository, IndexQuotesRepository indexQuotesRepository, FinancialRatiosCalculator financialRatiosCalculator) {
         this.alphaVantageService = alphaVantageService;
         this.fmpService = fmpService;
         this.incomeStatementRepository = incomeStatementRepository;
@@ -70,11 +71,13 @@ public class FinancialDataService {
         this.secFilingRepository = secFilingRepository;
         this.revenueSegmentationDataRepository = revenueSegmentationDataRepository;
         this.revenueGeographicSegmentationRepository = revenueGeographicSegmentationRepository;
+        this.indexQuotesRepository = indexQuotesRepository;
         this.financialRatiosCalculator = financialRatiosCalculator;
     }
 
     public void ensureFinancialDataIsPresent(String ticker) {
         getLastStockQuote(ticker).block();
+        getIndexQuotes("^GSPC").block();
         getIncomeStatements(ticker).block();
         getBalanceSheet(ticker).block();
         getCashFlow(ticker).block();
@@ -195,6 +198,28 @@ public class FinancialDataService {
             }
             return null;
         }).filter(Objects::nonNull);
+    }
+
+    public Mono<IndexQuotes> getIndexQuotes(String symbol) {
+        return Mono.defer(() -> {
+            Optional<IndexQuotes> indexQuotesFromDb = indexQuotesRepository.findById(symbol.toUpperCase());
+            if (indexQuotesFromDb.isPresent() && isRecent(indexQuotesFromDb.get().getLastUpdated(), 100)) {
+                return Mono.just(indexQuotesFromDb.get());
+            } else {
+                return fmpService.getIndexHistoricalData(symbol)
+                        .flatMap(indexDataList -> {
+                            IndexQuotes indexQuotes;
+                            if (indexQuotesFromDb.isPresent()) {
+                                indexQuotes = indexQuotesFromDb.get();
+                                indexQuotes.setQuotes(indexDataList);
+                            } else {
+                                indexQuotes = new IndexQuotes(symbol.toUpperCase(), indexDataList);
+                            }
+                            indexQuotes.setLastUpdated(LocalDateTime.now());
+                            return Mono.just(indexQuotesRepository.save(indexQuotes));
+                        });
+            }
+        });
     }
 
     public Mono<List<CompanyOverview>> getCompanyOverview(String symbol) {

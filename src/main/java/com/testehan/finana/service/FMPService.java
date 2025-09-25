@@ -44,6 +44,21 @@ public class FMPService {
                 });
     }
 
+    public Mono<List<IndexData>> getIndexHistoricalData(String symbol) {
+        return webClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/stable/historical-price-eod/light")
+                        .queryParam("symbol", symbol)
+                        .queryParam("apikey", apiKey)
+                        .build())
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<List<IndexData>>() {})
+                .onErrorResume(e -> {
+                    LOGGER.error("Error fetching index historical data for symbol: " + symbol, e);
+                    return Mono.just(java.util.Collections.emptyList());
+                });
+    }
+
     public Mono<List<IncomeReport>> getIncomeStatement(String symbol,String period) {
         return webClient.get()
                 .uri(uriBuilder -> uriBuilder

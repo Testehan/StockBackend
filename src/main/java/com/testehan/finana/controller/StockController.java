@@ -98,6 +98,11 @@ public class StockController {
         return financialDataService.getLastStockQuote(symbol.toUpperCase());
     }
 
+    @GetMapping("/sp500-quote")
+    public Mono<IndexQuotes> getSP500IndexQuote() {
+        return financialDataService.getIndexQuotes("^GSPC");
+    }
+
     @GetMapping("/earnings-call-transcript/{symbol}/{quarter}")
     public Mono<QuarterlyEarningsTranscript> getEarningsCallTranscript(@PathVariable String symbol, @PathVariable String quarter) {
         return financialDataService.getEarningsCallTranscript(symbol, quarter);
