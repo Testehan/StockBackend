@@ -216,16 +216,24 @@ public class FerolReportOrchestrator {
 
                 CompletableFuture<FerolReportItem> performanceVsSP500Future = CompletableFuture.supplyAsync(() -> {
                     ferolSseService.sendSseEvent(sseEmitter, "Calculating performance vs S&P500...");
-                    FerolReportItem item = performanceVsSP500Calculator.calculate(ticker, sseEmitter);
+                    FerolReportItem item = performanceVsSP500Calculator.calculateUpsidePerformance(ticker, sseEmitter);
                     ferolSseService.sendSseEvent(sseEmitter, "Performance vs S&P500 analysis is complete.");
                     return item;
                 }, ferolExecutor);
+
 
                 // Negatives
                 CompletableFuture<FerolNegativesAnalysisLlmResponse> multipleRiskFuture = CompletableFuture.supplyAsync(() -> {
                     ferolSseService.sendSseEvent(sseEmitter, "Analysing various negatives..");
                     FerolNegativesAnalysisLlmResponse item = multipleRisksCalculator.calculate(ticker, sseEmitter);
                     ferolSseService.sendSseEvent(sseEmitter, "Various negatives analysis is done.");
+                    return item;
+                }, ferolExecutor);
+
+                CompletableFuture<FerolReportItem> performanceDownVsSP500Future = CompletableFuture.supplyAsync(() -> {
+                    ferolSseService.sendSseEvent(sseEmitter, "Calculating performance vs S&P500...");
+                    FerolReportItem item = performanceVsSP500Calculator.calculateDownsidePerformance(ticker, sseEmitter);
+                    ferolSseService.sendSseEvent(sseEmitter, "Performance vs S&P500 analysis is complete.");
                     return item;
                 }, ferolExecutor);
 
@@ -262,6 +270,7 @@ public class FerolReportOrchestrator {
 
                         // negatives
                         multipleRiskFuture,
+                        performanceDownVsSP500Future,
                         dilutionRiskFuture,
                         headquartersRiskFuture,
                         currencyRiskFuture)
@@ -301,6 +310,7 @@ public class FerolReportOrchestrator {
                 ferolReportItems.add(new FerolReportItem("growthByAcquisition",negativesAnalysis.getGrowthByAcquisitionScore(), negativesAnalysis.getGrowthByAcquisitionExplanation()));
                 ferolReportItems.add(new FerolReportItem("complicatedFinancials",negativesAnalysis.getComplicatedFinancialsScore(), negativesAnalysis.getComplicatedFinancialsExplanation()));
                 ferolReportItems.add(new FerolReportItem("antitrustConcerns",negativesAnalysis.getAntitrustConcernsScore(), negativesAnalysis.getAntitrustConcernsExplanation()));
+                ferolReportItems.add(performanceDownVsSP500Future.get());
                 ferolReportItems.add(dilutionRiskFuture.get());
                 ferolReportItems.add(headquartersRiskFuture.get());
                 ferolReportItems.add(currencyRiskFuture.get());
