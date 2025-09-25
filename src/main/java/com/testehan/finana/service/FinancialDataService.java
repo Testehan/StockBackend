@@ -97,13 +97,13 @@ public class FinancialDataService {
         }
 
         try {
-            secApiService.getSectionFrom10K(ticker, "risk_factors").block();
-            secApiService.getSectionFrom10K(ticker, "management_discussion").block();
-            secApiService.getSectionFrom10K(ticker, "business_description").block();
-            secApiService.getSectionFrom10Q(ticker, "risk_factors").block();
-            secApiService.getSectionFrom10Q(ticker, "management_discussion").block();
+//            secApiService.getSectionFrom10K(ticker, "risk_factors").block();
+//            secApiService.getSectionFrom10K(ticker, "management_discussion").block();
+//            secApiService.getSectionFrom10K(ticker, "business_description").block();
+//            secApiService.getSectionFrom10Q(ticker, "risk_factors").block();
+//            secApiService.getSectionFrom10Q(ticker, "management_discussion").block();
         } catch (Exception e) {
-            LOGGER.error("Coul not get the SEC filings sections for ticker {}",ticker);
+            LOGGER.error("Could not get the SEC filings sections for ticker {}",ticker);
         }
     }
 

@@ -68,6 +68,11 @@ public class MultipleRisksCalculator {
             ferolSseService.sendSseEvent(sseEmitter, "No 10k available to get business description.");
         });
 
+        if (!promptParameters.containsKey("business_description") || !promptParameters.containsKey("risk_factors")
+                || !promptParameters.containsKey("management_discussion") ) {
+            return new FerolNegativesAnalysisLlmResponse(-10, "Operation 'calculateMultipleRisks' failed.");
+        }
+
 
         promptParameters.put("format", ferolLlmResponseOutputConverter.getFormat());
         Prompt prompt = promptTemplate.create(promptParameters);

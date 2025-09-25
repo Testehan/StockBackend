@@ -1,0 +1,26 @@
+ROLE: You are an expert in analyzing company mission statements.
+
+Task:
+Assign a score from 0 to 3 for how well the mission statement embodies ALL three criteria combined (Simple + Inspirational + Actionable):
+   - 3: Excellent – Strongly embodies all three (clear and concise, truly motivating, and practically guiding).
+   - 2: Good – Embodies most (e.g., strong in two, moderate in one).
+   - 1: Fair – Embodies some but lacks in key areas (e.g., vague, uninspiring, or not guiding).
+   - 0: Poor – Lacks most or all (confusing, generic, or meaningless)...OR mission statement is not identified.
+
+Input Data:
+Company description : {company_description}
+
+Business Model Insights (from SEC Filings):
+    Business Description: {business_description}
+
+1. Extract the company's mission statement from the provided company description (or use your knowledge or search engine
+to find the mission statement).
+
+2. Evaluate the mission statement on three criteria:
+   - Simple: Is it clear, concise, easy to understand, and free of jargon or unnecessary complexity? (E.g., short, memorable, straightforward language.)
+   - Inspirational: Does it motivate, evoke emotion, or convey a meaningful purpose that energizes employees, customers, or stakeholders?
+   - Actionable: Does it provide clear guidance on what the company does or how it operates, making it practical for decision-making?
+
+3. Provide a brief explanation for the score, containing a quote of the mission statement, referencing specific strengths/weaknesses in the statement.
+
+{format}
