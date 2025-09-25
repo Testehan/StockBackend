@@ -6,16 +6,20 @@ import com.testehan.finana.model.IndexData;
 import com.testehan.finana.service.FinancialDataService;
 import com.testehan.finana.service.reporting.FerolSseService;
 import com.testehan.finana.util.SafeParser;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 
-@Component
+@Service
 public class PerformanceVsSP500Calculator {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(PerformanceVsSP500Calculator.class);
 
     public static final String S_P_500 = "^GSPC";
     private final FinancialDataService financialDataService;
@@ -33,6 +37,7 @@ public class PerformanceVsSP500Calculator {
 
         if (startStockQuoteOpt.isEmpty() || endStockQuoteOpt.isEmpty()) {
             ferolSseService.sendSseErrorEvent(sseEmitter, "Stock price data not available.");
+            LOGGER.error("Stock price data not available for ticker {}",ticker);
             return new FerolReportItem("performanceVsIndex", 0, "Stock price data not available.");
         }
 
@@ -44,6 +49,7 @@ public class PerformanceVsSP500Calculator {
 
         if (startIndexQuoteOpt.isEmpty() || endIndexQuoteOpt.isEmpty()) {
             ferolSseService.sendSseErrorEvent(sseEmitter, "S&P 500 price data for the corresponding period not available.");
+            LOGGER.error("S&P 500 price data for the corresponding period not available.");
             return new FerolReportItem("performanceVsIndex", 0, "S&P 500 price data for the corresponding period not available.");
         }
 
@@ -54,6 +60,7 @@ public class PerformanceVsSP500Calculator {
 
         if (stockStartPrice == null || stockEndPrice == null || indexStartPrice == null || indexEndPrice == null || stockStartPrice == 0 || indexStartPrice == 0) {
             ferolSseService.sendSseErrorEvent(sseEmitter, "Could not parse price data.");
+            LOGGER.error("Could not parse price data.");
             return new FerolReportItem("performanceVsIndex", 0, "Could not parse price data.");
         }
 
@@ -80,6 +87,7 @@ public class PerformanceVsSP500Calculator {
 
         if (startStockQuoteOpt.isEmpty() || endStockQuoteOpt.isEmpty()) {
             ferolSseService.sendSseErrorEvent(sseEmitter, "Stock price data not available.");
+            LOGGER.error("Stock price data not available for ticker {}",ticker);
             return new FerolReportItem("bigMarketLoser", 0, "Stock price data not available.");
         }
 
@@ -91,6 +99,7 @@ public class PerformanceVsSP500Calculator {
 
         if (startIndexQuoteOpt.isEmpty() || endIndexQuoteOpt.isEmpty()) {
             ferolSseService.sendSseErrorEvent(sseEmitter, "S&P 500 price data for the corresponding period not available.");
+            LOGGER.error("S&P 500 price data for the corresponding period not available.");
             return new FerolReportItem("bigMarketLoser", 0, "S&P 500 price data for the corresponding period not available.");
         }
 
@@ -101,6 +110,7 @@ public class PerformanceVsSP500Calculator {
 
         if (stockStartPrice == null || stockEndPrice == null || indexStartPrice == null || indexEndPrice == null || stockStartPrice == 0 || indexStartPrice == 0) {
             ferolSseService.sendSseErrorEvent(sseEmitter, "Could not parse price data.");
+            LOGGER.error("Could not parse price data.");
             return new FerolReportItem("bigMarketLoser", 0, "Could not parse price data.");
         }
 

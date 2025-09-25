@@ -50,6 +50,7 @@ public class FerolReportOrchestrator {
     private final PricingPowerCalculator pricingPowerCalculator;
 
     private final PerformanceVsSP500Calculator performanceVsSP500Calculator;
+    private final BeatingEarningsExpectationsCalculator beatingEarningsExpectationsCalculator;
 
     private final MultipleRisksCalculator multipleRisksCalculator;
     private final DilutionRiskCalculator dilutionRiskCalculator;
@@ -60,7 +61,7 @@ public class FerolReportOrchestrator {
     private final Executor ferolExecutor;
 
 
-    public FerolReportOrchestrator(FinancialDataService financialDataService, FerolSseService ferolSseService, FerolReportPersistenceService ferolReportPersistenceService, FinancialResilienceCalculator financialResilienceCalculator, GrossMarginCalculator grossMarginCalculator, RoicCalculator roicCalculator, FcfCalculator fcfCalculator, EpsCalculator epsCalculator, MoatCalculator moatCalculator, OptionalityCalculator optionalityCalculator, OrganicGrowthRunawayCalculator organicGrowthRunawayCalculator, TopDogCalculator topDogCalculator, OperatingLeverageCalculator operatingLeverageCalculator, AcquisitionsCalculator acquisitionsCalculator, CyclicalityCalculator cyclicalityCalculator, RecurringRevenueCalculator recurringRevenueCalculator, PricingPowerCalculator pricingPowerCalculator, PerformanceVsSP500Calculator performanceVsSP500Calculator, MultipleRisksCalculator multipleRisksCalculator, DilutionRiskCalculator dilutionRiskCalculator, HeadquarterRiskCalculator headquarterRiskCalculator, CurrencyRiskCalculator currencyRiskCalculator, GeneratedReportRepository generatedReportRepository, @Qualifier("ferolExecutor") Executor ferolExecutor) {
+    public FerolReportOrchestrator(FinancialDataService financialDataService, FerolSseService ferolSseService, FerolReportPersistenceService ferolReportPersistenceService, FinancialResilienceCalculator financialResilienceCalculator, GrossMarginCalculator grossMarginCalculator, RoicCalculator roicCalculator, FcfCalculator fcfCalculator, EpsCalculator epsCalculator, MoatCalculator moatCalculator, OptionalityCalculator optionalityCalculator, OrganicGrowthRunawayCalculator organicGrowthRunawayCalculator, TopDogCalculator topDogCalculator, OperatingLeverageCalculator operatingLeverageCalculator, AcquisitionsCalculator acquisitionsCalculator, CyclicalityCalculator cyclicalityCalculator, RecurringRevenueCalculator recurringRevenueCalculator, PricingPowerCalculator pricingPowerCalculator, PerformanceVsSP500Calculator performanceVsSP500Calculator, BeatingEarningsExpectationsCalculator beatingEarningsExpectationsCalculator, MultipleRisksCalculator multipleRisksCalculator, DilutionRiskCalculator dilutionRiskCalculator, HeadquarterRiskCalculator headquarterRiskCalculator, CurrencyRiskCalculator currencyRiskCalculator, GeneratedReportRepository generatedReportRepository, @Qualifier("ferolExecutor") Executor ferolExecutor) {
         this.financialDataService = financialDataService;
         this.ferolSseService = ferolSseService;
         this.ferolReportPersistenceService = ferolReportPersistenceService;
@@ -79,6 +80,7 @@ public class FerolReportOrchestrator {
         this.recurringRevenueCalculator = recurringRevenueCalculator;
         this.pricingPowerCalculator = pricingPowerCalculator;
         this.performanceVsSP500Calculator = performanceVsSP500Calculator;
+        this.beatingEarningsExpectationsCalculator = beatingEarningsExpectationsCalculator;
         this.multipleRisksCalculator = multipleRisksCalculator;
         this.dilutionRiskCalculator = dilutionRiskCalculator;
         this.headquarterRiskCalculator = headquarterRiskCalculator;
@@ -221,6 +223,14 @@ public class FerolReportOrchestrator {
                     return item;
                 }, ferolExecutor);
 
+                CompletableFuture<FerolReportItem> beatingExpectationsFuture = CompletableFuture.supplyAsync(() -> {
+                    ferolSseService.sendSseEvent(sseEmitter, "Are they beating expectations ?...");
+                    FerolReportItem item = beatingEarningsExpectationsCalculator.calculateUpsidePerformance(ticker, sseEmitter);
+                    ferolSseService.sendSseEvent(sseEmitter, "Earnings beating analysis is complete.");
+                    return item;
+                }, ferolExecutor);
+
+
 
                 // Negatives
                 CompletableFuture<FerolNegativesAnalysisLlmResponse> multipleRiskFuture = CompletableFuture.supplyAsync(() -> {
@@ -267,6 +277,7 @@ public class FerolReportOrchestrator {
                         customerAcquisitionsFuture, cyclicalityFuture,
                         recurringRevenueFuture, pricingPowerFuture,
                         performanceVsSP500Future,
+                        beatingExpectationsFuture,
 
                         // negatives
                         multipleRiskFuture,
@@ -300,6 +311,7 @@ public class FerolReportOrchestrator {
                 ferolReportItems.add(recurringRevenueFuture.get());
                 ferolReportItems.add(pricingPowerFuture.get());
                 ferolReportItems.add(performanceVsSP500Future.get());
+                ferolReportItems.add(beatingExpectationsFuture.get());
 
                 FerolNegativesAnalysisLlmResponse negativesAnalysis = multipleRiskFuture.get();
                 ferolReportItems.add(new FerolReportItem("accountingIrregularities",negativesAnalysis.getAccountingIrregularitiesScore(), negativesAnalysis.getAccountingIrregularitiesExplanation()));

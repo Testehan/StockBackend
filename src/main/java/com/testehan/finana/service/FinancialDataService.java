@@ -82,6 +82,7 @@ public class FinancialDataService {
         getBalanceSheet(ticker).block();
         getCashFlow(ticker).block();
         getEarningsEstimates(ticker).block();
+        getEarningsHistory(ticker).block();
         getCompanyOverview(ticker).block().get(0);
         getRevenueSegmentation(ticker).block();
         getRevenueGeographicSegmentation(ticker).block();
