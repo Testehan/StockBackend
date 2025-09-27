@@ -44,99 +44,107 @@ public class FcfCalculator {
         Optional<FinancialRatiosData> financialRatiosDataOptional = financialRatiosRepository.findBySymbol(ticker);
         Optional<IncomeStatementData> incomeStatementDataOptional = incomeStatementRepository.findBySymbol(ticker);
 
-        if (financialRatiosDataOptional.isEmpty() || financialRatiosDataOptional.get().getQuarterlyReports().isEmpty() ||
-            incomeStatementDataOptional.isEmpty() || incomeStatementDataOptional.get().getQuarterlyReports().isEmpty()) {
-            LOGGER.warn("No sufficient data for FCF calculation for ticker: {}", ticker);
-            ferolSseService.sendSseEvent(sseEmitter, "FCF calculation skipped: Insufficient data found.");
-            return new FerolReportItem("freeCashFlow", 0, "Insufficient data for Free Cash Flow calculation.");
+        if (financialRatiosDataOptional.isEmpty() || financialRatiosDataOptional.get().getAnnualReports().isEmpty() ||
+            incomeStatementDataOptional.isEmpty() || incomeStatementDataOptional.get().getAnnualReports().isEmpty()) {
+            LOGGER.warn("No sufficient annual data for FCF calculation for ticker: {}", ticker);
+            ferolSseService.sendSseEvent(sseEmitter, "FCF calculation skipped: Insufficient annual data found.");
+            return new FerolReportItem("freeCashFlow", 0, "Insufficient annual data for Free Cash Flow calculation.");
         }
 
-        List<FinancialRatiosReport> financialRatiosReports = financialRatiosDataOptional.get().getQuarterlyReports();
-        List<IncomeReport> incomeReports = incomeStatementDataOptional.get().getQuarterlyReports();
+        List<FinancialRatiosReport> annualFinancialRatiosReports = financialRatiosDataOptional.get().getAnnualReports();
+        List<IncomeReport> annualIncomeReports = incomeStatementDataOptional.get().getAnnualReports();
 
         // Sort reports by fiscal date ending in descending order
-        financialRatiosReports.sort(Comparator.comparing(FinancialRatiosReport::getDate).reversed());
-        incomeReports.sort(Comparator.comparing(IncomeReport::getDate).reversed());
+        annualFinancialRatiosReports.sort(Comparator.comparing(FinancialRatiosReport::getDate).reversed());
+        annualIncomeReports.sort(Comparator.comparing(IncomeReport::getDate).reversed());
+
+        if (annualFinancialRatiosReports.size() < 2 || annualIncomeReports.size() < 2) {
+            LOGGER.warn("Less than two years of annual data for FCF calculation for ticker: {}", ticker);
+            ferolSseService.sendSseEvent(sseEmitter, "FCF calculation skipped: Less than two years of annual data found.");
+            return new FerolReportItem("freeCashFlow", 0, "Less than two years of annual data for Free Cash Flow calculation.");
+        }
+
+        FinancialRatiosReport currentYearFinancialRatiosReport = annualFinancialRatiosReports.get(0);
+        IncomeReport currentYearIncomeReport = annualIncomeReports.get(0);
+
+        FinancialRatiosReport previousYearFinancialRatiosReport = annualFinancialRatiosReports.get(1);
+        IncomeReport previousYearIncomeReport = annualIncomeReports.get(1);
 
         // Helper to get income report for a specific date
-        Map<String, IncomeReport> incomeReportMap = incomeReports.stream()
+        Map<String, IncomeReport> incomeReportMap = annualIncomeReports.stream()
                 .collect(Collectors.toMap(IncomeReport::getDate, report -> report, (r1, r2) -> r1)); // Handle potential duplicates
 
 
-        // Calculate TTM FCFs (Current and Previous Year)
-        List<BigDecimal> currentTtmAdjustedFcfs = new ArrayList<>();
-        List<BigDecimal> previousTtmAdjustedFcfs = new ArrayList<>();
-        StringBuilder currentTtmQuarterlyDetails = new StringBuilder();
-        StringBuilder previousTtmQuarterlyDetails = new StringBuilder();
+        // Calculate Current Year Adjusted FCF
+        BigDecimal currentYearAdjustedFcf = BigDecimal.ZERO;
+        BigDecimal previousYearAdjustedFcf = BigDecimal.ZERO;
 
-        for (int i = 0; i < 8; i++) { // Need up to 8 quarters for current and previous TTM
-            if (i < financialRatiosReports.size()) {
-                FinancialRatiosReport fr = financialRatiosReports.get(i);
-                IncomeReport ir = incomeReportMap.get(fr.getDate());
+        if (currentYearFinancialRatiosReport.getFreeCashFlow() != null && currentYearIncomeReport.getOperatingIncome() != null && currentYearIncomeReport.getDepreciationAndAmortization() != null) {
+            BigDecimal operatingIncome = safeParser.parse(currentYearIncomeReport.getOperatingIncome());
+            BigDecimal depreciationAndAmortization = safeParser.parse(currentYearIncomeReport.getDepreciationAndAmortization());
 
-                if (fr.getFreeCashFlow() != null && ir != null && ir.getOperatingIncome() != null && ir.getDepreciationAndAmortization() != null) {
-                    BigDecimal operatingIncome = safeParser.parse(ir.getOperatingIncome());
-                    BigDecimal depreciationAndAmortization = safeParser.parse(ir.getDepreciationAndAmortization());
-
-                    // EBITDA = Operating Income + Depreciation & Amortization
-                    BigDecimal quarterlyEbitda = operatingIncome.add(depreciationAndAmortization);
-                    // Stock-Based Compensation = EBITDA - Operating Income (as per user's definition)
-                    BigDecimal stockBasedCompensation = quarterlyEbitda.subtract(operatingIncome);
-                    // Adjusted FCF = FCF - SBC
-                    BigDecimal adjustedFcf = fr.getFreeCashFlow().subtract(stockBasedCompensation);
-
-                    if (i < 4) { // Current TTM
-                        currentTtmAdjustedFcfs.add(adjustedFcf);
-                        currentTtmQuarterlyDetails.append("Q").append(4 - i).append(": ").append(adjustedFcf.toPlainString()).append(" (FCF: ").append(fr.getFreeCashFlow().toPlainString()).append(", SBC: ").append(stockBasedCompensation.toPlainString()).append("); ");
-                    } else { // Previous TTM
-                        previousTtmAdjustedFcfs.add(adjustedFcf);
-                        previousTtmQuarterlyDetails.append("Q").append(8 - i).append(": ").append(adjustedFcf.toPlainString()).append(" (FCF: ").append(fr.getFreeCashFlow().toPlainString()).append(", SBC: ").append(stockBasedCompensation.toPlainString()).append("); ");
-                    }
-                }
-            }
+            // EBITDA = Operating Income + Depreciation & Amortization
+            BigDecimal annualEbitda = operatingIncome.add(depreciationAndAmortization);
+            // Stock-Based Compensation = EBITDA - Operating Income (as per user's definition)
+            BigDecimal stockBasedCompensation = annualEbitda.subtract(operatingIncome);
+            // Adjusted FCF = FCF - SBC
+            currentYearAdjustedFcf = currentYearFinancialRatiosReport.getFreeCashFlow().subtract(stockBasedCompensation);
         }
 
-        if (currentTtmAdjustedFcfs.size() < 4) {
-            ferolSseService.sendSseEvent(sseEmitter, "FCF calculation partially skipped: Less than 4 quarters of data for current TTM FCF.");
-            return new FerolReportItem("freeCashFlow", 0, "Less than 4 quarters of data for current TTM Free Cash Flow.");
+        // Calculate Previous Year Adjusted FCF
+        if (previousYearFinancialRatiosReport.getFreeCashFlow() != null && previousYearIncomeReport.getOperatingIncome() != null && previousYearIncomeReport.getDepreciationAndAmortization() != null) {
+            BigDecimal operatingIncome = safeParser.parse(previousYearIncomeReport.getOperatingIncome());
+            BigDecimal depreciationAndAmortization = safeParser.parse(previousYearIncomeReport.getDepreciationAndAmortization());
+
+            // EBITDA = Operating Income + Depreciation & Amortization
+            BigDecimal annualEbitda = operatingIncome.add(depreciationAndAmortization);
+            // Stock-Based Compensation = EBITDA - Operating Income (as per user's definition)
+            BigDecimal stockBasedCompensation = annualEbitda.subtract(operatingIncome);
+            // Adjusted FCF = FCF - SBC
+            previousYearAdjustedFcf = previousYearFinancialRatiosReport.getFreeCashFlow().subtract(stockBasedCompensation);
         }
 
-        BigDecimal currentTtmFcf = currentTtmAdjustedFcfs.stream().reduce(BigDecimal.ZERO, BigDecimal::add);
-        ferolSseService.sendSseEvent(sseEmitter, "Current TTM Adjusted FCF: " + currentTtmFcf.toPlainString());
+        if (currentYearAdjustedFcf.compareTo(BigDecimal.ZERO) == 0) {
+            ferolSseService.sendSseEvent(sseEmitter, "FCF calculation partially skipped: Current year adjusted FCF is zero.");
+            return new FerolReportItem("freeCashFlow", 0, "Current year adjusted FCF is zero. Cannot assess growth.");
+        }
+
+
+        ferolSseService.sendSseEvent(sseEmitter, "Current Year Adjusted FCF: " + currentYearAdjustedFcf.toPlainString());
 
         int score;
         String explanation;
 
         // Build a detailed explanation string with numbers
         StringBuilder detailedExplanation = new StringBuilder();
-        detailedExplanation.append("Current TTM Adjusted FCF: ").append(currentTtmFcf.toPlainString()).append(" (Quarterly breakdown: ").append(currentTtmQuarterlyDetails.toString()).append("). ");
+        detailedExplanation.append("Current Year Adjusted FCF: ").append(currentYearAdjustedFcf.toPlainString()).append(". ");
 
 
-        if (currentTtmFcf.compareTo(BigDecimal.ZERO) < 0) { // Negative FCF
+        if (currentYearAdjustedFcf.compareTo(BigDecimal.ZERO) < 0) { // Negative FCF
             score = 0;
             explanation = "FCF is Negative, indicating the company is a 'Cash Burner'.";
         } else {
             // FCF is positive, now check growth
-            if (previousTtmAdjustedFcfs.size() < 4) {
+            if (previousYearAdjustedFcf.compareTo(BigDecimal.ZERO) == 0) {
                 // Not enough data for YoY growth, assume "Survivor" if positive but no growth data
                 score = 1;
-                explanation = "FCF is Positive, but insufficient data (less than 4 quarters for previous year) to assess growth, categorizing as 'Survivor'.";
+                explanation = "FCF is Positive, but previous FCF was zero, categorizing as 'Survivor'.";
             } else {
-                BigDecimal previousTtmFcf = previousTtmAdjustedFcfs.stream().reduce(BigDecimal.ZERO, BigDecimal::add);
-                detailedExplanation.append("Previous TTM Adjusted FCF: ").append(previousTtmFcf.toPlainString()).append(" (Quarterly breakdown: ").append(previousTtmQuarterlyDetails.toString()).append("). ");
-                ferolSseService.sendSseEvent(sseEmitter, "Previous TTM Adjusted FCF: " + previousTtmFcf.toPlainString());
+                ferolSseService.sendSseEvent(sseEmitter, "Previous Year Adjusted FCF: " + previousYearAdjustedFcf.toPlainString());
+                detailedExplanation.append("Previous Year Adjusted FCF: ").append(previousYearAdjustedFcf.toPlainString()).append(". ");
 
-                if (previousTtmFcf.compareTo(BigDecimal.ZERO) <= 0) { // Avoid division by zero or negative growth from zero/negative
-                     if (currentTtmFcf.compareTo(BigDecimal.ZERO) > 0) {
+
+                if (previousYearAdjustedFcf.compareTo(BigDecimal.ZERO) < 0) { // Avoid division by zero or negative growth from zero/negative
+                     if (currentYearAdjustedFcf.compareTo(BigDecimal.ZERO) > 0) {
                          score = 1; // Positive FCF but previous was zero or negative, cannot calculate meaningful growth percentage directly
-                         explanation = "FCF is Positive, but previous FCF was zero or negative, categorizing as 'Survivor'.";
+                         explanation = "FCF is Positive, but previous FCF was negative, categorizing as 'Survivor'.";
                      } else { // Should not happen given outer if, but for completeness
                          score = 0;
                          explanation = "FCF is Negative, indicating a 'Cash Burner'.";
                      }
                 } else {
-                    BigDecimal growthPercentage = currentTtmFcf.subtract(previousTtmFcf)
-                                                                .divide(previousTtmFcf, 4, BigDecimal.ROUND_HALF_UP)
+                    BigDecimal growthPercentage = currentYearAdjustedFcf.subtract(previousYearAdjustedFcf)
+                                                                .divide(previousYearAdjustedFcf, 4, BigDecimal.ROUND_HALF_UP)
                                                                 .multiply(BigDecimal.valueOf(100));
 
                     detailedExplanation.append("YoY Growth: ").append(growthPercentage.toPlainString()).append("%. ");

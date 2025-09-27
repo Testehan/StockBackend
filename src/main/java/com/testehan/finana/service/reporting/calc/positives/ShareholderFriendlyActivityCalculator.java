@@ -95,7 +95,7 @@ public class ShareholderFriendlyActivityCalculator {
 
         // Handle nulls
         if (oldestStockRepurchaseSum == null || oldestStockRepurchaseSum.compareTo(BigDecimal.ZERO) <= 0) {
-            explanation.append("Latest sum used for stock repurchases is " + oldestStockRepurchaseSum);
+            explanation.append("Latest sum used for stock repurchases is " + oldestStockRepurchaseSum + ". ");
             return 0; // No recent buybacks → no point
         }
 
@@ -124,7 +124,7 @@ public class ShareholderFriendlyActivityCalculator {
             if (growthFactor.compareTo(BigDecimal.valueOf(1.5)) > 0 && // >50% increase
                     oldestStockRepurchaseSum.compareTo(minThreshold.divide(BigDecimal.valueOf(2))) > 0)
             {
-                explanation.append("> 50% increase in sum used for repurchases in the last few years");
+                explanation.append("> 50% increase in sum used for repurchases in the last few years. ");
                 return 1;
             }
         }
