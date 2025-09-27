@@ -21,18 +21,18 @@ import java.util.Map;
 import java.util.Optional;
 
 @Service
-public class CultureCalculator {
+public class InsiderOwnershipCalculator {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(CultureCalculator.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(InsiderOwnershipCalculator.class);
 
-    @Value("classpath:/prompts/culture_prompt.txt")
-    private Resource culturePrompt;
+    @Value("classpath:/prompts/inside_ownership_prompt.txt")
+    private Resource insiderOwnershipPrompt;
 
     private final CompanyOverviewRepository companyOverviewRepository;
     private final LlmService llmService;
     private final FerolSseService ferolSseService;
 
-    public CultureCalculator(CompanyOverviewRepository companyOverviewRepository, LlmService llmService, FerolSseService ferolSseService) {
+    public InsiderOwnershipCalculator(CompanyOverviewRepository companyOverviewRepository, LlmService llmService, FerolSseService ferolSseService) {
         this.companyOverviewRepository = companyOverviewRepository;
         this.llmService = llmService;
         this.ferolSseService = ferolSseService;
@@ -43,10 +43,10 @@ public class CultureCalculator {
         if (companyOverview.isEmpty()){
             LOGGER.warn("No Company overview found for ticker: {}", ticker);
             ferolSseService.sendSseErrorEvent(sseEmitter, "No Company overview found for ticker " + ticker);
-            return new FerolReportItem("cultureRatings", -10, "Something went wrong and score could not be calculated ");
+            return new FerolReportItem("insideOwnership", -10, "Something went wrong and score could not be calculated ");
         }
 
-        PromptTemplate promptTemplate = new PromptTemplate(culturePrompt);
+        PromptTemplate promptTemplate = new PromptTemplate(insiderOwnershipPrompt);
         Map<String, Object> promptParameters = new HashMap<>();
 
         var ferolLlmResponseOutputConverter = new BeanOutputConverter<>(FerolLlmResponse.class);
@@ -56,18 +56,18 @@ public class CultureCalculator {
         Prompt prompt = promptTemplate.create(promptParameters);
 
         try {
-            ferolSseService.sendSseEvent(sseEmitter, "Sending data to LLM for company culture analysis...");
+            ferolSseService.sendSseEvent(sseEmitter, "Sending data to LLM for insider ownership analysis...");
             LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
-            String llmResponse = llmService.callLlm(prompt);
-            ferolSseService.sendSseEvent(sseEmitter, "Received LLM response with company culture analysis.");
+            String llmResponse = llmService.callLlmLast(prompt);
+            ferolSseService.sendSseEvent(sseEmitter, "Received LLM response with insider ownership analysis.");
             FerolLlmResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
 
-            return new FerolReportItem("cultureRatings", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
+            return new FerolReportItem("insideOwnership", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
         } catch (Exception e) {
-            String errorMessage = "Operation 'calculatecultureRatings' failed.";
+            String errorMessage = "Operation 'calculateinsideOwnership' failed.";
             LOGGER.error(errorMessage, e);
             ferolSseService.sendSseErrorEvent(sseEmitter, errorMessage);
-            return new FerolReportItem("cultureRatings", -10, "Operation 'calculatecultureRatings' failed.");
+            return new FerolReportItem("insideOwnership", -10, "Operation 'calculateinsideOwnership' failed.");
         }
     }
 }

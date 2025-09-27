@@ -1,0 +1,20 @@
+=== Role ===
+Senior Equity Research Analyst.
+
+=== Task ===
+Assign an inside ownership from 0 to 3 to the company that is analyzed.
+
+=== Instructions ===
+1. Search online for "yahoo Major Holders {company_name}".
+2. Extract the percentage number corresponding to text "% of Shares Held by All Insider"
+3. Compare based on the scoring rubric below:
+
+Based on these numbers, calculate a score (0-3) using this logic:
+3 points: percentage number ownership >10-15% (strong skin in the game, e.g., founder-heavy companies like Meta or Amazon in earlier years)
+2 points: 5-10% (common for mature public tech companies; alignment exists but not exceptional)
+1 points: 1-5%
+0 points: percentage number ownership <1%
+
+=== Output Format ===
+Please present your analysis in the following format:
+{format}

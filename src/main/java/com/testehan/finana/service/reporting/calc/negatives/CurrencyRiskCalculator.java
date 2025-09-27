@@ -105,7 +105,7 @@ public class CurrencyRiskCalculator {
             averageCurrencyRiskScore = 0;
         }
 
-        return new FerolReportItem("currencyRisk", averageCurrencyRiskScore, "Over the last " + yearsToCalculate + " the sum of foreign revenue % of total revenue is " + sumForeignPercentage * 100 + "% . This means an average of " + averageForeignPct * 100 + "% per year");
+        return new FerolReportItem("currencyRisk", averageCurrencyRiskScore, "Over the last " + yearsToCalculate + " years the sum of foreign revenue % of total revenue is " + sumForeignPercentage * 100 + "% . This means an average of " + averageForeignPct * 100 + "% per year");
     }
 
     private String identifyDomesticKey(Map<String, String> segments) {
