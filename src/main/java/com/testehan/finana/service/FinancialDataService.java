@@ -1,12 +1,42 @@
 package com.testehan.finana.service;
 
-import com.testehan.finana.model.*;
-import com.testehan.finana.repository.*;
+import com.testehan.finana.model.BalanceSheetData;
+import com.testehan.finana.model.BalanceSheetReport;
+import com.testehan.finana.model.CashFlowData;
+import com.testehan.finana.model.CashFlowReport;
+import com.testehan.finana.model.CompanyEarningsTranscripts;
+import com.testehan.finana.model.CompanyOverview;
+import com.testehan.finana.model.EarningsEstimate;
+import com.testehan.finana.model.EarningsHistory;
+import com.testehan.finana.model.FinancialRatiosData;
+import com.testehan.finana.model.FinancialRatiosReport;
+import com.testehan.finana.model.GlobalQuote;
+import com.testehan.finana.model.IncomeReport;
+import com.testehan.finana.model.IncomeStatementData;
+import com.testehan.finana.model.IndexData;
+import com.testehan.finana.model.IndexQuotes;
+import com.testehan.finana.model.QuarterlyEarningsTranscript;
+import com.testehan.finana.model.RevenueGeographicSegmentationData;
+import com.testehan.finana.model.RevenueSegmentationData;
+import com.testehan.finana.model.SharesOutstandingData;
+import com.testehan.finana.model.StockQuotes;
+import com.testehan.finana.repository.BalanceSheetRepository;
+import com.testehan.finana.repository.CashFlowRepository;
+import com.testehan.finana.repository.CompanyEarningsTranscriptsRepository;
+import com.testehan.finana.repository.CompanyOverviewRepository;
+import com.testehan.finana.repository.EarningsEstimatesRepository;
+import com.testehan.finana.repository.EarningsHistoryRepository;
+import com.testehan.finana.repository.FinancialRatiosRepository;
+import com.testehan.finana.repository.GeneratedReportRepository;
+import com.testehan.finana.repository.IncomeStatementRepository;
+import com.testehan.finana.repository.IndexQuotesRepository;
+import com.testehan.finana.repository.RevenueGeographicSegmentationRepository;
+import com.testehan.finana.repository.RevenueSegmentationDataRepository;
+import com.testehan.finana.repository.SharesOutstandingRepository;
+import com.testehan.finana.repository.StockQuotesRepository;
 import com.testehan.finana.util.DateUtils;
 import com.testehan.finana.util.FinancialRatiosCalculator;
 import org.jetbrains.annotations.NotNull;
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -16,10 +46,13 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -41,20 +74,19 @@ public class FinancialDataService {
     private final EarningsEstimatesRepository earningsEstimatesRepository;
     private final FinancialRatiosRepository financialRatiosRepository;
     private final GeneratedReportRepository generatedReportRepository;
-    private final SecFilingRepository secFilingRepository;
     private final RevenueSegmentationDataRepository revenueSegmentationDataRepository;
     private final RevenueGeographicSegmentationRepository revenueGeographicSegmentationRepository;
     private final IndexQuotesRepository indexQuotesRepository;
-    private final SecFilingsRepository secFilingsRepository;
 
     private final FinancialRatiosCalculator financialRatiosCalculator;
 
     private final DateUtils dateUtils;
 
     private final CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository;
+    private final SecFilingService secFilingService;
 
 
-    public FinancialDataService(AlphaVantageService alphaVantageService, FMPService fmpService, IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository, CashFlowRepository cashFlowRepository, SharesOutstandingRepository sharesOutstandingRepository, CompanyOverviewRepository companyOverviewRepository, EarningsHistoryRepository earningsHistoryRepository, StockQuotesRepository stockQuotesRepository, CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository, DateUtils dateUtils, EarningsEstimatesRepository earningsEstimatesRepository, FinancialRatiosRepository financialRatiosRepository, GeneratedReportRepository generatedReportRepository, SecFilingRepository secFilingRepository, RevenueSegmentationDataRepository revenueSegmentationDataRepository, RevenueGeographicSegmentationRepository revenueGeographicSegmentationRepository, IndexQuotesRepository indexQuotesRepository, FinancialRatiosCalculator financialRatiosCalculator, SecFilingsRepository secFilingsRepository) {
+    public FinancialDataService(AlphaVantageService alphaVantageService, FMPService fmpService, IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository, CashFlowRepository cashFlowRepository, SharesOutstandingRepository sharesOutstandingRepository, CompanyOverviewRepository companyOverviewRepository, EarningsHistoryRepository earningsHistoryRepository, StockQuotesRepository stockQuotesRepository, CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository, DateUtils dateUtils, EarningsEstimatesRepository earningsEstimatesRepository, FinancialRatiosRepository financialRatiosRepository, GeneratedReportRepository generatedReportRepository, RevenueSegmentationDataRepository revenueSegmentationDataRepository, RevenueGeographicSegmentationRepository revenueGeographicSegmentationRepository, IndexQuotesRepository indexQuotesRepository, FinancialRatiosCalculator financialRatiosCalculator, SecFilingService secFilingService) {
         this.alphaVantageService = alphaVantageService;
         this.fmpService = fmpService;
         this.incomeStatementRepository = incomeStatementRepository;
@@ -69,36 +101,11 @@ public class FinancialDataService {
         this.earningsEstimatesRepository = earningsEstimatesRepository;
         this.financialRatiosRepository = financialRatiosRepository;
         this.generatedReportRepository = generatedReportRepository;
-        this.secFilingRepository = secFilingRepository;
         this.revenueSegmentationDataRepository = revenueSegmentationDataRepository;
         this.revenueGeographicSegmentationRepository = revenueGeographicSegmentationRepository;
         this.indexQuotesRepository = indexQuotesRepository;
         this.financialRatiosCalculator = financialRatiosCalculator;
-        this.secFilingsRepository = secFilingsRepository;
-    }
-
-    public void ensureFinancialDataIsPresent(String ticker) {
-        getLastStockQuote(ticker).block();
-        getIndexQuotes("^GSPC").block();
-        getIncomeStatements(ticker).block();
-        getBalanceSheet(ticker).block();
-        getCashFlow(ticker).block();
-        getEarningsEstimates(ticker).block();
-        getEarningsHistory(ticker).block();
-        getCompanyOverview(ticker).block().get(0);
-        getRevenueSegmentation(ticker).block();
-        getRevenueGeographicSegmentation(ticker).block();
-        fetchAndSaveSecFilings(ticker);
-        getAndSaveSecFilings(ticker);
-
-        getFinancialRatios(ticker);
-
-        var latestReportDate = getLatestReportedDate(ticker);
-
-        if (latestReportDate != null) {
-            String dateQuarter = dateUtils.getDateQuarter(latestReportDate);
-            getEarningsCallTranscript(ticker, dateQuarter).block();
-        }
+        this.secFilingService = secFilingService;
     }
 
     @NotNull
@@ -345,33 +352,6 @@ public class FinancialDataService {
         });
     }
 
-    public void fetchAndSaveSecFilings(String symbol) {
-        Optional<SecFilingsUrls> existingSecFilingsOptional = secFilingsRepository.findById(symbol);
-        if (existingSecFilingsOptional.isPresent()) {
-            SecFilingsUrls existingSecFilings = existingSecFilingsOptional.get();
-            if (existingSecFilings.getLastUpdated() != null &&
-                    ChronoUnit.DAYS.between(existingSecFilings.getLastUpdated(), LocalDateTime.now()) < 30) {
-                LOGGER.info("SEC filings for symbol {} are recent. Skipping fetch.", symbol);
-                return;
-            }
-        }
-
-        List<SecFilingUrlData> secFilingData = fmpService.getSecFilings(symbol).block();
-        if (secFilingData == null) {
-            return;
-        }
-
-        SecFilingsUrls secFilingsUrls = existingSecFilingsOptional.orElse(new SecFilingsUrls(symbol, new ArrayList<>()));
-        List<String> existingDates = secFilingsUrls.getFilings().stream().map(SecFilingUrlData::getFilingDate).toList();
-        for (SecFilingUrlData newFiling : secFilingData) {
-            if (!existingDates.contains(newFiling.getFilingDate())) {
-                secFilingsUrls.getFilings().add(newFiling);
-            }
-        }
-        secFilingsUrls.setLastUpdated(LocalDateTime.now());
-        secFilingsRepository.save(secFilingsUrls);
-    }
-
     public Mono<SharesOutstandingData> getSharesOutstanding(String symbol) {
         return Mono.defer(() -> {
             Optional<SharesOutstandingData> sharesOutstandingFromDb = sharesOutstandingRepository.findBySymbol(symbol.toUpperCase());
@@ -405,9 +385,9 @@ public class FinancialDataService {
         earningsEstimatesRepository.deleteBySymbol(upperCaseSymbol);
         financialRatiosRepository.deleteBySymbol(upperCaseSymbol);
         generatedReportRepository.deleteBySymbol(upperCaseSymbol);
-        secFilingRepository.deleteBySymbol(upperCaseSymbol);
         revenueGeographicSegmentationRepository.deleteBySymbol(upperCaseSymbol);
-        secFilingsRepository.deleteById(upperCaseSymbol);
+        revenueSegmentationDataRepository.deleteBySymbol(upperCaseSymbol);
+        secFilingService.deleteSecFilings(upperCaseSymbol);
 
         LOGGER.info("Deleted all financial data for ticker: {}", upperCaseSymbol);
     }
@@ -484,158 +464,5 @@ public class FinancialDataService {
             targetList.add(ratios);
 
         }
-    }
-
-    private void getAndSaveSecFilings(String symbol) {
-        Optional<SecFilingsUrls> secFilingsOptional = secFilingsRepository.findById(symbol);
-        if (secFilingsOptional.isEmpty()) {
-            LOGGER.warn("No SEC filings found for symbol: {}", symbol);
-            return;
-        }
-
-        SecFilingsUrls secFilings = secFilingsOptional.get();
-        Optional<SecFiling> existingSecFilingOptional = secFilingRepository.findById(symbol);
-
-        // Get the latest 10-K filing
-        Optional<SecFilingUrlData> latest10K = secFilings.getFilings().stream()
-                .filter(filing -> "10-K".equals(filing.getFormType()))
-                .max(Comparator.comparing(SecFilingUrlData::getFilingDate));
-
-        latest10K.ifPresent(filing -> {
-            boolean reprocess = true;
-            if (existingSecFilingOptional.isPresent()) {
-                Optional<TenKFilings> existing10K = existingSecFilingOptional.get().getTenKFilings().stream()
-                        .filter(tenK -> tenK.getFiledAt().equals(filing.getFilingDate()))
-                        .findFirst();
-                if (existing10K.isPresent()) {
-                    TenKFilings tenK = existing10K.get();
-                    if (tenK.getBusinessDescription() != null && tenK.getRiskFactors() != null && tenK.getManagementDiscussion() != null) {
-                        reprocess = false;
-                    }
-                }
-            }
-            if (reprocess) {
-                getAndSaveSecFiling(symbol, filing.getFinalLink(), "10-K", filing.getFilingDate());
-            }
-        });
-
-        // Get the latest 10-Q filing
-        Optional<SecFilingUrlData> latest10Q = secFilings.getFilings().stream()
-                .filter(filing -> "10-Q".equals(filing.getFormType()))
-                .max(Comparator.comparing(SecFilingUrlData::getFilingDate));
-
-        latest10Q.ifPresent(filing -> {
-            boolean reprocess = true;
-            if (existingSecFilingOptional.isPresent()) {
-                Optional<TenQFilings> existing10Q = existingSecFilingOptional.get().getTenQFilings().stream()
-                        .filter(tenQ -> tenQ.getFiledAt().equals(filing.getFilingDate()))
-                        .findFirst();
-                if (existing10Q.isPresent()) {
-                    TenQFilings tenQ = existing10Q.get();
-                    if (tenQ.getRiskFactors() != null && tenQ.getManagementDiscussion() != null) {
-                        reprocess = false;
-                    }
-                }
-            }
-            if (reprocess) {
-                getAndSaveSecFiling(symbol, filing.getFinalLink(), "10-Q", filing.getFilingDate());
-            }
-        });
-    }
-
-    private void getAndSaveSecFiling(String symbol, String finalLink, String formType, String filingDate) {
-        try {
-            Document doc = Jsoup.connect(finalLink)
-                    .userAgent("CasaMia.ai admin@casamia.ai")
-                    .maxBodySize(0)
-                    .timeout(30 * 1000)
-                    .get();
-            String fullText = doc.text();
-
-            if (fullText.isEmpty()) {
-                LOGGER.error("Could not fetch filing text for URL: {}", finalLink);
-                return;
-            }
-
-            LOGGER.info("Document fetched for symbol '{}'. Total length: {} characters.", symbol, fullText.length());
-
-            String businessDescription = null;
-            String riskFactors;
-            String managementDiscussion;
-
-            if ("10-K".equals(formType)) {
-                businessDescription = extractSection(fullText, "Item\\s+1[:.]\\s+Business", "Item\\s+1A[:.]\\s+Risk",1000);
-                riskFactors = extractSection(fullText, "Item\\s+1A[:.]\\s+Risk", "Item\\s+1B[:.]\\s+Unresolved|Item\\s+2[:.]\\s+Properties",1000);
-                managementDiscussion = extractSection(fullText, "Item\\s+7[:.]\\s+Management", "Item\\s+7A[:.]\\s+Quantitative",1000);
-            } else { // 10-Q
-                riskFactors = extractSection(fullText, "Item\\s+1A[:.]\\s+Risk", "Item\\s+2[:.]\\s+Unregistered",150);
-                managementDiscussion = extractSection(fullText, "Item\\s+2[:.]\\s+Management", "Item\\s+3[:.]\\s+Quantitative",500);
-            }
-
-
-            SecFiling secFiling = secFilingRepository.findById(symbol).orElse(new SecFiling());
-            secFiling.setSymbol(symbol);
-
-            if ("10-K".equals(formType)) {
-                TenKFilings tenKFilings = new TenKFilings();
-                tenKFilings.setBusinessDescription(businessDescription);
-                tenKFilings.setRiskFactors(riskFactors);
-                tenKFilings.setManagementDiscussion(managementDiscussion);
-                tenKFilings.setFiledAt(filingDate);
-                tenKFilings.setFilingUrl(finalLink);
-                if (secFiling.getTenKFilings() == null) {
-                    secFiling.setTenKFilings(new ArrayList<>());
-                }
-                secFiling.getTenKFilings().add(tenKFilings);
-            } else if ("10-Q".equals(formType)) {
-                TenQFilings tenQFilings = new TenQFilings();
-                tenQFilings.setRiskFactors(riskFactors);
-                tenQFilings.setManagementDiscussion(managementDiscussion);
-                tenQFilings.setFiledAt(filingDate);
-                tenQFilings.setFilingUrl(finalLink);
-                if (secFiling.getTenQFilings() == null) {
-                    secFiling.setTenQFilings(new ArrayList<>());
-                }
-                secFiling.getTenQFilings().add(tenQFilings);
-            }
-
-            secFilingRepository.save(secFiling);
-            LOGGER.info("Successfully saved SEC filing for symbol: {}", symbol);
-
-        } catch (Exception e) {
-            LOGGER.error("Error processing SEC filing for symbol: " + symbol, e);
-        }
-    }
-
-    private String extractSection(String fullText, String startRegex, String endRegex, int minimumNrOfCharsExpectedInSection) {
-        // Compile patterns case-insensitive
-        Pattern startPattern = Pattern.compile(startRegex, Pattern.CASE_INSENSITIVE);
-        Pattern endPattern = Pattern.compile(endRegex, Pattern.CASE_INSENSITIVE);
-
-        Matcher startMatcher = startPattern.matcher(fullText);
-
-        while (startMatcher.find()) {
-            int startIndex = startMatcher.start();
-
-            // Search for the end pattern *after* the start found
-            Matcher endMatcher = endPattern.matcher(fullText);
-
-            // We only look for the end marker AFTER the start marker
-            if (endMatcher.find(startMatcher.end())) {
-                int endIndex = endMatcher.start();
-
-                // Extract the content
-                String candidate = fullText.substring(startIndex, endIndex);
-
-                // --- HEURISTIC FOR TABLE OF CONTENTS ---
-                // If the text between "Item 1" and "Item 1A" is very short (e.g., < 1000 chars),
-                // it is likely a Table of Contents entry, not the actual section.
-                // We skip it and look for the next match.
-                if (candidate.length() > minimumNrOfCharsExpectedInSection) {
-                    return candidate.trim();
-                }
-            }
-        }
-        return null; // Not found
     }
 }

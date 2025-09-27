@@ -6,7 +6,7 @@ import com.testehan.finana.model.GeneratedReport;
 import com.testehan.finana.model.llm.responses.FerolMoatAnalysisLlmResponse;
 import com.testehan.finana.model.llm.responses.FerolNegativesAnalysisLlmResponse;
 import com.testehan.finana.repository.GeneratedReportRepository;
-import com.testehan.finana.service.FinancialDataService;
+import com.testehan.finana.service.FinancialDataOrchestrator;
 import com.testehan.finana.service.reporting.calc.negatives.CurrencyRiskCalculator;
 import com.testehan.finana.service.reporting.calc.negatives.DilutionRiskCalculator;
 import com.testehan.finana.service.reporting.calc.negatives.HeadquarterRiskCalculator;
@@ -30,7 +30,7 @@ public class FerolReportOrchestrator {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(FerolReportOrchestrator.class);
 
-    private final FinancialDataService financialDataService;
+    private final FinancialDataOrchestrator financialDataOrchestrator;
     private final FerolSseService ferolSseService;
     private final FerolReportPersistenceService ferolReportPersistenceService;
 
@@ -67,8 +67,8 @@ public class FerolReportOrchestrator {
     private final Executor ferolExecutor;
 
 
-    public FerolReportOrchestrator(FinancialDataService financialDataService, FerolSseService ferolSseService, FerolReportPersistenceService ferolReportPersistenceService, FinancialResilienceCalculator financialResilienceCalculator, GrossMarginCalculator grossMarginCalculator, RoicCalculator roicCalculator, FcfCalculator fcfCalculator, EpsCalculator epsCalculator, MoatCalculator moatCalculator, OptionalityCalculator optionalityCalculator, OrganicGrowthRunawayCalculator organicGrowthRunawayCalculator, TopDogCalculator topDogCalculator, OperatingLeverageCalculator operatingLeverageCalculator, AcquisitionsCalculator acquisitionsCalculator, CyclicalityCalculator cyclicalityCalculator, RecurringRevenueCalculator recurringRevenueCalculator, PricingPowerCalculator pricingPowerCalculator, SoulInTheGameCalculator soulInTheGameCalculator, InsiderOwnershipCalculator insiderOwnershipCalculator, CultureCalculator cultureCalculator, MissionStatementCalculator missionStatementCalculator, PerformanceVsSP500Calculator performanceVsSP500Calculator, ShareholderFriendlyActivityCalculator shareholderFriendlyActivityCalculator, BeatingEarningsExpectationsCalculator beatingEarningsExpectationsCalculator, MultipleRisksCalculator multipleRisksCalculator, DilutionRiskCalculator dilutionRiskCalculator, HeadquarterRiskCalculator headquarterRiskCalculator, CurrencyRiskCalculator currencyRiskCalculator, GeneratedReportRepository generatedReportRepository, @Qualifier("ferolExecutor") Executor ferolExecutor) {
-        this.financialDataService = financialDataService;
+    public FerolReportOrchestrator(FinancialDataOrchestrator financialDataOrchestrator, FerolSseService ferolSseService, FerolReportPersistenceService ferolReportPersistenceService, FinancialResilienceCalculator financialResilienceCalculator, GrossMarginCalculator grossMarginCalculator, RoicCalculator roicCalculator, FcfCalculator fcfCalculator, EpsCalculator epsCalculator, MoatCalculator moatCalculator, OptionalityCalculator optionalityCalculator, OrganicGrowthRunawayCalculator organicGrowthRunawayCalculator, TopDogCalculator topDogCalculator, OperatingLeverageCalculator operatingLeverageCalculator, AcquisitionsCalculator acquisitionsCalculator, CyclicalityCalculator cyclicalityCalculator, RecurringRevenueCalculator recurringRevenueCalculator, PricingPowerCalculator pricingPowerCalculator, SoulInTheGameCalculator soulInTheGameCalculator, InsiderOwnershipCalculator insiderOwnershipCalculator, CultureCalculator cultureCalculator, MissionStatementCalculator missionStatementCalculator, PerformanceVsSP500Calculator performanceVsSP500Calculator, ShareholderFriendlyActivityCalculator shareholderFriendlyActivityCalculator, BeatingEarningsExpectationsCalculator beatingEarningsExpectationsCalculator, MultipleRisksCalculator multipleRisksCalculator, DilutionRiskCalculator dilutionRiskCalculator, HeadquarterRiskCalculator headquarterRiskCalculator, CurrencyRiskCalculator currencyRiskCalculator, GeneratedReportRepository generatedReportRepository, @Qualifier("ferolExecutor") Executor ferolExecutor) {
+        this.financialDataOrchestrator = financialDataOrchestrator;
         this.ferolSseService = ferolSseService;
         this.ferolReportPersistenceService = ferolReportPersistenceService;
         this.financialResilienceCalculator = financialResilienceCalculator;
@@ -126,7 +126,7 @@ public class FerolReportOrchestrator {
                 }
 
                 ferolSseService.sendSseEvent(sseEmitter, "Ensuring financial data is present...");
-                financialDataService.ensureFinancialDataIsPresent(ticker);
+                financialDataOrchestrator.ensureFinancialDataIsPresent(ticker);
                 ferolSseService.sendSseEvent(sseEmitter, "Financial data check complete.");
 
                 CompletableFuture<FerolReportItem> financialResilienceFuture = CompletableFuture.supplyAsync(() -> {

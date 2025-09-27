@@ -7,5 +7,5 @@ import java.util.Optional;
 
 public interface RevenueSegmentationDataRepository extends MongoRepository<RevenueSegmentationData, String> {
     Optional<RevenueSegmentationData> findBySymbol(String symbol);
-    boolean existsBySymbol(String symbol);
+    void deleteBySymbol(String symbol);
 }
