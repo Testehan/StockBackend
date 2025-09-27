@@ -9,7 +9,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
 
@@ -105,6 +107,45 @@ public class FMPService {
                         .build())
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<List<RevenueSegmentationReport>>() {});
+    }
+
+
+    public Mono<List<SecFilingUrlData>> getSecFilings(String symbol) {
+        String to = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE);
+        String from = LocalDate.now().minusMonths(18).format(DateTimeFormatter.ISO_LOCAL_DATE);
+
+        return fetchSecFilingsPage(symbol, from, to, 0);
+    }
+
+    private Mono<List<SecFilingUrlData>> fetchSecFilingsPage(String symbol, String from, String to, int page) {
+        return webClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/stable/sec-filings-search/symbol")
+                        .queryParam("symbol", symbol)
+                        .queryParam("from", from)
+                        .queryParam("to", to)
+                        .queryParam("page", page)
+                        .queryParam("limit", 100)
+                        .queryParam("apikey", apiKey)
+                        .build())
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<List<SecFilingUrlData>>() {})
+                .flatMap(filings -> {
+                    if (filings.isEmpty()) {
+                        return Mono.just(java.util.Collections.<SecFilingUrlData>emptyList());
+                    } else {
+                        return fetchSecFilingsPage(symbol, from, to, page + 1)
+                                .map(nextPageFilings -> {
+                                    List<SecFilingUrlData> allFilings = new java.util.ArrayList<>(filings);
+                                    allFilings.addAll(nextPageFilings);
+                                    return allFilings;
+                                });
+                    }
+                })
+                .onErrorResume(e -> {
+                    LOGGER.error("Error fetching SEC filings for symbol: " + symbol + " on page " + page, e);
+                    return Mono.just(java.util.Collections.<SecFilingUrlData>emptyList());
+                });
     }
 
     public Mono<List<RevenueGeographicSegmentationReport>> getRevenueGeographicSegmentation(String symbol, String period) {
