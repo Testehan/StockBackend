@@ -21,18 +21,18 @@ import java.util.Map;
 import java.util.Optional;
 
 @Service
-public class SoulInTheGameCalculator {
+public class CultureCalculator {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(SoulInTheGameCalculator.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(CultureCalculator.class);
 
-    @Value("classpath:/prompts/soul_in_game_prompt.txt")
-    private Resource soulInTheGamePrompt;
+    @Value("classpath:/prompts/culture_prompt.txt")
+    private Resource culturePrompt;
 
     private final CompanyOverviewRepository companyOverviewRepository;
     private final LlmService llmService;
     private final FerolSseService ferolSseService;
 
-    public SoulInTheGameCalculator(CompanyOverviewRepository companyOverviewRepository, LlmService llmService, FerolSseService ferolSseService) {
+    public CultureCalculator(CompanyOverviewRepository companyOverviewRepository, LlmService llmService, FerolSseService ferolSseService) {
         this.companyOverviewRepository = companyOverviewRepository;
         this.llmService = llmService;
         this.ferolSseService = ferolSseService;
@@ -43,30 +43,32 @@ public class SoulInTheGameCalculator {
         if (companyOverview.isEmpty()){
             LOGGER.warn("No Company overview found for ticker: {}", ticker);
             ferolSseService.sendSseErrorEvent(sseEmitter, "No Company overview found for ticker " + ticker);
-            return new FerolReportItem("soulInTheGame", -10, "Something went wrong and score could not be calculated ");
+            return new FerolReportItem("cultureRatings", -10, "Something went wrong and score could not be calculated ");
         }
 
-        PromptTemplate promptTemplate = new PromptTemplate(soulInTheGamePrompt);
+        PromptTemplate promptTemplate = new PromptTemplate(culturePrompt);
         Map<String, Object> promptParameters = new HashMap<>();
+
         var ferolLlmResponseOutputConverter = new BeanOutputConverter<>(FerolLlmResponse.class);
-        promptParameters.put("company_description", companyOverview.get().getDescription());
-        promptParameters.put("company_ceo", companyOverview.get().getCeo());
+
+        promptParameters.put("company_name", companyOverview.get().getCompanyName());
         promptParameters.put("format", ferolLlmResponseOutputConverter.getFormat());
         Prompt prompt = promptTemplate.create(promptParameters);
 
         try {
-            ferolSseService.sendSseEvent(sseEmitter, "Sending data to LLM for soul in the game analysis...");
+            ferolSseService.sendSseEvent(sseEmitter, "Sending data to LLM for company culture analysis...");
             LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
-            String llmResponse = llmService.callLlm(prompt);
-            ferolSseService.sendSseEvent(sseEmitter, "Received LLM response with soul in the game analysis.");
+            String llmResponse = llmService.callLlmLast(prompt);
+            ferolSseService.sendSseEvent(sseEmitter, "Received LLM response with company culture analysis.");
             FerolLlmResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
 
-            return new FerolReportItem("soulInTheGame", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
+            return new FerolReportItem("cultureRatings", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
         } catch (Exception e) {
-            String errorMessage = "Operation 'calculateSoulInTheGame' failed.";
+            String errorMessage = "Operation 'calculatecultureRatings' failed.";
             LOGGER.error(errorMessage, e);
             ferolSseService.sendSseErrorEvent(sseEmitter, errorMessage);
-            return new FerolReportItem("soulInTheGame", -10, "Operation 'calculateSoulInTheGame' failed.");
+            return new FerolReportItem("cultureRatings", -10, "Operation 'calculatecultureRatings' failed.");
         }
     }
 }
+

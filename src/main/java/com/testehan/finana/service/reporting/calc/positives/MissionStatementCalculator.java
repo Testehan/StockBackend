@@ -78,7 +78,7 @@ public class MissionStatementCalculator {
         try {
             ferolSseService.sendSseEvent(sseEmitter, "Sending data to LLM for mission statement analysis...");
             LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
-            String llmResponse = llmService.callLlmLast(prompt);
+            String llmResponse = llmService.callLlm(prompt);
             ferolSseService.sendSseEvent(sseEmitter, "Received LLM response with mission statement analysis.");
             FerolLlmResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
 

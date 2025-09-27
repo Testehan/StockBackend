@@ -1,0 +1,24 @@
+=== Role ===
+Senior Equity Research Analyst.
+
+=== Task ===
+Assign a culture score from 0 to 4 to the company that is analyzed.
+
+Search for "{company_name} Comparably reviews".
+Extract these three specific numbers:
+1. Overall Culture (out of 5)
+2. CEO Rating (out of 100)
+3. Manager Rating (out of 100)
+4. Executive Team Rating(out of 100)
+
+Here is the scoring rubric:
+Based on these numbers, calculate a score (0-4) using this logic:
+- 4 Points: >4.5 Stars Overall Culture AND >85% CEO Approval
+- 3 Points: >4 Stars Overall Culture AND >80% CEO Approval
+- 2 Points: >3.5 Stars Overall Culture AND >70% CEO Approval
+- 1 Point: >3.0 Stars Overall Culture AND >60% CEO Approval
+- 0 Points: <3.0 Stars Overall Culture AND <50% CEO Approval
+
+=== Output Format ===
+Please present your analysis in the following format:
+{format}
