@@ -29,4 +29,13 @@ public class ValuationController {
         }
         return ResponseEntity.ok(data);
     }
+
+    @GetMapping("/reverse-dcf/{symbol}")
+    public ResponseEntity<DcfCalculationData> getReverseDcfValuationData(@PathVariable String symbol) {
+        DcfCalculationData data = valuationService.getDcfCalculationData(symbol.toUpperCase());
+        if (data == null || data.meta() == null || data.meta().ticker().equals("N/A")) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(data);
+    }
 }

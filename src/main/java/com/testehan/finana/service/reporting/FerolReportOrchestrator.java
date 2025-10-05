@@ -402,4 +402,9 @@ public class FerolReportOrchestrator {
 
         return sseEmitter;
     }
+
+    public FerolReport saveFerolReport(String ticker, List<FerolReportItem> ferolReportItems) {
+        LOGGER.info("Saving FEROL report for {}", ticker);
+        return ferolReportPersistenceService.buildAndSaveReport(ticker, ferolReportItems);
+    }
 }
