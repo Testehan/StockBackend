@@ -20,7 +20,6 @@ public class ValuationService {
     private final IncomeStatementRepository incomeStatementRepository;
     private final BalanceSheetRepository balanceSheetRepository;
     private final CashFlowRepository cashFlowRepository;
-    private final SharesOutstandingRepository sharesOutstandingRepository;
 
     private final FMPService fmpService;
     private final SafeParser safeParser;
@@ -29,7 +28,7 @@ public class ValuationService {
                             StockQuotesRepository stockQuotesRepository,
                             IncomeStatementRepository incomeStatementRepository,
                             BalanceSheetRepository balanceSheetRepository,
-                            CashFlowRepository cashFlowRepository, SharesOutstandingRepository sharesOutstandingRepository,
+                            CashFlowRepository cashFlowRepository,
                             FMPService fmpService,
                             SafeParser safeParser) {
         this.companyOverviewRepository = companyOverviewRepository;
@@ -37,7 +36,6 @@ public class ValuationService {
         this.incomeStatementRepository = incomeStatementRepository;
         this.balanceSheetRepository = balanceSheetRepository;
         this.cashFlowRepository = cashFlowRepository;
-        this.sharesOutstandingRepository = sharesOutstandingRepository;
         this.fmpService = fmpService;
         this.safeParser = safeParser;
     }
@@ -72,24 +70,27 @@ public class ValuationService {
 
     private DcfCalculationData.CompanyMeta getCompanyMeta(String ticker) {
         Optional<CompanyOverview> companyOverviewOptional = companyOverviewRepository.findBySymbol(ticker);
-        Optional<SharesOutstandingData> sharesOutstandingDataOptional = sharesOutstandingRepository.findBySymbol(ticker);
         Optional<GlobalQuote> globalQuoteOptional = stockQuotesRepository.findBySymbol(ticker)
                 .flatMap(quotes -> quotes.getQuotes().stream().findFirst());
+
+        List<IncomeReport> quarterlyReports = incomeStatementRepository.findBySymbol(ticker)
+                .map(IncomeStatementData::getQuarterlyReports)
+                .orElse(List.of());
+
+        // Sort by date descending and take the last 4 for TTM
+        List<IncomeReport> lastQuarterlyReport = quarterlyReports.stream()
+                .sorted(Comparator.comparing(IncomeReport::getDate).reversed())
+                .limit(1)
+                .collect(Collectors.toList());
 
         String companyName = companyOverviewOptional.map(CompanyOverview::getCompanyName).orElse("N/A");
         String currency = companyOverviewOptional.map(CompanyOverview::getCurrency).orElse("USD");
         BigDecimal currentSharePrice = globalQuoteOptional.map(gq -> safeParser.parse(gq.getAdjClose())).orElse(BigDecimal.ZERO);
 
         BigDecimal sharesOutstanding = null;
-        if (sharesOutstandingDataOptional.isPresent() && !sharesOutstandingDataOptional.get().getData().isEmpty()) {
+        if (!lastQuarterlyReport.isEmpty()) {
 
-            SharesOutstandingReport latest = sharesOutstandingDataOptional.get()
-                    .getData()
-                    .stream()
-                    .sorted(Comparator.comparing(SharesOutstandingReport::getDate).reversed())
-                    .findFirst().get();
-
-            sharesOutstanding = safeParser.parse(latest.getSharesOutstandingBasic());
+            sharesOutstanding = safeParser.parse(lastQuarterlyReport.getFirst().getWeightedAverageShsOut());
         }
 
         return DcfCalculationData.CompanyMeta.builder()

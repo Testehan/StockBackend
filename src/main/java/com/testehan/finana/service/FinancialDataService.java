@@ -18,7 +18,6 @@ import com.testehan.finana.model.IndexQuotes;
 import com.testehan.finana.model.QuarterlyEarningsTranscript;
 import com.testehan.finana.model.RevenueGeographicSegmentationData;
 import com.testehan.finana.model.RevenueSegmentationData;
-import com.testehan.finana.model.SharesOutstandingData;
 import com.testehan.finana.model.StockQuotes;
 import com.testehan.finana.repository.BalanceSheetRepository;
 import com.testehan.finana.repository.CashFlowRepository;
@@ -32,7 +31,6 @@ import com.testehan.finana.repository.IncomeStatementRepository;
 import com.testehan.finana.repository.IndexQuotesRepository;
 import com.testehan.finana.repository.RevenueGeographicSegmentationRepository;
 import com.testehan.finana.repository.RevenueSegmentationDataRepository;
-import com.testehan.finana.repository.SharesOutstandingRepository;
 import com.testehan.finana.repository.StockQuotesRepository;
 import com.testehan.finana.util.DateUtils;
 import com.testehan.finana.util.FinancialRatiosCalculator;
@@ -68,7 +66,6 @@ public class FinancialDataService {
     private final IncomeStatementRepository incomeStatementRepository;
     private final BalanceSheetRepository balanceSheetRepository;
     private final CashFlowRepository cashFlowRepository;
-    private final SharesOutstandingRepository sharesOutstandingRepository;
     private final EarningsHistoryRepository earningsHistoryRepository;
     private final StockQuotesRepository stockQuotesRepository;
     private final EarningsEstimatesRepository earningsEstimatesRepository;
@@ -86,13 +83,12 @@ public class FinancialDataService {
     private final SecFilingService secFilingService;
 
 
-    public FinancialDataService(AlphaVantageService alphaVantageService, FMPService fmpService, IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository, CashFlowRepository cashFlowRepository, SharesOutstandingRepository sharesOutstandingRepository, CompanyOverviewRepository companyOverviewRepository, EarningsHistoryRepository earningsHistoryRepository, StockQuotesRepository stockQuotesRepository, CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository, DateUtils dateUtils, EarningsEstimatesRepository earningsEstimatesRepository, FinancialRatiosRepository financialRatiosRepository, GeneratedReportRepository generatedReportRepository, RevenueSegmentationDataRepository revenueSegmentationDataRepository, RevenueGeographicSegmentationRepository revenueGeographicSegmentationRepository, IndexQuotesRepository indexQuotesRepository, FinancialRatiosCalculator financialRatiosCalculator, SecFilingService secFilingService) {
+    public FinancialDataService(AlphaVantageService alphaVantageService, FMPService fmpService, IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository, CashFlowRepository cashFlowRepository, CompanyOverviewRepository companyOverviewRepository, EarningsHistoryRepository earningsHistoryRepository, StockQuotesRepository stockQuotesRepository, CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository, DateUtils dateUtils, EarningsEstimatesRepository earningsEstimatesRepository, FinancialRatiosRepository financialRatiosRepository, GeneratedReportRepository generatedReportRepository, RevenueSegmentationDataRepository revenueSegmentationDataRepository, RevenueGeographicSegmentationRepository revenueGeographicSegmentationRepository, IndexQuotesRepository indexQuotesRepository, FinancialRatiosCalculator financialRatiosCalculator, SecFilingService secFilingService) {
         this.alphaVantageService = alphaVantageService;
         this.fmpService = fmpService;
         this.incomeStatementRepository = incomeStatementRepository;
         this.balanceSheetRepository = balanceSheetRepository;
         this.cashFlowRepository = cashFlowRepository;
-        this.sharesOutstandingRepository = sharesOutstandingRepository;
         this.companyOverviewRepository = companyOverviewRepository;
         this.earningsHistoryRepository = earningsHistoryRepository;
         this.stockQuotesRepository = stockQuotesRepository;
@@ -352,18 +348,6 @@ public class FinancialDataService {
         });
     }
 
-    public Mono<SharesOutstandingData> getSharesOutstanding(String symbol) {
-        return Mono.defer(() -> {
-            Optional<SharesOutstandingData> sharesOutstandingFromDb = sharesOutstandingRepository.findBySymbol(symbol.toUpperCase());
-            if (sharesOutstandingFromDb.isPresent()) {
-                return Mono.just(sharesOutstandingFromDb.get());
-            } else {
-                return alphaVantageService.fetchSharesOutstandingFromApiAndSave(symbol.toUpperCase())
-                        .flatMap(sharesOutstandingData -> Mono.just(sharesOutstandingRepository.save(sharesOutstandingData)));
-            }
-        });
-    }
-
     private boolean isRecent(LocalDateTime lastUpdated, int minutes) {
         if (lastUpdated == null) {
             return false;
@@ -380,7 +364,6 @@ public class FinancialDataService {
         companyOverviewRepository.deleteBySymbol(upperCaseSymbol);
         earningsHistoryRepository.deleteBySymbol(upperCaseSymbol);
         incomeStatementRepository.deleteBySymbol(upperCaseSymbol);
-        sharesOutstandingRepository.deleteBySymbol(upperCaseSymbol);
         stockQuotesRepository.deleteBySymbol(upperCaseSymbol);
         earningsEstimatesRepository.deleteBySymbol(upperCaseSymbol);
         financialRatiosRepository.deleteBySymbol(upperCaseSymbol);
@@ -411,10 +394,9 @@ public class FinancialDataService {
         Optional<IncomeStatementData> incomeStatementDataOptional = getIncomeStatements(symbol).blockOptional();
         Optional<BalanceSheetData> balanceSheetDataOptional = getBalanceSheet(symbol).blockOptional();
         Optional<CashFlowData> cashFlowDataOptional = getCashFlow(symbol).blockOptional();
-        Optional<SharesOutstandingData> sharesOutstandingDataOptional = getSharesOutstanding(symbol).blockOptional();
 
         if (incomeStatementDataOptional.isPresent() && balanceSheetDataOptional.isPresent()
-                && cashFlowDataOptional.isPresent() && sharesOutstandingDataOptional.isPresent()) {
+                && cashFlowDataOptional.isPresent()) {
             IncomeStatementData incomeStatementData = incomeStatementDataOptional.get();
             BalanceSheetData balanceSheetData = balanceSheetDataOptional.get();
             CashFlowData cashFlowData = cashFlowDataOptional.get();

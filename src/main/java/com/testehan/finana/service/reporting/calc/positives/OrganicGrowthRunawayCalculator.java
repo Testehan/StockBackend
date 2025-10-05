@@ -29,7 +29,6 @@ public class OrganicGrowthRunawayCalculator {
     private final CompanyOverviewRepository companyOverviewRepository;
     private final SecFilingRepository secFilingRepository;
     private final IncomeStatementRepository incomeStatementRepository;
-    private final SharesOutstandingRepository sharesOutstandingRepository;
     private final FinancialRatiosRepository financialRatiosRepository;
 
     private final LlmService llmService;
@@ -41,11 +40,10 @@ public class OrganicGrowthRunawayCalculator {
     @Value("classpath:/prompts/organic_growth_runaway_prompt.txt")
     private Resource organicGrowthPrompt;
 
-    public OrganicGrowthRunawayCalculator(CompanyOverviewRepository companyOverviewRepository, SecFilingRepository secFilingRepository, IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository, SharesOutstandingRepository sharesOutstandingRepository, FinancialRatiosRepository financialRatiosRepository, LlmService llmService, FerolSseService ferolSseService, OptionalityCalculator optionalityCalculator, SafeParser safeParser) {
+    public OrganicGrowthRunawayCalculator(CompanyOverviewRepository companyOverviewRepository, SecFilingRepository secFilingRepository, IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository, FinancialRatiosRepository financialRatiosRepository, LlmService llmService, FerolSseService ferolSseService, OptionalityCalculator optionalityCalculator, SafeParser safeParser) {
         this.companyOverviewRepository = companyOverviewRepository;
         this.secFilingRepository = secFilingRepository;
         this.incomeStatementRepository = incomeStatementRepository;
-        this.sharesOutstandingRepository = sharesOutstandingRepository;
         this.financialRatiosRepository = financialRatiosRepository;
         this.llmService = llmService;
         this.ferolSseService = ferolSseService;
@@ -107,14 +105,9 @@ public class OrganicGrowthRunawayCalculator {
 
     private BigDecimal calculateRevenueCAGRPerShare(String ticker) {
         Optional<IncomeStatementData> incomeStatementDataOpt = incomeStatementRepository.findBySymbol(ticker);
-        Optional<SharesOutstandingData> sharesOutstandingDataOpt = sharesOutstandingRepository.findBySymbol(ticker);
 
         if (incomeStatementDataOpt.isEmpty() || incomeStatementDataOpt.get().getAnnualReports() == null || incomeStatementDataOpt.get().getAnnualReports().size() < 4) {
             LOGGER.warn("Not enough annual income reports for {}. Found {}.", ticker, incomeStatementDataOpt.map(d -> d.getAnnualReports().size()).orElse(0));
-            return BigDecimal.ZERO;
-        }
-        if (sharesOutstandingDataOpt.isEmpty() || sharesOutstandingDataOpt.get().getData() == null || sharesOutstandingDataOpt.get().getData().isEmpty()) {
-            LOGGER.warn("No shares outstanding data for {}", ticker);
             return BigDecimal.ZERO;
         }
 
@@ -122,25 +115,22 @@ public class OrganicGrowthRunawayCalculator {
                 .sorted(Comparator.comparing(IncomeReport::getDate))
                 .collect(Collectors.toList());
 
-        List<SharesOutstandingReport> sharesOutstandingReports = sharesOutstandingDataOpt.get().getData();
-        sharesOutstandingReports.sort(Comparator.comparing(SharesOutstandingReport::getDate));
-
         IncomeReport latestReport = annualReports.get(annualReports.size() - 1);
         IncomeReport oldReport = annualReports.get(annualReports.size() - 4);
 
         BigDecimal latestRevenue = safeParser.parse(latestReport.getRevenue());
         BigDecimal oldRevenue = safeParser.parse(oldReport.getRevenue());
 
-        SharesOutstandingReport latestSharesReport = findClosestSharesOutstanding(sharesOutstandingReports, latestReport.getDate());
-        SharesOutstandingReport oldSharesReport = findClosestSharesOutstanding(sharesOutstandingReports, oldReport.getDate());
+        IncomeReport latestSharesReport = findClosestSharesOutstanding(annualReports, latestReport.getDate());
+        IncomeReport oldSharesReport = findClosestSharesOutstanding(annualReports, oldReport.getDate());
 
         if (latestSharesReport == null || oldSharesReport == null) {
             LOGGER.warn("Could not find matching shares outstanding data for the period for ticker: " + ticker);
             return BigDecimal.ZERO;
         }
 
-        BigDecimal latestShares = safeParser.parse(latestSharesReport.getSharesOutstandingDiluted());
-        BigDecimal oldShares = safeParser.parse(oldSharesReport.getSharesOutstandingDiluted());
+        BigDecimal latestShares = safeParser.parse(latestSharesReport.getWeightedAverageShsOutDil());
+        BigDecimal oldShares = safeParser.parse(oldSharesReport.getWeightedAverageShsOutDil());
 
         if (latestShares.compareTo(BigDecimal.ZERO) == 0 || oldShares.compareTo(BigDecimal.ZERO) == 0) {
             LOGGER.warn("Shares outstanding is zero, cannot calculate per share value for ticker: " + ticker);
@@ -201,7 +191,7 @@ public class OrganicGrowthRunawayCalculator {
         return avgSgr.multiply(BigDecimal.valueOf(100)).setScale(2, java.math.RoundingMode.HALF_UP);
     }
 
-    private SharesOutstandingReport findClosestSharesOutstanding(List<SharesOutstandingReport> reports, String dateString) {
+    private IncomeReport findClosestSharesOutstanding(List<IncomeReport> reports, String dateString) {
         try {
             LocalDate targetDate = LocalDate.parse(dateString);
             return reports.stream()

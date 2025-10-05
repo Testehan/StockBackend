@@ -26,11 +26,6 @@ public class AlphaVantageService {
 
     @Autowired
     public AlphaVantageService(WebClient.Builder webClientBuilder,
-                               CompanyOverviewRepository companyOverviewRepository,
-                               IncomeStatementRepository incomeStatementRepository,
-                               BalanceSheetRepository balanceSheetRepository,
-                               CashFlowRepository cashFlowRepository,
-                               SharesOutstandingRepository sharesOutstandingRepository,
                                CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository) {
         this.webClient = webClientBuilder.baseUrl("https://www.alphavantage.co").build();
         this.companyEarningsTranscriptsRepository = companyEarningsTranscriptsRepository;
@@ -79,22 +74,6 @@ public class AlphaVantageService {
                                     return Mono.just(companyEarningsTranscripts);
                                 }
                             });
-                });
-    }
-
-
-    public Mono<SharesOutstandingData> fetchSharesOutstandingFromApiAndSave(String symbol) {
-        return webClient.get()
-                .uri(uriBuilder -> uriBuilder.path("/query")
-                        .queryParam("function", "SHARES_OUTSTANDING")
-                        .queryParam("symbol", symbol)
-                        .queryParam("apikey", apiKey)
-                        .build())
-                .retrieve()
-                .bodyToMono(SharesOutstandingData.class)
-                .flatMap(sharesOutstandingData -> {
-                    sharesOutstandingData.setSymbol(symbol);
-                    return Mono.just(sharesOutstandingData);
                 });
     }
 
