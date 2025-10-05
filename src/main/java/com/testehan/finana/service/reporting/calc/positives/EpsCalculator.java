@@ -14,6 +14,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -36,7 +37,8 @@ public class EpsCalculator {
 
         Optional<EarningsHistory> earningsHistoryOptional = earningsHistoryRepository.findBySymbol(ticker);
 
-        if (earningsHistoryOptional.isEmpty() || earningsHistoryOptional.get().getQuarterlyEarnings().size() < 8) {
+        if (earningsHistoryOptional.isEmpty() || Objects.isNull(earningsHistoryOptional.get().getQuarterlyEarnings())
+                || earningsHistoryOptional.get().getQuarterlyEarnings().size() < 8) {
             LOGGER.warn("No sufficient earnings history data for EPS calculation for ticker: {}", ticker);
             ferolSseService.sendSseEvent(sseEmitter, "EPS calculation skipped: Insufficient data found.");
             return new FerolReportItem("earningsPerShare", 0, "Insufficient quarterly earnings history data for EPS calculation (need at least 8 quarters).");

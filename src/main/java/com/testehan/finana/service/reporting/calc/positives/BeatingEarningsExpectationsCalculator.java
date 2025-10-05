@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.Comparator;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -31,7 +32,8 @@ public class BeatingEarningsExpectationsCalculator {
     public FerolReportItem calculateUpsidePerformance(String ticker, SseEmitter sseEmitter) {
         Optional<EarningsHistory> earningsHistory = earningsHistoryRepository.findBySymbol(ticker);
 
-        if (earningsHistory.isPresent() && !earningsHistory.get().getQuarterlyEarnings().isEmpty()){
+        if (earningsHistory.isPresent() && Objects.nonNull(earningsHistory.get().getQuarterlyEarnings())
+                && !earningsHistory.get().getQuarterlyEarnings().isEmpty()){
 
             var quarterlyEarningsHistory = earningsHistory.get().getQuarterlyEarnings();
             var last4quarters = quarterlyEarningsHistory.stream()

@@ -46,7 +46,7 @@ public class HeadquarterRiskCalculator {
 
     private FerolReportItem identifyDomesticKey(String companyCountry) {
         List<String> noHeadquartersRisk = Arrays.asList("United States", "USA", "U.S.", "United States of America", "US",
-                "Australia", "Canada", "Germany", "Netherlands", "Singapore", "Switzerland", "Denmark", "Norway",
+                "Australia", "Canada", "Germany", "Netherlands", "Singapore", "SG", "Switzerland", "Denmark", "Norway",
                 "Sweden", "Liechtenstein", "Luxembourg");
 
         // TODO for now, i only care mostly about US stocks..

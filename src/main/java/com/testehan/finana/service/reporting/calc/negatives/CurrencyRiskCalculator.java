@@ -74,15 +74,19 @@ public class CurrencyRiskCalculator {
 
             var domesticKey = identifyDomesticKey(segments);
 
-            // Calculate totals for this specific year
-            for (Map.Entry<String, String> entry : segments.entrySet()) {
-                BigDecimal val = new BigDecimal(entry.getValue());
-                totalRevenue = totalRevenue.add(val);
+            if (Objects.nonNull(domesticKey)) {
+                // Calculate totals for this specific year
+                for (Map.Entry<String, String> entry : segments.entrySet()) {
+                    BigDecimal val = new BigDecimal(entry.getValue());
+                    totalRevenue = totalRevenue.add(val);
 
-                // Check if this key matches the domestic key (case-insensitive)
-                if (entry.getKey().toLowerCase().contains(domesticKey.toLowerCase())) {
-                    domesticRevenue = val;
+                    // Check if this key matches the domestic key (case-insensitive)
+                    if (entry.getKey().toLowerCase().contains(domesticKey.toLowerCase())) {
+                        domesticRevenue = val;
+                    }
                 }
+            } else {
+                return new FerolReportItem("currencyRisk", -2, "The company gets revenue from these areas: " + String.join(", ", segments.keySet()));
             }
 
             if (totalRevenue.equals(BigDecimal.ZERO)) continue;
