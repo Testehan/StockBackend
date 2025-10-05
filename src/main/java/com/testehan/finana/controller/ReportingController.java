@@ -2,6 +2,7 @@ package com.testehan.finana.controller;
 
 import com.testehan.finana.model.FerolReport;
 import com.testehan.finana.model.FerolReportItem;
+import com.testehan.finana.model.FerolReportSummaryDTO;
 import com.testehan.finana.service.reporting.FerolReportOrchestrator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -32,5 +33,11 @@ public class ReportingController {
     public ResponseEntity<FerolReport> saveFerolReport(@PathVariable String symbol, @RequestBody List<FerolReportItem> ferolReportItems) {
         FerolReport savedReport = ferolReportOrchestrator.saveFerolReport(symbol.toUpperCase(), ferolReportItems);
         return new ResponseEntity<>(savedReport, HttpStatus.CREATED);
+    }
+
+    @GetMapping("/ferol/summary")
+    public ResponseEntity<List<FerolReportSummaryDTO>> getFerolReportsSummary() {
+        List<FerolReportSummaryDTO> summary = ferolReportOrchestrator.getFerolReportsSummary();
+        return new ResponseEntity<>(summary, HttpStatus.OK);
     }
 }

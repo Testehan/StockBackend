@@ -407,4 +407,18 @@ public class FerolReportOrchestrator {
         LOGGER.info("Saving FEROL report for {}", ticker);
         return ferolReportPersistenceService.buildAndSaveReport(ticker, ferolReportItems);
     }
+
+    public List<com.testehan.finana.model.FerolReportSummaryDTO> getFerolReportsSummary() {
+        return generatedReportRepository.findAll().stream()
+                .filter(generatedReport -> generatedReport.getFerolReport() != null && generatedReport.getFerolReport().getItems() != null)
+                .map(generatedReport -> {
+                    String ticker = generatedReport.getSymbol();
+                    FerolReport ferolReport = generatedReport.getFerolReport();
+                    Double totalScore = ferolReport.getItems().stream()
+                            .mapToDouble(item -> item.getScore() != null ? item.getScore() : 0.0)
+                            .sum();
+                    return new com.testehan.finana.model.FerolReportSummaryDTO(ticker, totalScore, ferolReport.getGeneratedAt());
+                })
+                .toList();
+    }
 }
