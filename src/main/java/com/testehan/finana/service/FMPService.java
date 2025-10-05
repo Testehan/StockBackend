@@ -181,6 +181,49 @@ public class FMPService {
                 });
     }
 
+    public Mono<EarningsHistory> fetchEarningsHistory(String symbol) {
+        return webClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/stable/earnings")
+                        .queryParam("symbol", symbol)
+                        .queryParam("apikey", apiKey)
+                        .build())
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<List<FmpEarning>>() {})
+                .map(fmpEarnings -> {
+                    EarningsHistory earningsHistory = new EarningsHistory();
+                    earningsHistory.setSymbol(symbol);
+                    List<QuarterlyEarning> quarterlyEarnings = fmpEarnings.stream()
+                            .map(this::transformToQuarterlyEarning)
+                            .collect(java.util.stream.Collectors.toList());
+                    earningsHistory.setQuarterlyEarnings(quarterlyEarnings);
+                    return earningsHistory;
+                });
+    }
+
+    private QuarterlyEarning transformToQuarterlyEarning(FmpEarning fmpEarning) {
+        QuarterlyEarning quarterlyEarning = new QuarterlyEarning();
+        quarterlyEarning.setFiscalDateEnding(fmpEarning.getDate());
+        if (fmpEarning.getEpsActual() != null) {
+            quarterlyEarning.setReportedEPS(fmpEarning.getEpsActual().toString());
+        }
+        if (fmpEarning.getEpsEstimated() != null) {
+            quarterlyEarning.setEstimatedEPS(fmpEarning.getEpsEstimated().toString());
+        }
+
+        if (fmpEarning.getEpsActual() != null && fmpEarning.getEpsEstimated() != null) {
+            double surprise = fmpEarning.getEpsActual() - fmpEarning.getEpsEstimated();
+            quarterlyEarning.setSurprise(String.valueOf(surprise));
+
+            if (fmpEarning.getEpsEstimated() != 0) {
+                double surprisePercentage = (surprise / fmpEarning.getEpsEstimated()) * 100;
+                quarterlyEarning.setSurprisePercentage(String.valueOf(surprisePercentage));
+            }
+        }
+
+        return quarterlyEarning;
+    }
+
     public void updateOverview(CompanyOverview target, CompanyOverview source) {
         target.setSymbol(source.getSymbol());
         target.setPrice(source.getPrice());

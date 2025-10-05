@@ -21,9 +21,6 @@ public class EarningsHistory implements Serializable {
     @JsonProperty("symbol")
     private String symbol;
 
-    @JsonProperty("annualEarnings")
-    private List<AnnualEarning> annualEarnings;
-
     @JsonProperty("quarterlyEarnings")
     private List<QuarterlyEarning> quarterlyEarnings;
 }

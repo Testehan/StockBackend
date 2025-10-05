@@ -147,7 +147,7 @@ public class FinancialDataService {
             if (earningsHistoryFromDb.isPresent()) {
                 return Mono.just(earningsHistoryFromDb.get());
             } else {
-                return alphaVantageService.fetchEarningsHistoryFromApiAndSave(symbol.toUpperCase())
+                return fmpService.fetchEarningsHistory(symbol.toUpperCase())
                         .flatMap(earningsHistory -> Mono.just(earningsHistoryRepository.save(earningsHistory)));
             }
         });

@@ -2,10 +2,11 @@ package com.testehan.finana.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import java.io.Serializable;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
+import java.io.Serializable;
 
 @Getter
 @Setter
@@ -14,9 +15,6 @@ import lombok.Setter;
 public class QuarterlyEarning implements Serializable {
     @JsonProperty("fiscalDateEnding")
     private String fiscalDateEnding;
-
-    @JsonProperty("reportedDate")
-    private String reportedDate;
 
     @JsonProperty("reportedEPS")
     private String reportedEPS;

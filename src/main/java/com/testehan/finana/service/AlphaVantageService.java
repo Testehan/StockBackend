@@ -77,21 +77,6 @@ public class AlphaVantageService {
                 });
     }
 
-    public Mono<EarningsHistory> fetchEarningsHistoryFromApiAndSave(String symbol) {
-        return webClient.get()
-                .uri(uriBuilder -> uriBuilder.path("/query")
-                        .queryParam("function", "EARNINGS")
-                        .queryParam("symbol", symbol)
-                        .queryParam("apikey", apiKey)
-                        .build())
-                .retrieve()
-                .bodyToMono(EarningsHistory.class)
-                .flatMap(earningsHistory -> {
-                    earningsHistory.setSymbol(symbol);
-                    return Mono.just(earningsHistory);
-                });
-    }
-
     public Mono<EarningsEstimate> fetchEarningsEstimatesFromApi(String symbol) {
         LOGGER.info("Fetching earnings estimates for {}", symbol);
         return webClient.get()
