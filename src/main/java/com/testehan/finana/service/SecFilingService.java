@@ -1,10 +1,6 @@
 package com.testehan.finana.service;
 
-import com.testehan.finana.model.SecFiling;
-import com.testehan.finana.model.SecFilingUrlData;
-import com.testehan.finana.model.SecFilingsUrls;
-import com.testehan.finana.model.TenKFilings;
-import com.testehan.finana.model.TenQFilings;
+import com.testehan.finana.model.*;
 import com.testehan.finana.repository.SecFilingRepository;
 import com.testehan.finana.repository.SecFilingUrlsRepository;
 import org.jsoup.Jsoup;
@@ -73,9 +69,9 @@ public class SecFilingService {
         SecFilingsUrls secFilings = secFilingsOptional.get();
         Optional<SecFiling> existingSecFilingOptional = secFilingRepository.findById(symbol);
 
-        // Get the latest 10-K filing
+        // Get the latest 10-K or 20-F filing
         Optional<SecFilingUrlData> latest10K = secFilings.getFilings().stream()
-                .filter(filing -> "10-K".equals(filing.getFormType()))
+                .filter(filing -> "10-K".equals(filing.getFormType()) || "20-F".equals(filing.getFormType()))
                 .max(Comparator.comparing(SecFilingUrlData::getFilingDate));
 
         latest10K.ifPresent(filing -> {
@@ -92,13 +88,13 @@ public class SecFilingService {
                 }
             }
             if (reprocess) {
-                getAndSaveSecFiling(symbol, filing.getFinalLink(), "10-K", filing.getFilingDate());
+                getAndSaveSecFiling(symbol, filing.getFinalLink(), filing.getFormType(), filing.getFilingDate());
             }
         });
 
-        // Get the latest 10-Q filing
+        // Get the latest 10-Q or 6-K filing
         Optional<SecFilingUrlData> latest10Q = secFilings.getFilings().stream()
-                .filter(filing -> "10-Q".equals(filing.getFormType()))
+                .filter(filing -> "10-Q".equals(filing.getFormType()) || "6-K".equals(filing.getFormType()))
                 .max(Comparator.comparing(SecFilingUrlData::getFilingDate));
 
         latest10Q.ifPresent(filing -> {
@@ -115,7 +111,7 @@ public class SecFilingService {
                 }
             }
             if (reprocess) {
-                getAndSaveSecFiling(symbol, filing.getFinalLink(), "10-Q", filing.getFilingDate());
+                getAndSaveSecFiling(symbol, filing.getFinalLink(), filing.getFormType(), filing.getFilingDate());
             }
         });
     }
@@ -137,23 +133,110 @@ public class SecFilingService {
             LOGGER.info("Document fetched for symbol '{}'. Total length: {} characters.", symbol, fullText.length());
 
             String businessDescription = null;
-            String riskFactors;
-            String managementDiscussion;
+            String riskFactors = null;
+            String managementDiscussion = null;
 
             if ("10-K".equals(formType)) {
-                businessDescription = extractSection(fullText, "Item\s+1[:.]\s+Business", "Item\s+1A[:.]\s+Risk",1000);
-                riskFactors = extractSection(fullText, "Item\s+1A[:.]\s+Risk", "Item\s+1B[:.]\s+Unresolved|Item\s+2[:.]\s+Properties",1000);
-                managementDiscussion = extractSection(fullText, "Item\s+7[:.]\s+Management", "Item\s+7A[:.]\s+Quantitative",1000);
-            } else { // 10-Q
-                riskFactors = extractSection(fullText, "Item\s+1A[:.]\s+Risk", "Item\s+2[:.]\s+Unregistered",150);
-                managementDiscussion = extractSection(fullText, "Item\s+2[:.]\s+Management", "Item\s+3[:.]\s+Quantitative",500);
+                // Standard U.S. Annual
+                businessDescription = extractSection(fullText, "Item\\s+1[:.]\\s+Business", "Item\\s+1A[:.]\\s+Risk", 1000);
+                riskFactors = extractSection(fullText, "Item\\s+1A[:.]\\s+Risk", "Item\\s+1B[:.]\\s+Unresolved|Item\\s+2[:.]\\s+Properties", 1000);
+                managementDiscussion = extractSection(fullText, "Item\\s+7[:.]\\s+Management", "Item\\s+7A[:.]\\s+Quantitative", 1000);
+
+            } else if ("20-F".equals(formType)) {
+                // ---------------------------------------------------------
+                // FIXED UNIVERSAL 20-F STRATEGY
+                // ---------------------------------------------------------
+
+                // 1. DEFINITIONS
+                // Match spaces, non-breaking spaces, newlines, and HTML entities
+                String spacer = "[\\s\\u00A0]+|(?:&nbsp;)+";
+
+                // 2. BUSINESS (Item 4)
+                // Pattern: "ITEM 4" followed by variations of "INFORMATION ON THE COMPANY"
+                businessDescription = extractSection(fullText,
+                        "(?i)ITEM[\\s\\u00A0]+4[\\s\\u00A0]*[.:]?[\\s\\u00A0]*INFORMATION[\\s\\u00A0]+ON[\\s\\u00A0]+(?:THE[\\s\\u00A0]+)?COMPANY",
+                        "(?i)ITEM[\\s\\u00A0]+(?:4A|5)[\\s\\u00A0]*[.:]",
+                        2000);
+
+                // 3. MD&A (Item 5)
+                // Pattern: "ITEM 5" followed by "OPERATING AND FINANCIAL REVIEW"
+                // Uses negative lookahead to skip TOC entries with dots and quoted references
+                managementDiscussion = extractSection(fullText,
+                        "(?i)ITEM[\\s\\u00A0]+5[\\s\\u00A0]*[.:]?[\\s\\u00A0]*OPERATING[\\s\\u00A0]+AND[\\s\\u00A0]+FINANCIAL(?![^\\n]*\\.{3,})(?![^\\n]*[\"\"])",
+                        "(?i)ITEM[\\s\\u00A0]+6[\\s\\u00A0]*[.:]",
+                        2000);
+
+                // 4. RISK FACTORS (Multi-Strategy Approach)
+                // -----------------------------------------------------
+
+                // PRIORITY A: Item 3.D Risk Factors (Foreign Issuer Style)
+                riskFactors = extractSection(fullText,
+                        "(?i)(?:ITEM[\\s\\u00A0]+3[\\s\\u00A0]*[.:]?[\\s\\u00A0]*)?D[\\s\\u00A0]*[.:]?[\\s\\u00A0]*RISK[\\s\\u00A0]+FACTORS(?![^\\n]*\\.{3,})",
+                        "(?i)(?:ITEM[\\s\\u00A0]+4[\\s\\u00A0]*[.:]|E[\\s\\u00A0]*[.:])",
+                        2000);
+
+                // PRIORITY B: Item 3 with Risk Factors extraction
+                if (riskFactors == null || riskFactors.trim().length() < 100) {
+                    String rawItem3 = extractSection(fullText,
+                            "(?i)ITEM[\\s\\u00A0]+3[\\s\\u00A0]*[.:]?[\\s\\u00A0]*KEY[\\s\\u00A0]+INFORMATION(?![^\\n]*\\.{3,})",
+                            "(?i)ITEM[\\s\\u00A0]+4[\\s\\u00A0]*[.:]",
+                            2000);
+
+                    if (rawItem3 != null && rawItem3.length() > 100) {
+                        // Find where "Risk Factors" actually starts within Item 3
+                        String upperRaw = rawItem3.toUpperCase();
+
+                        // Try multiple patterns to find the Risk Factors subsection
+                        int riskIndex = -1;
+
+                        // Pattern 1: "D. RISK FACTORS" or "D.RISK FACTORS"
+                        riskIndex = upperRaw.indexOf("D.RISK FACTORS");
+                        if (riskIndex == -1) riskIndex = upperRaw.indexOf("D. RISK FACTORS");
+
+                        // Pattern 2: Just "RISK FACTORS" as a header (but not in first 200 chars)
+                        if (riskIndex == -1) {
+                            int idx = upperRaw.indexOf("RISK FACTORS", 200);
+                            // Verify it's a header by checking if preceded by newlines/whitespace
+                            if (idx > 200 && idx > 0) {
+                                String before = upperRaw.substring(Math.max(0, idx - 20), idx);
+                                if (before.contains("\n") || before.matches(".*[A-Z][\\s.]+$")) {
+                                    riskIndex = idx;
+                                }
+                            }
+                        }
+
+                        if (riskIndex > 100) { // Found risk factors subsection
+                            riskFactors = rawItem3.substring(riskIndex);
+                        } else {
+                            riskFactors = rawItem3; // Use entire Item 3
+                        }
+                    }
+                }
+
+                // PRIORITY C: Last Resort - Search for standalone "Risk Factors" header
+                if (riskFactors == null || riskFactors.trim().length() < 100) {
+                    riskFactors = extractSection(fullText,
+                            "(?i)(?:^|\\n)[\\s]*RISK[\\s\\u00A0]+FACTORS[\\s]*(?:$|\\n)(?![^\\n]*\\.{3,})",
+                            "(?i)ITEM[\\s\\u00A0]+(?:4|5)[\\s\\u00A0]*[.:]",
+                            2000);
+                }
+
+
+            } else if ("10-Q".equals(formType)) {
+                // Standard U.S. Quarterly
+                riskFactors = extractSection(fullText, "Item\\s+1A[:.]\\s+Risk", "Item\\s+2[:.]\\s+Unregistered", 150);
+                managementDiscussion = extractSection(fullText, "Item\\s+2[:.]\\s+Management", "Item\\s+3[:.]\\s+Quantitative", 500);
+
+            } else if ("6-K".equals(formType)) {
+                // TODO this gets too complicated..AND i never use the data from 10-q or 6-k...only from annual reports
+                // which kind of work...so for now this remains like this
             }
 
 
             SecFiling secFiling = secFilingRepository.findById(symbol).orElse(new SecFiling());
             secFiling.setSymbol(symbol);
 
-            if ("10-K".equals(formType)) {
+            if ("10-K".equals(formType) || "20-F".equals(formType)) {
                 TenKFilings tenKFilings = new TenKFilings();
                 tenKFilings.setBusinessDescription(businessDescription);
                 tenKFilings.setRiskFactors(riskFactors);
@@ -164,7 +247,7 @@ public class SecFilingService {
                     secFiling.setTenKFilings(new ArrayList<>());
                 }
                 secFiling.getTenKFilings().add(tenKFilings);
-            } else if ("10-Q".equals(formType)) {
+            } else if ("10-Q".equals(formType) || "6-K".equals(formType)) {
                 TenQFilings tenQFilings = new TenQFilings();
                 tenQFilings.setRiskFactors(riskFactors);
                 tenQFilings.setManagementDiscussion(managementDiscussion);
