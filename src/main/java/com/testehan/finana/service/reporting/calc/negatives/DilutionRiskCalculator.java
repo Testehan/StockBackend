@@ -1,9 +1,9 @@
 package com.testehan.finana.service.reporting.calc.negatives;
 
-import com.testehan.finana.model.FerolReportItem;
+import com.testehan.finana.model.ReportItem;
 import com.testehan.finana.model.IncomeReport;
 import com.testehan.finana.repository.IncomeStatementRepository;
-import com.testehan.finana.service.reporting.FerolSseService;
+import com.testehan.finana.service.reporting.ChecklistSseService;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,14 +24,14 @@ public class DilutionRiskCalculator {
     private static final BigDecimal THREE_PERCENT = new BigDecimal("3.0");
 
     private final IncomeStatementRepository incomeStatementRepository;
-    private final FerolSseService ferolSseService;
+    private final ChecklistSseService ferolSseService;
 
-    public DilutionRiskCalculator(IncomeStatementRepository incomeStatementRepository, FerolSseService ferolSseService) {
+    public DilutionRiskCalculator(IncomeStatementRepository incomeStatementRepository, ChecklistSseService ferolSseService) {
         this.incomeStatementRepository = incomeStatementRepository;
         this.ferolSseService = ferolSseService;
     }
 
-    public FerolReportItem calculate(String ticker, SseEmitter sseEmitter) {
+    public ReportItem calculate(String ticker, SseEmitter sseEmitter) {
         var incomeDataOptional = incomeStatementRepository.findBySymbol(ticker);
         if (incomeDataOptional.isPresent() && !Objects.isNull(incomeDataOptional.get().getAnnualReports())
             && ! incomeDataOptional.get().getAnnualReports().isEmpty()){
@@ -40,7 +40,7 @@ public class DilutionRiskCalculator {
 
             // Validation: Need at least 2 years to calculate growth
             if (statements == null || statements.size() < 2) {
-                return getErrorFerolReportItem(ticker, sseEmitter, " Insufficient data to calculate growth for {}");
+                return getErrorReportItem(ticker, sseEmitter, " Insufficient data to calculate growth for {}");
             }
 
             // Step 1: Sort by date (Oldest first) to ensure correct calculation
@@ -88,18 +88,18 @@ public class DilutionRiskCalculator {
                 score = 0;  // < 3% (includes negative growth/buybacks)
             }
 
-            return new FerolReportItem("extremeDilution", score, scoreExplanation);
+            return new ReportItem("extremeDilution", score, scoreExplanation);
         } else {
-            return getErrorFerolReportItem(ticker, sseEmitter, " No income statement data found for {}");
+            return getErrorReportItem(ticker, sseEmitter, " No income statement data found for {}");
         }
 
     }
 
     @NotNull
-    private FerolReportItem getErrorFerolReportItem(String ticker, SseEmitter sseEmitter, String logMessage) {
+    private ReportItem getErrorReportItem(String ticker, SseEmitter sseEmitter, String logMessage) {
         String errorMessage = "Operation 'calculateDilution' failed.";
         LOGGER.error(errorMessage + logMessage, ticker);
         ferolSseService.sendSseErrorEvent(sseEmitter, errorMessage);
-        return new FerolReportItem("extremeDilution", -10, "Something went wrong and score could not be calculated ");
+        return new ReportItem("extremeDilution", -10, "Something went wrong and score could not be calculated ");
     }
 }

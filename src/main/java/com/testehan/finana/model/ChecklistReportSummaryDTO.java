@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Getter
 @Setter
-public class FerolReportSummaryDTO {
+public class ChecklistReportSummaryDTO {
     private String ticker;
     private Double totalScore;
     private LocalDateTime generationDate;

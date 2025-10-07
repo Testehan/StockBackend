@@ -9,5 +9,6 @@ import org.springframework.data.mongodb.core.mapping.Document;
 public class GeneratedReport {
     @Id
     private String symbol;
-    private FerolReport ferolReport;
+    private ChecklistReport ferolReport;
+    private ChecklistReport oneHundredBaggerReport;
 }

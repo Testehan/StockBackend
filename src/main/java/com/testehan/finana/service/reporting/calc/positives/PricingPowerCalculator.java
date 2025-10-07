@@ -1,7 +1,7 @@
 package com.testehan.finana.service.reporting.calc.positives;
 
 import com.testehan.finana.model.CompanyOverview;
-import com.testehan.finana.model.FerolReportItem;
+import com.testehan.finana.model.ReportItem;
 import com.testehan.finana.model.FinancialRatiosData;
 import com.testehan.finana.model.IncomeReport;
 import com.testehan.finana.model.IncomeStatementData;
@@ -12,7 +12,7 @@ import com.testehan.finana.repository.FinancialRatiosRepository;
 import com.testehan.finana.repository.IncomeStatementRepository;
 import com.testehan.finana.repository.SecFilingRepository;
 import com.testehan.finana.service.LlmService;
-import com.testehan.finana.service.reporting.FerolSseService;
+import com.testehan.finana.service.reporting.ChecklistSseService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.prompt.Prompt;
@@ -40,13 +40,13 @@ public class PricingPowerCalculator {
     private final IncomeStatementRepository incomeStatementRepository;
     private final FinancialRatiosRepository financialRatiosRepository;
     private final LlmService llmService;
-    private final FerolSseService ferolSseService;
+    private final ChecklistSseService ferolSseService;
     private final OptionalityCalculator optionalityCalculator;
 
     @Value("classpath:/prompts/pricing_power_prompt.txt")
     private Resource pricingPowerPrompt;
 
-    public PricingPowerCalculator(CompanyOverviewRepository companyOverviewRepository, SecFilingRepository secFilingRepository, IncomeStatementRepository incomeStatementRepository, FinancialRatiosRepository financialRatiosRepository, LlmService llmService, FerolSseService ferolSseService, OptionalityCalculator optionalityCalculator) {
+    public PricingPowerCalculator(CompanyOverviewRepository companyOverviewRepository, SecFilingRepository secFilingRepository, IncomeStatementRepository incomeStatementRepository, FinancialRatiosRepository financialRatiosRepository, LlmService llmService, ChecklistSseService ferolSseService, OptionalityCalculator optionalityCalculator) {
         this.companyOverviewRepository = companyOverviewRepository;
         this.secFilingRepository = secFilingRepository;
         this.incomeStatementRepository = incomeStatementRepository;
@@ -56,12 +56,12 @@ public class PricingPowerCalculator {
         this.optionalityCalculator = optionalityCalculator;
     }
 
-    public FerolReportItem calculate(String ticker, SseEmitter sseEmitter) {
+    public ReportItem calculate(String ticker, SseEmitter sseEmitter) {
         Optional<CompanyOverview> companyOverview = companyOverviewRepository.findBySymbol(ticker);
         if (companyOverview.isEmpty()){
             LOGGER.warn("No Company overview found for ticker: {}", ticker);
             ferolSseService.sendSseErrorEvent(sseEmitter, "No Company overview found for ticker " + ticker);
-            return new FerolReportItem("pricingPower", 0, "Something went wrong and score could not be calculated ");
+            return new ReportItem("pricingPower", 0, "Something went wrong and score could not be calculated ");
         }
         Optional<SecFiling> secFilingData = secFilingRepository.findBySymbol(ticker);
         StringBuilder businessDescription = new StringBuilder();
@@ -156,12 +156,12 @@ public class PricingPowerCalculator {
             ferolSseService.sendSseEvent(sseEmitter, "Received LLM response for pricing power analysis.");
             FerolLlmResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
 
-            return new FerolReportItem("pricingPower", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
+            return new ReportItem("pricingPower", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
         } catch (Exception e) {
             String errorMessage = "Operation 'calculatePricingPower' failed.";
             LOGGER.error(errorMessage, e);
             ferolSseService.sendSseErrorEvent(sseEmitter, errorMessage);
-            return new FerolReportItem("pricingPower", -10, "Operation 'calculatePricingPower' failed.");
+            return new ReportItem("pricingPower", -10, "Operation 'calculatePricingPower' failed.");
         }
     }
 }

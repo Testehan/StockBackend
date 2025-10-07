@@ -1,9 +1,9 @@
 package com.testehan.finana.controller;
 
-import com.testehan.finana.model.FerolReport;
-import com.testehan.finana.model.FerolReportItem;
-import com.testehan.finana.model.FerolReportSummaryDTO;
-import com.testehan.finana.service.reporting.FerolReportOrchestrator;
+import com.testehan.finana.model.ChecklistReport;
+import com.testehan.finana.model.ChecklistReportSummaryDTO;
+import com.testehan.finana.model.ReportItem;
+import com.testehan.finana.service.reporting.ChecklistReportOrchestrator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -17,27 +17,27 @@ import java.util.List;
 @RequestMapping("/stocks/reporting")
 public class ReportingController {
 
-    private final FerolReportOrchestrator ferolReportOrchestrator;
+    private final ChecklistReportOrchestrator checklistReportOrchestrator;
 
     @Autowired
-    public ReportingController(FerolReportOrchestrator ferolReportOrchestrator) {
-        this.ferolReportOrchestrator = ferolReportOrchestrator;
+    public ReportingController(ChecklistReportOrchestrator checklistReportOrchestrator) {
+        this.checklistReportOrchestrator = checklistReportOrchestrator;
     }
 
-    @GetMapping(value = "/ferol/{ticker}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter getFerolReport(@PathVariable String ticker, @RequestParam(defaultValue = "false") boolean recreateReport) {
-        return ferolReportOrchestrator.getFerolReport(ticker.toUpperCase(), recreateReport);
+    @GetMapping(value = "/checklist/{ticker}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter getChecklistReport(@PathVariable String ticker, @RequestParam(defaultValue = "false") boolean recreateReport, @RequestParam String reportType) {
+        return checklistReportOrchestrator.getChecklistReport(ticker.toUpperCase(), recreateReport, reportType);
     }
 
-    @PostMapping("/ferol/{symbol}")
-    public ResponseEntity<FerolReport> saveFerolReport(@PathVariable String symbol, @RequestBody List<FerolReportItem> ferolReportItems) {
-        FerolReport savedReport = ferolReportOrchestrator.saveFerolReport(symbol.toUpperCase(), ferolReportItems);
+    @PostMapping("/checklist/{symbol}")
+    public ResponseEntity<ChecklistReport> saveChecklistReport(@PathVariable String symbol, @RequestBody List<ReportItem> reportItems, @RequestParam String reportType) {
+        ChecklistReport savedReport = checklistReportOrchestrator.saveChecklistReport(symbol.toUpperCase(), reportItems, reportType);
         return new ResponseEntity<>(savedReport, HttpStatus.CREATED);
     }
 
-    @GetMapping("/ferol/summary")
-    public ResponseEntity<List<FerolReportSummaryDTO>> getFerolReportsSummary() {
-        List<FerolReportSummaryDTO> summary = ferolReportOrchestrator.getFerolReportsSummary();
+    @GetMapping("/checklist/summary")
+    public ResponseEntity<List<ChecklistReportSummaryDTO>> getChecklistReportsSummary(@RequestParam String reportType) {
+        List<ChecklistReportSummaryDTO> summary = checklistReportOrchestrator.getChecklistReportsSummary(reportType);
         return new ResponseEntity<>(summary, HttpStatus.OK);
     }
 }

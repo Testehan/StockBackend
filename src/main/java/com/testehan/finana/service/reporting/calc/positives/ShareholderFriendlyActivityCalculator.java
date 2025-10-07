@@ -3,10 +3,10 @@ package com.testehan.finana.service.reporting.calc.positives;
 import com.testehan.finana.model.CashFlowData;
 import com.testehan.finana.model.CashFlowReport;
 import com.testehan.finana.model.CompanyOverview;
-import com.testehan.finana.model.FerolReportItem;
+import com.testehan.finana.model.ReportItem;
 import com.testehan.finana.repository.CashFlowRepository;
 import com.testehan.finana.repository.CompanyOverviewRepository;
-import com.testehan.finana.service.reporting.FerolSseService;
+import com.testehan.finana.service.reporting.ChecklistSseService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -26,22 +26,22 @@ public class ShareholderFriendlyActivityCalculator {
 
     private final CompanyOverviewRepository companyOverviewRepository;
     private final CashFlowRepository cashFlowRepository;
-    private final FerolSseService ferolSseService;
+    private final ChecklistSseService ferolSseService;
 
-    public ShareholderFriendlyActivityCalculator(CompanyOverviewRepository companyOverviewRepository, CashFlowRepository cashFlowRepository, FerolSseService ferolSseService) {
+    public ShareholderFriendlyActivityCalculator(CompanyOverviewRepository companyOverviewRepository, CashFlowRepository cashFlowRepository, ChecklistSseService ferolSseService) {
         this.companyOverviewRepository = companyOverviewRepository;
         this.cashFlowRepository = cashFlowRepository;
         this.ferolSseService = ferolSseService;
     }
 
-    public FerolReportItem calculate(String ticker, SseEmitter sseEmitter) {
+    public ReportItem calculate(String ticker, SseEmitter sseEmitter) {
         Optional<CashFlowData> cashflowDataOptional = cashFlowRepository.findBySymbol(ticker);
         Optional<CompanyOverview> companyOverviewOptional = companyOverviewRepository.findBySymbol(ticker);
 
         if (cashflowDataOptional.isEmpty() || cashflowDataOptional.get().getAnnualReports().isEmpty()) {
             LOGGER.warn("No cashflow data found for ticker: {}", ticker);
             ferolSseService.sendSseEvent(sseEmitter, "Shareholder friendly activity analysis is skipped: No data found.");
-            return new FerolReportItem("shareholderFriendlyActivity", 0, "No annual cashflow data available.");
+            return new ReportItem("shareholderFriendlyActivity", 0, "No annual cashflow data available.");
         }
 
         // Get last 5 years of cashflow statements
@@ -52,7 +52,7 @@ public class ShareholderFriendlyActivityCalculator {
 
         if (last5yearsCashflowStatements.isEmpty() || companyOverviewOptional.isEmpty()) {
             ferolSseService.sendSseEvent(sseEmitter, "Shareholder friendly activity analysis is skipped: No data found.");
-            return new FerolReportItem("shareholderFriendlyActivity", 0, "No annual cashflow data available.");
+            return new ReportItem("shareholderFriendlyActivity", 0, "No annual cashflow data available.");
         }
 
         StringBuilder explanation = new StringBuilder();
@@ -61,68 +61,72 @@ public class ShareholderFriendlyActivityCalculator {
         explanation.append(divResult.explanation);
         int totalScore = divResult.score;
 
-        BigDecimal mostRecentStockRepurchase = BigDecimal.ZERO;
-        BigDecimal oldestStockRepurchase = BigDecimal.ZERO;
+        BigDecimal latestYearRepurchase = BigDecimal.ZERO;
+        BigDecimal earliestYearRepurchase = BigDecimal.ZERO;
 
         if (last5yearsCashflowStatements.getFirst().getCommonStockRepurchased() != null) {
-            mostRecentStockRepurchase = getAbsValue(last5yearsCashflowStatements.getFirst().getCommonStockRepurchased());
+            latestYearRepurchase = getAbsValue(last5yearsCashflowStatements.getFirst().getCommonStockRepurchased());
         }
 
         if (last5yearsCashflowStatements.getLast().getCommonStockRepurchased() != null) {
-            oldestStockRepurchase = getAbsValue(last5yearsCashflowStatements.getLast().getCommonStockRepurchased());
+            earliestYearRepurchase = getAbsValue(last5yearsCashflowStatements.getLast().getCommonStockRepurchased());
         }
 
+        LOGGER.info("latestYearRepurchase = {} ---- earliestYearRepurchase = {}", latestYearRepurchase, earliestYearRepurchase);
+
         var minimumBuybackSum = getOnePercentOfMarketCap(companyOverviewOptional.get().getMarketCap());
-        totalScore = totalScore + calculateBuybackScore(oldestStockRepurchase, mostRecentStockRepurchase, minimumBuybackSum, explanation);
+        LOGGER.info("minimumBuybackSum = {} ", minimumBuybackSum);
+
+        totalScore = totalScore + calculateBuybackScore(earliestYearRepurchase, latestYearRepurchase, minimumBuybackSum, explanation);
 
         totalScore = totalScore + calculateDebtRepaymentScore(last5yearsCashflowStatements,getMarketCapAsBigDecimal(companyOverviewOptional.get().getMarketCap()),explanation);
 
-        return new FerolReportItem("shareholderFriendlyActivity", totalScore, explanation.toString());
+        return new ReportItem("shareholderFriendlyActivity", totalScore, explanation.toString());
     }
 
     /**
      * Calculates buyback score.
      *
-     * @param mostRecentStockRepurchaseSum Absolute amount spent on buybacks in the earliest year (e.g., 5 years ago)
-     * @param oldestStockRepurchaseSum  Absolute amount spent in the most recent year
+     * @param earliestYearRepurchaseSum Absolute amount spent on buybacks in the earliest year (e.g., 5 years ago)
+     * @param latestYearRepurchaseSum  Absolute amount spent in the most recent year
      * @param minThreshold       Minimum absolute amount (e.g., $10M) to consider "meaningful" in recent year
      * @return 1 if active/growing buybacks, 0 otherwise
      */
     public static int calculateBuybackScore(
-            BigDecimal mostRecentStockRepurchaseSum,
-            BigDecimal oldestStockRepurchaseSum,
+            BigDecimal earliestYearRepurchaseSum, // Absolute amount spent on buybacks in the earliest year (e.g., 5 years ago)
+            BigDecimal latestYearRepurchaseSum,  // Absolute amount spent in the most recent year
             BigDecimal minThreshold, StringBuilder explanation) {
 
         // Handle nulls
-        if (oldestStockRepurchaseSum == null || oldestStockRepurchaseSum.compareTo(BigDecimal.ZERO) <= 0) {
-            explanation.append("Latest sum used for stock repurchases is " + oldestStockRepurchaseSum + ". ");
+        if (latestYearRepurchaseSum == null || latestYearRepurchaseSum.compareTo(BigDecimal.ZERO) <= 0) {
+            explanation.append("Latest sum used for stock repurchases is " + latestYearRepurchaseSum + ". ");
             return 0; // No recent buybacks → no point
         }
 
-        if (mostRecentStockRepurchaseSum == null) {
-            mostRecentStockRepurchaseSum = BigDecimal.ZERO;
+        if (earliestYearRepurchaseSum == null) {
+            earliestYearRepurchaseSum = BigDecimal.ZERO;
         }
 
         // Primary rule: Recent year has meaningful buybacks?
-        if (oldestStockRepurchaseSum.compareTo(minThreshold) >= 0) {
-            explanation.append("Latest sum used for stock repurchases is " + oldestStockRepurchaseSum + " which is higher than the minimum threshold of " + minThreshold.toPlainString());
+        if (latestYearRepurchaseSum.compareTo(minThreshold) >= 0) {
+            explanation.append("Latest sum used for stock repurchases is " + latestYearRepurchaseSum + " which is higher than the minimum threshold of " + minThreshold.toPlainString());
             return 1;
         }
 
         // Secondary: Significant increase over the period (even if recent is small)?
         // E.g., went from near-zero to some activity
-        if (mostRecentStockRepurchaseSum.compareTo(BigDecimal.ZERO) == 0 &&
-                oldestStockRepurchaseSum.compareTo(minThreshold.divide(BigDecimal.valueOf(2))) > 0)
+        if (earliestYearRepurchaseSum.compareTo(BigDecimal.ZERO) == 0 &&
+                latestYearRepurchaseSum.compareTo(minThreshold.divide(BigDecimal.valueOf(2))) > 0)
         {
-            explanation.append("Stock repurchases have significant increase over the last period " + oldestStockRepurchaseSum + " which is more than half of 0.5% market cap " + minThreshold.toPlainString());
+            explanation.append("Stock repurchases have significant increase over the last period " + latestYearRepurchaseSum + " which is more than half of 0.5% market cap " + minThreshold.toPlainString());
             return 1; // Started a buyback program
         }
 
         // Or strong growth (e.g., >50% increase and above half threshold)
-        if (mostRecentStockRepurchaseSum.compareTo(BigDecimal.ZERO) > 0) {
-            BigDecimal growthFactor = oldestStockRepurchaseSum.divide(mostRecentStockRepurchaseSum, 4, RoundingMode.HALF_UP);
-            if (growthFactor.compareTo(BigDecimal.valueOf(1.5)) > 0 && // >50% increase
-                    oldestStockRepurchaseSum.compareTo(minThreshold.divide(BigDecimal.valueOf(2))) > 0)
+        if (earliestYearRepurchaseSum.compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal growthFactor = latestYearRepurchaseSum.divide(earliestYearRepurchaseSum, 4, RoundingMode.HALF_UP);
+            if (growthFactor.compareTo(BigDecimal.valueOf(1.5)) > 0  // >50% increase
+                    )   // && latestYearRepurchaseSum.compareTo(minThreshold.divide(BigDecimal.valueOf(2))) > 0
             {
                 explanation.append("> 50% increase in sum used for repurchases in the last few years. ");
                 return 1;

@@ -1,9 +1,9 @@
 package com.testehan.finana.service.reporting.calc.negatives;
 
-import com.testehan.finana.model.FerolReportItem;
+import com.testehan.finana.model.ReportItem;
 import com.testehan.finana.model.RevenueGeographicSegmentationReport;
 import com.testehan.finana.repository.RevenueGeographicSegmentationRepository;
-import com.testehan.finana.service.reporting.FerolSseService;
+import com.testehan.finana.service.reporting.ChecklistSseService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -19,14 +19,14 @@ public class CurrencyRiskCalculator {
     private static final Logger LOGGER = LoggerFactory.getLogger(CurrencyRiskCalculator.class);
 
     private final RevenueGeographicSegmentationRepository revenueGeographicSegmentationRepository;
-    private final FerolSseService ferolSseService;
+    private final ChecklistSseService ferolSseService;
 
-    public CurrencyRiskCalculator(RevenueGeographicSegmentationRepository revenueGeographicSegmentationRepository, FerolSseService ferolSseService) {
+    public CurrencyRiskCalculator(RevenueGeographicSegmentationRepository revenueGeographicSegmentationRepository, ChecklistSseService ferolSseService) {
         this.revenueGeographicSegmentationRepository = revenueGeographicSegmentationRepository;
         this.ferolSseService = ferolSseService;
     }
 
-    public FerolReportItem calculate(String ticker, SseEmitter sseEmitter) {
+    public ReportItem calculate(String ticker, SseEmitter sseEmitter) {
         var revenueGeographyOptional = revenueGeographicSegmentationRepository.findBySymbol(ticker);
 
         if (revenueGeographyOptional.isPresent() && Objects.nonNull(revenueGeographyOptional.get().getReports())
@@ -48,7 +48,7 @@ public class CurrencyRiskCalculator {
             ferolSseService.sendSseErrorEvent(sseEmitter, errorMessage);
         }
 
-        return new FerolReportItem("currencyRisk", -10, "Something went wrong and score could not be calculated ");
+        return new ReportItem("currencyRisk", -10, "Something went wrong and score could not be calculated ");
 
 
     }
@@ -59,7 +59,7 @@ public class CurrencyRiskCalculator {
      * > 50% Foreign -> -1
      * <= 50% Foreign -> 0
      */
-    public FerolReportItem calculateAverageCurrencyRisk(List<RevenueGeographicSegmentationReport> reports) {
+    public ReportItem calculateAverageCurrencyRisk(List<RevenueGeographicSegmentationReport> reports) {
 
         // 2. Select the last 5 years (or fewer if data is missing)
         int yearsToCalculate = Math.min(reports.size(), 5);
@@ -86,7 +86,7 @@ public class CurrencyRiskCalculator {
                     }
                 }
             } else {
-                return new FerolReportItem("currencyRisk", -2, "The company gets revenue from these areas: " + String.join(", ", segments.keySet()));
+                return new ReportItem("currencyRisk", -2, "The company gets revenue from these areas: " + String.join(", ", segments.keySet()));
             }
 
             if (totalRevenue.equals(BigDecimal.ZERO)) continue;
@@ -109,7 +109,7 @@ public class CurrencyRiskCalculator {
             averageCurrencyRiskScore = 0;
         }
 
-        return new FerolReportItem("currencyRisk", averageCurrencyRiskScore, "Over the last " + yearsToCalculate + " years the sum of foreign revenue % of total revenue is " + sumForeignPercentage * 100 + "% . This means an average of " + averageForeignPct * 100 + "% per year");
+        return new ReportItem("currencyRisk", averageCurrencyRiskScore, "Over the last " + yearsToCalculate + " years the sum of foreign revenue % of total revenue is " + sumForeignPercentage * 100 + "% . This means an average of " + averageForeignPct * 100 + "% per year");
     }
 
     private String identifyDomesticKey(Map<String, String> segments) {

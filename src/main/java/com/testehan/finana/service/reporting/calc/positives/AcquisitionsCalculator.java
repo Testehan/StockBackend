@@ -1,9 +1,9 @@
 package com.testehan.finana.service.reporting.calc.positives;
 
-import com.testehan.finana.model.FerolReportItem;
+import com.testehan.finana.model.ReportItem;
 import com.testehan.finana.model.IncomeReport;
 import com.testehan.finana.repository.IncomeStatementRepository;
-import com.testehan.finana.service.reporting.FerolSseService;
+import com.testehan.finana.service.reporting.ChecklistSseService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -20,14 +20,14 @@ public class AcquisitionsCalculator {
     private static final Logger LOGGER = LoggerFactory.getLogger(AcquisitionsCalculator.class);
 
     private final IncomeStatementRepository incomeStatementRepository;
-    private final FerolSseService ferolSseService;
+    private final ChecklistSseService ferolSseService;
 
-    public AcquisitionsCalculator(IncomeStatementRepository incomeStatementRepository, FerolSseService ferolSseService) {
+    public AcquisitionsCalculator(IncomeStatementRepository incomeStatementRepository, ChecklistSseService ferolSseService) {
         this.incomeStatementRepository = incomeStatementRepository;
         this.ferolSseService = ferolSseService;
     }
 
-    public FerolReportItem calculate(String ticker, SseEmitter sseEmitter) {
+    public ReportItem calculate(String ticker, SseEmitter sseEmitter) {
         var incomeDataOptional = incomeStatementRepository.findBySymbol(ticker);
         if (incomeDataOptional.isPresent()){
             var incomeData = incomeDataOptional.get();
@@ -91,7 +91,7 @@ public class AcquisitionsCalculator {
             // Calculate Score (0-5)
             int score = calculateAquisitionScore(finalAverage);
 
-            return new FerolReportItem("customerAcquisition", score, "The average weighted (last year has highest weight) S&M % of Gross Profit for last 3 years is " + finalAverage.toPlainString() + "%");
+            return new ReportItem("customerAcquisition", score, "The average weighted (last year has highest weight) S&M % of Gross Profit for last 3 years is " + finalAverage.toPlainString() + "%");
 
         } else {
             String errorMessage = "Operation 'calculateAcquisitions' failed.";
@@ -99,7 +99,7 @@ public class AcquisitionsCalculator {
             ferolSseService.sendSseErrorEvent(sseEmitter, errorMessage);
         }
 
-        return new FerolReportItem("customerAcquisition", -10, "Something went wrong and score could not be calculated ");
+        return new ReportItem("customerAcquisition", -10, "Something went wrong and score could not be calculated ");
     }
 
     private int calculateAquisitionScore(BigDecimal percentage) {

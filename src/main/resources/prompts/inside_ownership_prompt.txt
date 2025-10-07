@@ -29,9 +29,8 @@ Based on the *real* economic ownership (Total Class A + Class B), assign a score
 0 points: <1% ownership. (Hired management, little personal risk).
 
 === Output Format ===
-Please present your analysis in the following format:
+Your analysis must contain:
 **Inside Ownership Score:** [Score]/3
-**Data Source Used:** [Yahoo OR Proxy Statement]
-**Analysis:** [Briefly explain if you found a dual-class structure. For example: "Yahoo shows 0.7%, but the Proxy Statement reveals CEO Jeff Green owns Class B shares representing ~10% of the company."]
+**Analysis:** [Provide the source used, Yahoo OR Proxy Statement, and briefly explain if you found a dual-class structure. For example: "Yahoo shows 0.7%, but the Proxy Statement reveals CEO Jeff Green owns Class B shares representing ~10% of the company."]
 
 {format}

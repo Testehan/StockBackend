@@ -7,7 +7,7 @@ import com.testehan.finana.repository.EarningsEstimatesRepository;
 import com.testehan.finana.repository.IncomeStatementRepository;
 import com.testehan.finana.repository.SecFilingRepository;
 import com.testehan.finana.service.LlmService;
-import com.testehan.finana.service.reporting.FerolSseService;
+import com.testehan.finana.service.reporting.ChecklistSseService;
 import com.testehan.finana.util.SafeParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,14 +34,14 @@ public class OperatingLeverageCalculator {
     private final EarningsEstimatesRepository earningsEstimatesRepository;
     private final SecFilingRepository secFilingRepository;
     private final LlmService llmService;
-    private final FerolSseService ferolSseService;
+    private final ChecklistSseService ferolSseService;
 
     private final SafeParser safeParser;
 
     @Value("classpath:/prompts/operating_leverage_prompt.txt")
     private Resource operatingLeveragePrompt;
 
-    public OperatingLeverageCalculator(CompanyOverviewRepository companyOverviewRepository, IncomeStatementRepository incomeStatementRepository, EarningsEstimatesRepository earningsEstimatesRepository, SecFilingRepository secFilingRepository, LlmService llmService, FerolSseService ferolSseService, SafeParser safeParser) {
+    public OperatingLeverageCalculator(CompanyOverviewRepository companyOverviewRepository, IncomeStatementRepository incomeStatementRepository, EarningsEstimatesRepository earningsEstimatesRepository, SecFilingRepository secFilingRepository, LlmService llmService, ChecklistSseService ferolSseService, SafeParser safeParser) {
         this.companyOverviewRepository = companyOverviewRepository;
         this.incomeStatementRepository = incomeStatementRepository;
         this.earningsEstimatesRepository = earningsEstimatesRepository;
@@ -51,7 +51,7 @@ public class OperatingLeverageCalculator {
         this.safeParser = safeParser;
     }
 
-    public FerolReportItem calculate(String ticker, SseEmitter sseEmitter) {
+    public ReportItem calculate(String ticker, SseEmitter sseEmitter) {
         Optional<CompanyOverview> companyOverview = companyOverviewRepository.findBySymbol(ticker);
         Optional<SecFiling> secFilingData = secFilingRepository.findBySymbol(ticker);
 
@@ -97,12 +97,12 @@ public class OperatingLeverageCalculator {
             ferolSseService.sendSseEvent(sseEmitter, "Received LLM response for operating leverage analysis.");
             FerolLlmResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
 
-            return new FerolReportItem("operatingLeverage", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
+            return new ReportItem("operatingLeverage", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
         } catch (Exception e) {
             String errorMessage = "Operation 'calculateOperatingLeverage' failed.";
             LOGGER.error(errorMessage, e);
             ferolSseService.sendSseErrorEvent(sseEmitter, errorMessage);
-            return new FerolReportItem("operatingLeverage", -10, "Operation 'calculateOperatingLeverage' failed.");
+            return new ReportItem("operatingLeverage", -10, "Operation 'calculateOperatingLeverage' failed.");
         }
     }
 

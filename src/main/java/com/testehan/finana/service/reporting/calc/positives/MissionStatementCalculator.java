@@ -1,13 +1,13 @@
 package com.testehan.finana.service.reporting.calc.positives;
 
 import com.testehan.finana.model.CompanyOverview;
-import com.testehan.finana.model.FerolReportItem;
+import com.testehan.finana.model.ReportItem;
 import com.testehan.finana.model.SecFiling;
 import com.testehan.finana.model.llm.responses.FerolLlmResponse;
 import com.testehan.finana.repository.CompanyOverviewRepository;
 import com.testehan.finana.repository.SecFilingRepository;
 import com.testehan.finana.service.LlmService;
-import com.testehan.finana.service.reporting.FerolSseService;
+import com.testehan.finana.service.reporting.ChecklistSseService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.prompt.Prompt;
@@ -31,21 +31,21 @@ public class MissionStatementCalculator {
     private final CompanyOverviewRepository companyOverviewRepository;
     private final SecFilingRepository secFilingRepository;
     private final LlmService llmService;
-    private final FerolSseService ferolSseService;
+    private final ChecklistSseService ferolSseService;
 
-    public MissionStatementCalculator(CompanyOverviewRepository companyOverviewRepository, SecFilingRepository secFilingRepository, LlmService llmService, FerolSseService ferolSseService) {
+    public MissionStatementCalculator(CompanyOverviewRepository companyOverviewRepository, SecFilingRepository secFilingRepository, LlmService llmService, ChecklistSseService ferolSseService) {
         this.companyOverviewRepository = companyOverviewRepository;
         this.secFilingRepository = secFilingRepository;
         this.llmService = llmService;
         this.ferolSseService = ferolSseService;
     }
 
-    public FerolReportItem calculate(String ticker, SseEmitter sseEmitter) {
+    public ReportItem calculate(String ticker, SseEmitter sseEmitter) {
         Optional<CompanyOverview> companyOverview = companyOverviewRepository.findBySymbol(ticker);
         if (companyOverview.isEmpty()){
             LOGGER.warn("No Company overview found for ticker: {}", ticker);
             ferolSseService.sendSseErrorEvent(sseEmitter, "No Company overview found for ticker " + ticker);
-            return new FerolReportItem("missionStatement", -10, "Something went wrong and score could not be calculated ");
+            return new ReportItem("missionStatement", -10, "Something went wrong and score could not be calculated ");
         }
         Optional<SecFiling> secFilingData = secFilingRepository.findBySymbol(ticker);
         StringBuilder businessDescription = new StringBuilder();
@@ -82,12 +82,12 @@ public class MissionStatementCalculator {
             ferolSseService.sendSseEvent(sseEmitter, "Received LLM response with mission statement analysis.");
             FerolLlmResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
 
-            return new FerolReportItem("missionStatement", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
+            return new ReportItem("missionStatement", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
         } catch (Exception e) {
             String errorMessage = "Operation 'calculateMissionStatement' failed.";
             LOGGER.error(errorMessage, e);
             ferolSseService.sendSseErrorEvent(sseEmitter, errorMessage);
-            return new FerolReportItem("missionStatement", -10, "Operation 'calculateMissionStatement' failed.");
+            return new ReportItem("missionStatement", -10, "Operation 'calculateMissionStatement' failed.");
         }
     }
 

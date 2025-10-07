@@ -1,10 +1,10 @@
 package com.testehan.finana.service.reporting.calc.positives;
 
 import com.testehan.finana.model.EarningsHistory;
-import com.testehan.finana.model.FerolReportItem;
+import com.testehan.finana.model.ReportItem;
 import com.testehan.finana.model.QuarterlyEarning;
 import com.testehan.finana.repository.EarningsHistoryRepository;
-import com.testehan.finana.service.reporting.FerolSseService;
+import com.testehan.finana.service.reporting.ChecklistSseService;
 import com.testehan.finana.util.SafeParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,16 +23,16 @@ public class EpsCalculator {
     private static final Logger LOGGER = LoggerFactory.getLogger(EpsCalculator.class);
 
     private final EarningsHistoryRepository earningsHistoryRepository;
-    private final FerolSseService ferolSseService;
+    private final ChecklistSseService ferolSseService;
     private final SafeParser safeParser;
 
-    public EpsCalculator(EarningsHistoryRepository earningsHistoryRepository, FerolSseService ferolSseService, SafeParser safeParser) {
+    public EpsCalculator(EarningsHistoryRepository earningsHistoryRepository, ChecklistSseService ferolSseService, SafeParser safeParser) {
         this.earningsHistoryRepository = earningsHistoryRepository;
         this.ferolSseService = ferolSseService;
         this.safeParser = safeParser;
     }
 
-    public FerolReportItem calculate(String ticker, SseEmitter sseEmitter) {
+    public ReportItem calculate(String ticker, SseEmitter sseEmitter) {
         ferolSseService.sendSseEvent(sseEmitter, "Calculating Earnings Per Share (EPS)...");
 
         Optional<EarningsHistory> earningsHistoryOptional = earningsHistoryRepository.findBySymbol(ticker);
@@ -41,7 +41,7 @@ public class EpsCalculator {
                 || earningsHistoryOptional.get().getQuarterlyEarnings().size() < 8) {
             LOGGER.warn("No sufficient earnings history data for EPS calculation for ticker: {}", ticker);
             ferolSseService.sendSseEvent(sseEmitter, "EPS calculation skipped: Insufficient data found.");
-            return new FerolReportItem("earningsPerShare", 0, "Insufficient quarterly earnings history data for EPS calculation (need at least 8 quarters).");
+            return new ReportItem("earningsPerShare", 0, "Insufficient quarterly earnings history data for EPS calculation (need at least 8 quarters).");
         }
 
         List<QuarterlyEarning> quarterlyEarnings = earningsHistoryOptional.get().getQuarterlyEarnings();
@@ -105,6 +105,6 @@ public class EpsCalculator {
             }
         }
         ferolSseService.sendSseEvent(sseEmitter, "EPS calculation complete. Score: " + score);
-        return new FerolReportItem("earningsPerShare", score, detailedExplanation.toString() + explanation);
+        return new ReportItem("earningsPerShare", score, detailedExplanation.toString() + explanation);
     }
 }

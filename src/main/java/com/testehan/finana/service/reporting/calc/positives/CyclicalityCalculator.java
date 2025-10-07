@@ -1,7 +1,7 @@
 package com.testehan.finana.service.reporting.calc.positives;
 
 import com.testehan.finana.model.CompanyOverview;
-import com.testehan.finana.model.FerolReportItem;
+import com.testehan.finana.model.ReportItem;
 import com.testehan.finana.model.FinancialRatiosData;
 import com.testehan.finana.model.IncomeStatementData;
 import com.testehan.finana.model.SecFiling;
@@ -11,7 +11,7 @@ import com.testehan.finana.repository.FinancialRatiosRepository;
 import com.testehan.finana.repository.IncomeStatementRepository;
 import com.testehan.finana.repository.SecFilingRepository;
 import com.testehan.finana.service.LlmService;
-import com.testehan.finana.service.reporting.FerolSseService;
+import com.testehan.finana.service.reporting.ChecklistSseService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.prompt.Prompt;
@@ -38,12 +38,12 @@ public class CyclicalityCalculator {
     private final IncomeStatementRepository incomeStatementRepository;
     private final FinancialRatiosRepository financialRatiosRepository;
     private final LlmService llmService;
-    private final FerolSseService ferolSseService;
+    private final ChecklistSseService ferolSseService;
 
     @Value("classpath:/prompts/customers_cyclicality.txt")
     private Resource companyCyclicalityPrompt;
 
-    public CyclicalityCalculator(CompanyOverviewRepository companyOverviewRepository, SecFilingRepository secFilingRepository, IncomeStatementRepository incomeStatementRepository, FinancialRatiosRepository financialRatiosRepository, LlmService llmService, FerolSseService ferolSseService) {
+    public CyclicalityCalculator(CompanyOverviewRepository companyOverviewRepository, SecFilingRepository secFilingRepository, IncomeStatementRepository incomeStatementRepository, FinancialRatiosRepository financialRatiosRepository, LlmService llmService, ChecklistSseService ferolSseService) {
         this.companyOverviewRepository = companyOverviewRepository;
         this.secFilingRepository = secFilingRepository;
         this.incomeStatementRepository = incomeStatementRepository;
@@ -52,12 +52,12 @@ public class CyclicalityCalculator {
         this.ferolSseService = ferolSseService;
     }
 
-    public FerolReportItem calculate(String ticker, SseEmitter sseEmitter) {
+    public ReportItem calculate(String ticker, SseEmitter sseEmitter) {
         Optional<CompanyOverview> companyOverview = companyOverviewRepository.findBySymbol(ticker);
         if (companyOverview.isEmpty()){
             LOGGER.warn("No Company overview found for ticker: {}", ticker);
             ferolSseService.sendSseErrorEvent(sseEmitter, "No Company overview found for ticker " + ticker);
-            return new FerolReportItem("companyCyclicality", -10, "Something went wrong and score could not be calculated ");
+            return new ReportItem("companyCyclicality", -10, "Something went wrong and score could not be calculated ");
         }
         Optional<SecFiling> secFilingData = secFilingRepository.findBySymbol(ticker);
         StringBuilder riskFactors = new StringBuilder();
@@ -129,12 +129,12 @@ public class CyclicalityCalculator {
             ferolSseService.sendSseEvent(sseEmitter, "Received LLM response for company cyclicality analysis.");
             FerolLlmResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
 
-            return new FerolReportItem("companyCyclicality", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
+            return new ReportItem("companyCyclicality", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
         } catch (Exception e) {
             String errorMessage = "Operation 'calculateCyclicality' failed.";
             LOGGER.error(errorMessage, e);
             ferolSseService.sendSseErrorEvent(sseEmitter, errorMessage);
-            return new FerolReportItem("companyCyclicality", -10, "Operation 'calculateCyclicality' failed.");
+            return new ReportItem("companyCyclicality", -10, "Operation 'calculateCyclicality' failed.");
         }
     }
 }

@@ -3,7 +3,7 @@ package com.testehan.finana.service.reporting.calc.positives;
 import com.testehan.finana.model.BalanceSheetData;
 import com.testehan.finana.model.BalanceSheetReport;
 import com.testehan.finana.model.CompanyOverview;
-import com.testehan.finana.model.FerolReportItem;
+import com.testehan.finana.model.ReportItem;
 import com.testehan.finana.model.RevenueSegmentationData;
 import com.testehan.finana.model.RevenueSegmentationReport;
 import com.testehan.finana.model.SecFiling;
@@ -13,7 +13,7 @@ import com.testehan.finana.repository.CompanyOverviewRepository;
 import com.testehan.finana.repository.RevenueSegmentationDataRepository;
 import com.testehan.finana.repository.SecFilingRepository;
 import com.testehan.finana.service.LlmService;
-import com.testehan.finana.service.reporting.FerolSseService;
+import com.testehan.finana.service.reporting.ChecklistSseService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.prompt.Prompt;
@@ -41,12 +41,12 @@ public class RecurringRevenueCalculator {
     private final RevenueSegmentationDataRepository revenueSegmentationDataRepository;
     private final BalanceSheetRepository balanceSheetRepository;
     private final LlmService llmService;
-    private final FerolSseService ferolSseService;
+    private final ChecklistSseService ferolSseService;
 
     @Value("classpath:/prompts/recurring_revenue_prompt.txt")
     private Resource recurringRevenuePrompt;
 
-    public RecurringRevenueCalculator(CompanyOverviewRepository companyOverviewRepository, SecFilingRepository secFilingRepository, RevenueSegmentationDataRepository revenueSegmentationDataRepository, BalanceSheetRepository balanceSheetRepository, LlmService llmService, FerolSseService ferolSseService) {
+    public RecurringRevenueCalculator(CompanyOverviewRepository companyOverviewRepository, SecFilingRepository secFilingRepository, RevenueSegmentationDataRepository revenueSegmentationDataRepository, BalanceSheetRepository balanceSheetRepository, LlmService llmService, ChecklistSseService ferolSseService) {
         this.companyOverviewRepository = companyOverviewRepository;
         this.secFilingRepository = secFilingRepository;
         this.revenueSegmentationDataRepository = revenueSegmentationDataRepository;
@@ -55,12 +55,12 @@ public class RecurringRevenueCalculator {
         this.ferolSseService = ferolSseService;
     }
 
-    public FerolReportItem calculate(String ticker, SseEmitter sseEmitter) {
+    public ReportItem calculate(String ticker, SseEmitter sseEmitter) {
         Optional<CompanyOverview> companyOverview = companyOverviewRepository.findBySymbol(ticker);
         if (companyOverview.isEmpty()){
             LOGGER.warn("No Company overview found for ticker: {}", ticker);
             ferolSseService.sendSseErrorEvent(sseEmitter, "No Company overview found for ticker " + ticker);
-            return new FerolReportItem("recurringRevenue", 0, "Something went wrong and score could not be calculated ");
+            return new ReportItem("recurringRevenue", 0, "Something went wrong and score could not be calculated ");
         }
         Optional<SecFiling> secFilingData = secFilingRepository.findBySymbol(ticker);
         StringBuilder businessDescription = new StringBuilder();
@@ -148,12 +148,12 @@ public class RecurringRevenueCalculator {
             ferolSseService.sendSseEvent(sseEmitter, "Received LLM response for recurring revenue analysis.");
             FerolLlmResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
 
-            return new FerolReportItem("recurringRevenue", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
+            return new ReportItem("recurringRevenue", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
         } catch (Exception e) {
             String errorMessage = "Operation 'calculateRecurringRevenue' failed.";
             LOGGER.error(errorMessage, e);
             ferolSseService.sendSseErrorEvent(sseEmitter, errorMessage);
-            return new FerolReportItem("recurringRevenue", -10, "Operation 'calculateRecurringRevenue' failed.");
+            return new ReportItem("recurringRevenue", -10, "Operation 'calculateRecurringRevenue' failed.");
         }
     }
 }

@@ -1,13 +1,13 @@
 package com.testehan.finana.service.reporting.calc.positives;
 
-import com.testehan.finana.model.FerolReportItem;
+import com.testehan.finana.model.ReportItem;
 import com.testehan.finana.model.FinancialRatiosData;
 import com.testehan.finana.model.FinancialRatiosReport;
 import com.testehan.finana.model.IncomeReport;
 import com.testehan.finana.model.IncomeStatementData;
 import com.testehan.finana.repository.FinancialRatiosRepository;
 import com.testehan.finana.repository.IncomeStatementRepository;
-import com.testehan.finana.service.reporting.FerolSseService;
+import com.testehan.finana.service.reporting.ChecklistSseService;
 import com.testehan.finana.util.SafeParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,17 +28,17 @@ public class FcfCalculator {
 
     private final FinancialRatiosRepository financialRatiosRepository;
     private final IncomeStatementRepository incomeStatementRepository;
-    private final FerolSseService ferolSseService;
+    private final ChecklistSseService ferolSseService;
     private final SafeParser safeParser;
 
-    public FcfCalculator(FinancialRatiosRepository financialRatiosRepository, IncomeStatementRepository incomeStatementRepository, FerolSseService ferolSseService, SafeParser safeParser) {
+    public FcfCalculator(FinancialRatiosRepository financialRatiosRepository, IncomeStatementRepository incomeStatementRepository, ChecklistSseService ferolSseService, SafeParser safeParser) {
         this.financialRatiosRepository = financialRatiosRepository;
         this.incomeStatementRepository = incomeStatementRepository;
         this.ferolSseService = ferolSseService;
         this.safeParser = safeParser;
     }
 
-    public FerolReportItem calculate(String ticker, SseEmitter sseEmitter) {
+    public ReportItem calculate(String ticker, SseEmitter sseEmitter) {
         ferolSseService.sendSseEvent(sseEmitter, "Calculating Free Cash Flow (FCF)...");
 
         Optional<FinancialRatiosData> financialRatiosDataOptional = financialRatiosRepository.findBySymbol(ticker);
@@ -48,7 +48,7 @@ public class FcfCalculator {
             incomeStatementDataOptional.isEmpty() || incomeStatementDataOptional.get().getAnnualReports().isEmpty()) {
             LOGGER.warn("No sufficient annual data for FCF calculation for ticker: {}", ticker);
             ferolSseService.sendSseEvent(sseEmitter, "FCF calculation skipped: Insufficient annual data found.");
-            return new FerolReportItem("freeCashFlow", 0, "Insufficient annual data for Free Cash Flow calculation.");
+            return new ReportItem("freeCashFlow", 0, "Insufficient annual data for Free Cash Flow calculation.");
         }
 
         List<FinancialRatiosReport> annualFinancialRatiosReports = financialRatiosDataOptional.get().getAnnualReports();
@@ -61,7 +61,7 @@ public class FcfCalculator {
         if (annualFinancialRatiosReports.size() < 2 || annualIncomeReports.size() < 2) {
             LOGGER.warn("Less than two years of annual data for FCF calculation for ticker: {}", ticker);
             ferolSseService.sendSseEvent(sseEmitter, "FCF calculation skipped: Less than two years of annual data found.");
-            return new FerolReportItem("freeCashFlow", 0, "Less than two years of annual data for Free Cash Flow calculation.");
+            return new ReportItem("freeCashFlow", 0, "Less than two years of annual data for Free Cash Flow calculation.");
         }
 
         FinancialRatiosReport currentYearFinancialRatiosReport = annualFinancialRatiosReports.get(0);
@@ -106,7 +106,7 @@ public class FcfCalculator {
 
         if (currentYearAdjustedFcf.compareTo(BigDecimal.ZERO) == 0) {
             ferolSseService.sendSseEvent(sseEmitter, "FCF calculation partially skipped: Current year adjusted FCF is zero.");
-            return new FerolReportItem("freeCashFlow", 0, "Current year adjusted FCF is zero. Cannot assess growth.");
+            return new ReportItem("freeCashFlow", 0, "Current year adjusted FCF is zero. Cannot assess growth.");
         }
 
 
@@ -164,6 +164,6 @@ public class FcfCalculator {
             }
         }
         ferolSseService.sendSseEvent(sseEmitter, "FCF calculation complete. Score: " + score);
-        return new FerolReportItem("freeCashFlow", score, detailedExplanation.toString() + explanation);
+        return new ReportItem("freeCashFlow", score, detailedExplanation.toString() + explanation);
     }
 }

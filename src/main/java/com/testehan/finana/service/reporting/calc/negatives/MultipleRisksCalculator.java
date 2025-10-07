@@ -6,7 +6,7 @@ import com.testehan.finana.model.llm.responses.FerolNegativesAnalysisLlmResponse
 import com.testehan.finana.repository.CompanyOverviewRepository;
 import com.testehan.finana.repository.SecFilingRepository;
 import com.testehan.finana.service.LlmService;
-import com.testehan.finana.service.reporting.FerolSseService;
+import com.testehan.finana.service.reporting.ChecklistSseService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.prompt.Prompt;
@@ -26,12 +26,12 @@ public class MultipleRisksCalculator {
     private final CompanyOverviewRepository companyOverviewRepository;
     private final SecFilingRepository secFilingRepository;
     private final LlmService llmService;
-    private final FerolSseService ferolSseService;
+    private final ChecklistSseService ferolSseService;
 
     @Value("classpath:/prompts/negatives_prompt.txt")
     private Resource multipleNegativesPrompt;
 
-    public MultipleRisksCalculator(CompanyOverviewRepository companyOverviewRepository, SecFilingRepository secFilingRepository, LlmService llmService, FerolSseService ferolSseService) {
+    public MultipleRisksCalculator(CompanyOverviewRepository companyOverviewRepository, SecFilingRepository secFilingRepository, LlmService llmService, ChecklistSseService ferolSseService) {
         this.companyOverviewRepository = companyOverviewRepository;
         this.secFilingRepository = secFilingRepository;
         this.llmService = llmService;

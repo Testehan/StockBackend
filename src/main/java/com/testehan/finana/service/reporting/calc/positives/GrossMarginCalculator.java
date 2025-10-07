@@ -1,10 +1,10 @@
 package com.testehan.finana.service.reporting.calc.positives;
 
-import com.testehan.finana.model.FerolReportItem;
+import com.testehan.finana.model.ReportItem;
 import com.testehan.finana.model.FinancialRatiosData;
 import com.testehan.finana.model.FinancialRatiosReport;
 import com.testehan.finana.repository.FinancialRatiosRepository;
-import com.testehan.finana.service.reporting.FerolSseService;
+import com.testehan.finana.service.reporting.ChecklistSseService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -21,21 +21,21 @@ public class GrossMarginCalculator {
     private static final Logger LOGGER = LoggerFactory.getLogger(GrossMarginCalculator.class);
 
     private final FinancialRatiosRepository financialRatiosRepository;
-    private final FerolSseService ferolSseService;
+    private final ChecklistSseService ferolSseService;
 
-    public GrossMarginCalculator(FinancialRatiosRepository financialRatiosRepository, FerolSseService ferolSseService) {
+    public GrossMarginCalculator(FinancialRatiosRepository financialRatiosRepository, ChecklistSseService ferolSseService) {
         this.financialRatiosRepository = financialRatiosRepository;
         this.ferolSseService = ferolSseService;
     }
 
-    public FerolReportItem calculate(String ticker, SseEmitter sseEmitter) {
+    public ReportItem calculate(String ticker, SseEmitter sseEmitter) {
         ferolSseService.sendSseEvent(sseEmitter, "Calculating Gross Margin...");
         Optional<FinancialRatiosData> financialRatiosData = financialRatiosRepository.findBySymbol(ticker);
 
         if (financialRatiosData.isEmpty() || financialRatiosData.get().getQuarterlyReports().isEmpty()) {
             LOGGER.warn("No financial ratios data found for ticker: {}", ticker);
             ferolSseService.sendSseEvent(sseEmitter, "Gross Margin calculation skipped: No data found.");
-            return new FerolReportItem("grossMargin", 0, "No quarterly financial ratios data available.");
+            return new ReportItem("grossMargin", 0, "No quarterly financial ratios data available.");
         }
 
         List<FinancialRatiosReport> quarterlyReports = financialRatiosData.get().getQuarterlyReports().stream()
@@ -59,7 +59,7 @@ public class GrossMarginCalculator {
 
         if (count == 0) {
             ferolSseService.sendSseEvent(sseEmitter, "Gross Margin calculation skipped: No gross profit margin data found in available reports.");
-            return new FerolReportItem("grossMargin", 0, "No gross profit margin data available in the last " + quarterlyReports.size() + " quarterly reports.");
+            return new ReportItem("grossMargin", 0, "No gross profit margin data available in the last " + quarterlyReports.size() + " quarterly reports.");
         }
 
         BigDecimal averageGrossProfitMargin = sumGrossProfitMargin.divide(BigDecimal.valueOf(count), 2, BigDecimal.ROUND_HALF_UP);
@@ -79,6 +79,6 @@ public class GrossMarginCalculator {
             explanation = "Average Gross Margin is greater than 80% (" + averageGrossProfitMargin.multiply(BigDecimal.valueOf(100)).toPlainString() + "%), indicating very strong profitability.";
         }
 
-        return new FerolReportItem("grossMargin", score, explanation);
+        return new ReportItem("grossMargin", score, explanation);
     }
 }

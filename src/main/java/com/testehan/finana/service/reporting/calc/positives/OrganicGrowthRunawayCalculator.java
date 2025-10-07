@@ -4,7 +4,7 @@ import com.testehan.finana.model.*;
 import com.testehan.finana.model.llm.responses.FerolLlmResponse;
 import com.testehan.finana.repository.*;
 import com.testehan.finana.service.LlmService;
-import com.testehan.finana.service.reporting.FerolSseService;
+import com.testehan.finana.service.reporting.ChecklistSseService;
 import com.testehan.finana.util.SafeParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,7 +32,7 @@ public class OrganicGrowthRunawayCalculator {
     private final FinancialRatiosRepository financialRatiosRepository;
 
     private final LlmService llmService;
-    private final FerolSseService ferolSseService;
+    private final ChecklistSseService ferolSseService;
     private final OptionalityCalculator optionalityCalculator;
     private final SafeParser safeParser;
 
@@ -40,7 +40,7 @@ public class OrganicGrowthRunawayCalculator {
     @Value("classpath:/prompts/organic_growth_runaway_prompt.txt")
     private Resource organicGrowthPrompt;
 
-    public OrganicGrowthRunawayCalculator(CompanyOverviewRepository companyOverviewRepository, SecFilingRepository secFilingRepository, IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository, FinancialRatiosRepository financialRatiosRepository, LlmService llmService, FerolSseService ferolSseService, OptionalityCalculator optionalityCalculator, SafeParser safeParser) {
+    public OrganicGrowthRunawayCalculator(CompanyOverviewRepository companyOverviewRepository, SecFilingRepository secFilingRepository, IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository, FinancialRatiosRepository financialRatiosRepository, LlmService llmService, ChecklistSseService ferolSseService, OptionalityCalculator optionalityCalculator, SafeParser safeParser) {
         this.companyOverviewRepository = companyOverviewRepository;
         this.secFilingRepository = secFilingRepository;
         this.incomeStatementRepository = incomeStatementRepository;
@@ -51,7 +51,7 @@ public class OrganicGrowthRunawayCalculator {
         this.safeParser = safeParser;
     }
 
-    public FerolReportItem calculate(String ticker, SseEmitter sseEmitter) {
+    public ReportItem calculate(String ticker, SseEmitter sseEmitter) {
         Optional<SecFiling> secFilingData = secFilingRepository.findBySymbol(ticker);
 
         BigDecimal revenueCAGRPerShare = calculateRevenueCAGRPerShare(ticker);
@@ -94,12 +94,12 @@ public class OrganicGrowthRunawayCalculator {
             ferolSseService.sendSseEvent(sseEmitter, "Received LLM response for organic growth runaway analysis.");
             FerolLlmResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
 
-            return new FerolReportItem("organicGrowthRunway", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
+            return new ReportItem("organicGrowthRunway", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
         } catch (Exception e) {
             String errorMessage = "Operation 'calculateOrganicGrowthRunaway' failed.";
             LOGGER.error(errorMessage, e);
             ferolSseService.sendSseErrorEvent(sseEmitter, errorMessage);
-            return new FerolReportItem("organicGrowthRunway", -10, "Operation 'calculateOrganicGrowthRunaway' failed.");
+            return new ReportItem("organicGrowthRunway", -10, "Operation 'calculateOrganicGrowthRunaway' failed.");
         }
     }
 

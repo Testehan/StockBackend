@@ -1,7 +1,7 @@
 package com.testehan.finana.service.reporting.calc.positives;
 
 import com.testehan.finana.model.CompanyOverview;
-import com.testehan.finana.model.FerolReportItem;
+import com.testehan.finana.model.ReportItem;
 import com.testehan.finana.model.FinancialRatiosData;
 import com.testehan.finana.model.IncomeReport;
 import com.testehan.finana.model.IncomeStatementData;
@@ -13,7 +13,7 @@ import com.testehan.finana.repository.IncomeStatementRepository;
 import com.testehan.finana.repository.SecFilingRepository;
 import com.testehan.finana.service.FinancialDataService;
 import com.testehan.finana.service.LlmService;
-import com.testehan.finana.service.reporting.FerolSseService;
+import com.testehan.finana.service.reporting.ChecklistSseService;
 import com.testehan.finana.util.DateUtils;
 import com.testehan.finana.util.SafeParser;
 import org.jetbrains.annotations.NotNull;
@@ -47,7 +47,7 @@ public class OptionalityCalculator {
     private final FinancialRatiosRepository financialRatiosRepository;
 
     private final LlmService llmService;
-    private final FerolSseService ferolSseService;
+    private final ChecklistSseService ferolSseService;
     private final SafeParser safeParser;
     private final DateUtils dateUtils;
     private final FinancialDataService financialDataService;
@@ -56,7 +56,7 @@ public class OptionalityCalculator {
     @Value("classpath:/prompts/optionality_prompt.txt")
     private Resource optionalityPrompt;
 
-    public OptionalityCalculator(CompanyOverviewRepository companyOverviewRepository, IncomeStatementRepository incomeStatementRepository, SecFilingRepository secFilingRepository, FinancialRatiosRepository financialRatiosRepository, LlmService llmService, FerolSseService ferolSseService, SafeParser safeParser, DateUtils dateUtils, FinancialDataService financialDataService) {
+    public OptionalityCalculator(CompanyOverviewRepository companyOverviewRepository, IncomeStatementRepository incomeStatementRepository, SecFilingRepository secFilingRepository, FinancialRatiosRepository financialRatiosRepository, LlmService llmService, ChecklistSseService ferolSseService, SafeParser safeParser, DateUtils dateUtils, FinancialDataService financialDataService) {
         this.companyOverviewRepository = companyOverviewRepository;
         this.incomeStatementRepository = incomeStatementRepository;
         this.secFilingRepository = secFilingRepository;
@@ -68,7 +68,7 @@ public class OptionalityCalculator {
         this.financialDataService = financialDataService;
     }
 
-    public FerolReportItem calculate(String ticker, SseEmitter sseEmitter) {
+    public ReportItem calculate(String ticker, SseEmitter sseEmitter) {
         Optional<CompanyOverview> companyOverview = companyOverviewRepository.findBySymbol(ticker);
         Optional<IncomeStatementData> incomeStatementData = incomeStatementRepository.findBySymbol(ticker);
         Optional<SecFiling> secFilingData = secFilingRepository.findBySymbol(ticker);
@@ -175,12 +175,12 @@ public class OptionalityCalculator {
             ferolSseService.sendSseEvent(sseEmitter, "Received LLM response for optionality analysis.");
             FerolLlmResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
 
-            return new FerolReportItem("optionality", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
+            return new ReportItem("optionality", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
         } catch (Exception e) {
             String errorMessage = "Operation 'calculateOptionality' failed.";
             LOGGER.error(errorMessage, e);
             ferolSseService.sendSseErrorEvent(sseEmitter, errorMessage);
-            return new FerolReportItem("optionality", -10, "Operation 'calculateOptionality' failed.");
+            return new ReportItem("optionality", -10, "Operation 'calculateOptionality' failed.");
         }
     }
 

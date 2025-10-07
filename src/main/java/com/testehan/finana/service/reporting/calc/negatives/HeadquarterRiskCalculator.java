@@ -1,8 +1,8 @@
 package com.testehan.finana.service.reporting.calc.negatives;
 
-import com.testehan.finana.model.FerolReportItem;
+import com.testehan.finana.model.ReportItem;
 import com.testehan.finana.repository.CompanyOverviewRepository;
-import com.testehan.finana.service.reporting.FerolSseService;
+import com.testehan.finana.service.reporting.ChecklistSseService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -17,14 +17,14 @@ public class HeadquarterRiskCalculator {
     private static final Logger LOGGER = LoggerFactory.getLogger(HeadquarterRiskCalculator.class);
 
     private final CompanyOverviewRepository companyOverviewRepository;
-    private final FerolSseService ferolSseService;
+    private final ChecklistSseService ferolSseService;
 
-    public HeadquarterRiskCalculator(CompanyOverviewRepository companyOverviewRepository, FerolSseService ferolSseService) {
+    public HeadquarterRiskCalculator(CompanyOverviewRepository companyOverviewRepository, ChecklistSseService ferolSseService) {
         this.companyOverviewRepository = companyOverviewRepository;
         this.ferolSseService = ferolSseService;
     }
 
-    public FerolReportItem calculate(String ticker, SseEmitter sseEmitter) {
+    public ReportItem calculate(String ticker, SseEmitter sseEmitter) {
         var companyOverviewOptional = companyOverviewRepository.findBySymbol(ticker);
 
         if (companyOverviewOptional.isPresent() && !Objects.isNull(companyOverviewOptional.get().getCountry()))
@@ -39,21 +39,21 @@ public class HeadquarterRiskCalculator {
             ferolSseService.sendSseErrorEvent(sseEmitter, errorMessage);
         }
 
-        return new FerolReportItem("headquarters", -10, "Something went wrong and score could not be calculated ");
+        return new ReportItem("headquarters", -10, "Something went wrong and score could not be calculated ");
 
 
     }
 
-    private FerolReportItem identifyDomesticKey(String companyCountry) {
+    private ReportItem identifyDomesticKey(String companyCountry) {
         List<String> noHeadquartersRisk = Arrays.asList("United States", "USA", "U.S.", "United States of America", "US",
                 "Australia", "Canada", "Germany", "Netherlands", "Singapore", "SG", "Switzerland", "Denmark", "Norway",
                 "Sweden", "Liechtenstein", "Luxembourg");
 
         // TODO for now, i only care mostly about US stocks..
         if (containsIgnoreCase(companyCountry, noHeadquartersRisk)) {
-            return new FerolReportItem("headquarters", 0, "Headquarters are located in " + companyCountry);
+            return new ReportItem("headquarters", 0, "Headquarters are located in " + companyCountry);
         } else {
-            return new FerolReportItem("headquarters", -3, "Headquarters are located in " + companyCountry);
+            return new ReportItem("headquarters", -3, "Headquarters are located in " + companyCountry);
         }
     }
 

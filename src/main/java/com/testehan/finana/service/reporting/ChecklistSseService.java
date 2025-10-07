@@ -6,8 +6,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @Service
-public class FerolSseService {
-    private static final Logger LOGGER = LoggerFactory.getLogger(FerolSseService.class);
+public class ChecklistSseService {
+    private static final Logger LOGGER = LoggerFactory.getLogger(ChecklistSseService.class);
 
     public void sendSseEvent(SseEmitter sseEmitter, String message) {
         try {

@@ -8,7 +8,7 @@ import java.math.RoundingMode;
 
 @Component
 public class FinancialRatiosCalculator {
-
+// todo add PEG ratio
     private final SafeParser safeParser = new SafeParser();
 // TODO if you compare some of the numbers resulted from the calculator with other apps, you will see differences...so
     // maybe there are some mistakes... you can get key metrics and ratios directly from FMP but it is only anual data..

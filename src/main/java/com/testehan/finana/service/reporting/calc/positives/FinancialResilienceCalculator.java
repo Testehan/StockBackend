@@ -2,14 +2,14 @@ package com.testehan.finana.service.reporting.calc.positives;
 
 import com.testehan.finana.model.BalanceSheetData;
 import com.testehan.finana.model.BalanceSheetReport;
-import com.testehan.finana.model.FerolReportItem;
+import com.testehan.finana.model.ReportItem;
 import com.testehan.finana.model.IncomeReport;
 import com.testehan.finana.model.IncomeStatementData;
 import com.testehan.finana.model.llm.responses.FerolLlmResponse;
 import com.testehan.finana.repository.BalanceSheetRepository;
 import com.testehan.finana.repository.IncomeStatementRepository;
 import com.testehan.finana.service.LlmService;
-import com.testehan.finana.service.reporting.FerolSseService;
+import com.testehan.finana.service.reporting.ChecklistSseService;
 import com.testehan.finana.util.SafeParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,13 +36,13 @@ public class FinancialResilienceCalculator {
     private final IncomeStatementRepository incomeStatementRepository;
     private final BalanceSheetRepository balanceSheetRepository;
     private final LlmService llmService;
-    private final FerolSseService ferolSseService;
+    private final ChecklistSseService ferolSseService;
     private final SafeParser safeParser;
 
     @Value("classpath:/prompts/financial_resilience_prompt.txt")
     private Resource financialResiliencePrompt;
 
-    public FinancialResilienceCalculator(IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository, LlmService llmService, FerolSseService ferolSseService, SafeParser safeParser) {
+    public FinancialResilienceCalculator(IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository, LlmService llmService, ChecklistSseService ferolSseService, SafeParser safeParser) {
         this.incomeStatementRepository = incomeStatementRepository;
         this.balanceSheetRepository = balanceSheetRepository;
         this.llmService = llmService;
@@ -50,7 +50,7 @@ public class FinancialResilienceCalculator {
         this.safeParser = safeParser;
     }
 
-    public FerolReportItem calculate(String ticker, SseEmitter sseEmitter) {
+    public ReportItem calculate(String ticker, SseEmitter sseEmitter) {
         Optional<IncomeStatementData> incomeStatementData = incomeStatementRepository.findBySymbol(ticker);
         Optional<BalanceSheetData> balanceSheetData = balanceSheetRepository.findBySymbol(ticker);
 
@@ -107,12 +107,12 @@ public class FinancialResilienceCalculator {
             ferolSseService.sendSseEvent(sseEmitter, "Received LLM response for resilience analysis.");
             FerolLlmResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
 
-            return new FerolReportItem("financialResilience", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
+            return new ReportItem("financialResilience", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
         } catch (Exception e) {
             String errorMessage = "Operation 'calculateFinancialResilience' failed.";
             LOGGER.error(errorMessage, e);
             ferolSseService.sendSseErrorEvent(sseEmitter, errorMessage);
-            return new FerolReportItem("financialResilience", -10, "Operation 'calculateFinancialResilience' failed.");
+            return new ReportItem("financialResilience", -10, "Operation 'calculateFinancialResilience' failed.");
         }
     }
 }

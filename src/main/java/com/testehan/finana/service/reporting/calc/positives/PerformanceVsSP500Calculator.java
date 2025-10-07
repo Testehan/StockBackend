@@ -1,10 +1,10 @@
 package com.testehan.finana.service.reporting.calc.positives;
 
-import com.testehan.finana.model.FerolReportItem;
+import com.testehan.finana.model.ReportItem;
 import com.testehan.finana.model.GlobalQuote;
 import com.testehan.finana.model.IndexData;
 import com.testehan.finana.service.FinancialDataService;
-import com.testehan.finana.service.reporting.FerolSseService;
+import com.testehan.finana.service.reporting.ChecklistSseService;
 import com.testehan.finana.util.SafeParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,22 +23,22 @@ public class PerformanceVsSP500Calculator {
 
     public static final String S_P_500 = "^GSPC";
     private final FinancialDataService financialDataService;
-    private final FerolSseService ferolSseService;
+    private final ChecklistSseService ferolSseService;
 
     @Autowired
-    public PerformanceVsSP500Calculator(FinancialDataService financialDataService, FerolSseService ferolSseService) {
+    public PerformanceVsSP500Calculator(FinancialDataService financialDataService, ChecklistSseService ferolSseService) {
         this.financialDataService = financialDataService;
         this.ferolSseService = ferolSseService;
     }
 
-    public FerolReportItem calculateUpsidePerformance(String ticker, SseEmitter sseEmitter) {
+    public ReportItem calculateUpsidePerformance(String ticker, SseEmitter sseEmitter) {
         Optional<GlobalQuote> startStockQuoteOpt = financialDataService.getFirstStockQuote(ticker);
         Optional<GlobalQuote> endStockQuoteOpt = financialDataService.getLastStockQuote(ticker).blockOptional();
 
         if (startStockQuoteOpt.isEmpty() || endStockQuoteOpt.isEmpty()) {
             ferolSseService.sendSseErrorEvent(sseEmitter, "Stock price data not available.");
             LOGGER.error("Stock price data not available for ticker {}",ticker);
-            return new FerolReportItem("performanceVsIndex", 0, "Stock price data not available.");
+            return new ReportItem("performanceVsIndex", 0, "Stock price data not available.");
         }
 
         LocalDate stockStartDate = LocalDate.parse(startStockQuoteOpt.get().getDate());
@@ -50,7 +50,7 @@ public class PerformanceVsSP500Calculator {
         if (startIndexQuoteOpt.isEmpty() || endIndexQuoteOpt.isEmpty()) {
             ferolSseService.sendSseErrorEvent(sseEmitter, "S&P 500 price data for the corresponding period not available.");
             LOGGER.error("S&P 500 price data for the corresponding period not available.");
-            return new FerolReportItem("performanceVsIndex", 0, "S&P 500 price data for the corresponding period not available.");
+            return new ReportItem("performanceVsIndex", 0, "S&P 500 price data for the corresponding period not available.");
         }
 
         Double stockStartPrice = SafeParser.tryParseDouble(startStockQuoteOpt.get().getAdjClose());
@@ -61,7 +61,7 @@ public class PerformanceVsSP500Calculator {
         if (stockStartPrice == null || stockEndPrice == null || indexStartPrice == null || indexEndPrice == null || stockStartPrice == 0 || indexStartPrice == 0) {
             ferolSseService.sendSseErrorEvent(sseEmitter, "Could not parse price data.");
             LOGGER.error("Could not parse price data.");
-            return new FerolReportItem("performanceVsIndex", 0, "Could not parse price data.");
+            return new ReportItem("performanceVsIndex", 0, "Could not parse price data.");
         }
 
         double stockPerformance = (stockEndPrice - stockStartPrice) / stockStartPrice;
@@ -78,17 +78,17 @@ public class PerformanceVsSP500Calculator {
         String comment = String.format("Over a period of %d days, stock performance: %.2f%%, S&P 500 performance: %.2f%%. Difference: %.2f%%.",
                 days, stockPerformance * 100, indexPerformance * 100, performanceDifference * 100);
 
-        return new FerolReportItem("performanceVsIndex", score, comment);
+        return new ReportItem("performanceVsIndex", score, comment);
     }
 
-    public FerolReportItem calculateDownsidePerformance(String ticker, SseEmitter sseEmitter) {
+    public ReportItem calculateDownsidePerformance(String ticker, SseEmitter sseEmitter) {
         Optional<GlobalQuote> startStockQuoteOpt = financialDataService.getFirstStockQuote(ticker);
         Optional<GlobalQuote> endStockQuoteOpt = financialDataService.getLastStockQuote(ticker).blockOptional();
 
         if (startStockQuoteOpt.isEmpty() || endStockQuoteOpt.isEmpty()) {
             ferolSseService.sendSseErrorEvent(sseEmitter, "Stock price data not available.");
             LOGGER.error("Stock price data not available for ticker {}",ticker);
-            return new FerolReportItem("bigMarketLoser", 0, "Stock price data not available.");
+            return new ReportItem("bigMarketLoser", 0, "Stock price data not available.");
         }
 
         LocalDate stockStartDate = LocalDate.parse(startStockQuoteOpt.get().getDate());
@@ -100,7 +100,7 @@ public class PerformanceVsSP500Calculator {
         if (startIndexQuoteOpt.isEmpty() || endIndexQuoteOpt.isEmpty()) {
             ferolSseService.sendSseErrorEvent(sseEmitter, "S&P 500 price data for the corresponding period not available.");
             LOGGER.error("S&P 500 price data for the corresponding period not available.");
-            return new FerolReportItem("bigMarketLoser", 0, "S&P 500 price data for the corresponding period not available.");
+            return new ReportItem("bigMarketLoser", 0, "S&P 500 price data for the corresponding period not available.");
         }
 
         Double stockStartPrice = SafeParser.tryParseDouble(startStockQuoteOpt.get().getAdjClose());
@@ -111,7 +111,7 @@ public class PerformanceVsSP500Calculator {
         if (stockStartPrice == null || stockEndPrice == null || indexStartPrice == null || indexEndPrice == null || stockStartPrice == 0 || indexStartPrice == 0) {
             ferolSseService.sendSseErrorEvent(sseEmitter, "Could not parse price data.");
             LOGGER.error("Could not parse price data.");
-            return new FerolReportItem("bigMarketLoser", 0, "Could not parse price data.");
+            return new ReportItem("bigMarketLoser", 0, "Could not parse price data.");
         }
 
         double stockPerformance = (stockEndPrice - stockStartPrice) / stockStartPrice;
@@ -127,7 +127,7 @@ public class PerformanceVsSP500Calculator {
         String comment = String.format("Over a period of %d days, stock performance: %.2f%%, S&P 500 performance: %.2f%%. Difference: %.2f%%.",
                 days, stockPerformance * 100, indexPerformance * 100, performanceDifference * 100);
 
-        return new FerolReportItem("bigMarketLoser", score, comment);
+        return new ReportItem("bigMarketLoser", score, comment);
     }
 
 }

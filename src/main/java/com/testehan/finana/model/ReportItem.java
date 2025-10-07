@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class FerolReportItem {
+public class ReportItem {
     private String name;
     private Integer score;
     private String explanation;

@@ -1,10 +1,10 @@
 package com.testehan.finana.service.reporting.calc.positives;
 
-import com.testehan.finana.model.FerolReportItem;
+import com.testehan.finana.model.ReportItem;
 import com.testehan.finana.model.FinancialRatiosData;
 import com.testehan.finana.model.FinancialRatiosReport;
 import com.testehan.finana.repository.FinancialRatiosRepository;
-import com.testehan.finana.service.reporting.FerolSseService;
+import com.testehan.finana.service.reporting.ChecklistSseService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -22,21 +22,21 @@ public class RoicCalculator {
     private static final Logger LOGGER = LoggerFactory.getLogger(RoicCalculator.class);
 
     private final FinancialRatiosRepository financialRatiosRepository;
-    private final FerolSseService ferolSseService;
+    private final ChecklistSseService ferolSseService;
 
-    public RoicCalculator(FinancialRatiosRepository financialRatiosRepository, FerolSseService ferolSseService) {
+    public RoicCalculator(FinancialRatiosRepository financialRatiosRepository, ChecklistSseService ferolSseService) {
         this.financialRatiosRepository = financialRatiosRepository;
         this.ferolSseService = ferolSseService;
     }
 
-    public FerolReportItem calculate(String ticker, SseEmitter sseEmitter) {
+    public ReportItem calculate(String ticker, SseEmitter sseEmitter) {
         ferolSseService.sendSseEvent(sseEmitter, "Calculating Return on Invested Capital (ROIC)...");
         Optional<FinancialRatiosData> financialRatiosData = financialRatiosRepository.findBySymbol(ticker);
 
         if (financialRatiosData.isEmpty() || financialRatiosData.get().getAnnualReports().isEmpty() || financialRatiosData.get().getQuarterlyReports().isEmpty()) {
             LOGGER.warn("No financial ratios data found for ticker: {}", ticker);
             ferolSseService.sendSseEvent(sseEmitter, "ROIC calculation skipped: No data found.");
-            return new FerolReportItem("roic", 0, "No annual or quarterly financial ratios data available.");
+            return new ReportItem("roic", 0, "No annual or quarterly financial ratios data available.");
         }
 
         // Get annual ROIC for 5-year median
@@ -49,7 +49,7 @@ public class RoicCalculator {
 
         if (annualRoicValues.isEmpty()) {
             ferolSseService.sendSseEvent(sseEmitter, "ROIC calculation skipped: No annual ROIC data found.");
-            return new FerolReportItem("roic", 0, "No annual ROIC data available for median calculation.");
+            return new ReportItem("roic", 0, "No annual ROIC data available for median calculation.");
         }
 
         // Calculate 5-year median ROIC
@@ -78,7 +78,7 @@ public class RoicCalculator {
             ferolSseService.sendSseEvent(sseEmitter, "Latest TTM ROIC: " + currentTtmRoic.toPlainString() + "%");
         } else {
             ferolSseService.sendSseEvent(sseEmitter, "ROIC calculation partially skipped: No latest quarterly ROIC data for TTM.");
-            return new FerolReportItem("roic", 0, "No latest quarterly ROIC data for TTM calculation.");
+            return new ReportItem("roic", 0, "No latest quarterly ROIC data for TTM calculation.");
         }
 
 
@@ -109,6 +109,6 @@ public class RoicCalculator {
         }
         ferolSseService.sendSseEvent(sseEmitter, "ROIC calculation complete. Score: " + score);
 
-        return new FerolReportItem("roic", score, explanation);
+        return new ReportItem("roic", score, explanation);
     }
 }

@@ -9,8 +9,8 @@ import java.util.concurrent.Executors;
 @Configuration
 public class ExecutorConfig {
 
-    @Bean(name = "ferolExecutor")
-    public ExecutorService ferolExecutor() {
+    @Bean(name = "checklistExecutor")
+    public ExecutorService checklistExecutor() {
         int coreCount = Runtime.getRuntime().availableProcessors();
         return Executors.newFixedThreadPool(coreCount * 2);
     }

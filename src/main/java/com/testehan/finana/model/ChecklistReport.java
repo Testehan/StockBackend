@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Data
-public class FerolReport {
-    private List<FerolReportItem> items = new ArrayList<>();
+public class ChecklistReport {
+    private List<ReportItem> items = new ArrayList<>();
     private LocalDateTime generatedAt = LocalDateTime.now();
 }
