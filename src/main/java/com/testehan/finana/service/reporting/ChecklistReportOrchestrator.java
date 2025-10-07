@@ -1,9 +1,6 @@
 package com.testehan.finana.service.reporting;
 
-import com.testehan.finana.model.ChecklistReport;
-import com.testehan.finana.model.ChecklistReportSummaryDTO;
-import com.testehan.finana.model.GeneratedReport;
-import com.testehan.finana.model.ReportItem;
+import com.testehan.finana.model.*;
 import com.testehan.finana.model.llm.responses.FerolMoatAnalysisLlmResponse;
 import com.testehan.finana.model.llm.responses.FerolNegativesAnalysisLlmResponse;
 import com.testehan.finana.repository.GeneratedReportRepository;
@@ -22,6 +19,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -103,23 +101,25 @@ public class ChecklistReportOrchestrator {
     }
 
 
-    public SseEmitter getChecklistReport(String ticker, boolean recreateReport, String reportType) {
+    public SseEmitter getChecklistReport(String ticker, boolean recreateReport, ReportType reportType) {
         SseEmitter sseEmitter = new SseEmitter(3600000L); // Timeout set to 1 hour
 
-        if (reportType.equalsIgnoreCase("ferol")) {
-            getFerolChecklistReport(ticker, recreateReport, reportType, sseEmitter);
-        } else if (reportType.equalsIgnoreCase("100bagger")) {
-            checklistSseService.sendSseEvent(sseEmitter, "100bagger report is not implemented yet.");
-            sseEmitter.complete();
-        } else {
-            checklistSseService.sendSseEvent(sseEmitter, "Invalid report type.");
-            sseEmitter.complete();
+        switch (reportType) {
+            case FEROL -> getFerolChecklistReport(ticker, recreateReport, reportType, sseEmitter);
+            case ONE_HUNDRED_BAGGER -> {
+                checklistSseService.sendSseEvent(sseEmitter, "100bagger report is not implemented yet.");
+                sseEmitter.complete();
+            }
+            default -> {
+                checklistSseService.sendSseEvent(sseEmitter, "Invalid report type.");
+                sseEmitter.complete();
+            }
         }
 
         return sseEmitter;
     }
 
-    private void getFerolChecklistReport(String ticker, boolean recreateReport, String reportType, SseEmitter sseEmitter) {
+    private void getFerolChecklistReport(String ticker, boolean recreateReport, ReportType reportType, SseEmitter sseEmitter) {
         checklistExecutor.execute(() -> {
             try {
                 if (!recreateReport) {
@@ -421,46 +421,35 @@ public class ChecklistReportOrchestrator {
 
 
 
-    public ChecklistReport saveChecklistReport(String ticker, List<ReportItem> checklistReportItems, String reportType) {
+    public ChecklistReport saveChecklistReport(String ticker, List<ReportItem> checklistReportItems, ReportType reportType) {
         LOGGER.info("Saving Checklist report for {}", ticker);
         return checklistReportPersistenceService.buildAndSaveReport(ticker, checklistReportItems, reportType);
     }
 
-            public List<ChecklistReportSummaryDTO> getChecklistReportsSummary(String reportType) {
+    public List<ChecklistReportSummaryDTO> getChecklistReportsSummary(ReportType reportType) {
+        return generatedReportRepository.findAll().stream()
+                .map(generatedReport -> {
+                    ChecklistReport report = getReportFromGeneratedReport(generatedReport, reportType);
+                    if (report == null) {
+                        return null;
+                    }
+                    String ticker = generatedReport.getSymbol();
+                    Double totalScore = report.getItems().stream()
+                            .mapToDouble(item -> item.getScore() != null ? item.getScore() : 0.0)
+                            .sum();
+                    return new ChecklistReportSummaryDTO(ticker, totalScore, report.getGeneratedAt());
+                })
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+    }
 
-                return generatedReportRepository.findAll().stream()
-
-                        .map(generatedReport -> {
-                            String ticker = generatedReport.getSymbol();
-                            ChecklistReport ferolReport = generatedReport.getFerolReport();
-                            Double totalScore = ferolReport.getItems().stream()
-                                    .mapToDouble(item -> item.getScore() != null ? item.getScore() : 0.0)
-                                    .sum();
-                            return new com.testehan.finana.model.ChecklistReportSummaryDTO(ticker, totalScore, ferolReport.getGeneratedAt());
-                        })
-                        .collect(Collectors.toList());
-
-            }
-
-        
-
-            private ChecklistReport getReportFromGeneratedReport(GeneratedReport generatedReport, String reportType) {
-
-                if (reportType.equalsIgnoreCase("ferol")) {
-
-                    return generatedReport.getFerolReport();
-
-                } else if (reportType.equalsIgnoreCase("100bagger")) {
-
-                    return generatedReport.getOneHundredBaggerReport();
-
-                }
-
-                return null;
-
-            }
-
-        }
+    private ChecklistReport getReportFromGeneratedReport(GeneratedReport generatedReport, ReportType reportType) {
+        return switch (reportType) {
+            case FEROL -> generatedReport.getFerolReport();
+            case ONE_HUNDRED_BAGGER -> generatedReport.getOneHundredBaggerReport();
+        };
+    }
+}
 
         
 

@@ -3,6 +3,7 @@ package com.testehan.finana.controller;
 import com.testehan.finana.model.ChecklistReport;
 import com.testehan.finana.model.ChecklistReportSummaryDTO;
 import com.testehan.finana.model.ReportItem;
+import com.testehan.finana.model.ReportType;
 import com.testehan.finana.service.reporting.ChecklistReportOrchestrator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -25,18 +26,18 @@ public class ReportingController {
     }
 
     @GetMapping(value = "/checklist/{ticker}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter getChecklistReport(@PathVariable String ticker, @RequestParam(defaultValue = "false") boolean recreateReport, @RequestParam String reportType) {
+    public SseEmitter getChecklistReport(@PathVariable String ticker, @RequestParam(defaultValue = "false") boolean recreateReport, @RequestParam ReportType reportType) {
         return checklistReportOrchestrator.getChecklistReport(ticker.toUpperCase(), recreateReport, reportType);
     }
 
     @PostMapping("/checklist/{symbol}")
-    public ResponseEntity<ChecklistReport> saveChecklistReport(@PathVariable String symbol, @RequestBody List<ReportItem> reportItems, @RequestParam String reportType) {
+    public ResponseEntity<ChecklistReport> saveChecklistReport(@PathVariable String symbol, @RequestBody List<ReportItem> reportItems, @RequestParam ReportType reportType) {
         ChecklistReport savedReport = checklistReportOrchestrator.saveChecklistReport(symbol.toUpperCase(), reportItems, reportType);
         return new ResponseEntity<>(savedReport, HttpStatus.CREATED);
     }
 
     @GetMapping("/checklist/summary")
-    public ResponseEntity<List<ChecklistReportSummaryDTO>> getChecklistReportsSummary(@RequestParam String reportType) {
+    public ResponseEntity<List<ChecklistReportSummaryDTO>> getChecklistReportsSummary(@RequestParam ReportType reportType) {
         List<ChecklistReportSummaryDTO> summary = checklistReportOrchestrator.getChecklistReportsSummary(reportType);
         return new ResponseEntity<>(summary, HttpStatus.OK);
     }

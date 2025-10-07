@@ -3,6 +3,7 @@ package com.testehan.finana.service.reporting;
 import com.testehan.finana.model.ChecklistReport;
 import com.testehan.finana.model.ReportItem;
 import com.testehan.finana.model.GeneratedReport;
+import com.testehan.finana.model.ReportType;
 import com.testehan.finana.repository.GeneratedReportRepository;
 import org.springframework.stereotype.Service;
 
@@ -17,7 +18,7 @@ public class ChecklistReportPersistenceService {
         this.generatedReportRepository = generatedReportRepository;
     }
 
-    public ChecklistReport buildAndSaveReport(String ticker, List<ReportItem> checklistReportItems, String reportType) {
+    public ChecklistReport buildAndSaveReport(String ticker, List<ReportItem> checklistReportItems, ReportType reportType) {
         GeneratedReport generatedReport = generatedReportRepository.findBySymbol(ticker).orElse(new GeneratedReport());
         if (generatedReport.getSymbol()==null) {
             generatedReport.setSymbol(ticker);
@@ -27,10 +28,9 @@ public class ChecklistReportPersistenceService {
         checklistReport.setItems(checklistReportItems);
         checklistReport.setGeneratedAt(LocalDateTime.now());
 
-        if (reportType.equalsIgnoreCase("ferol")) {
-            generatedReport.setFerolReport(checklistReport);
-        } else if (reportType.equalsIgnoreCase("100bagger")) {
-            generatedReport.setOneHundredBaggerReport(checklistReport);
+        switch (reportType) {
+            case FEROL -> generatedReport.setFerolReport(checklistReport);
+            case ONE_HUNDRED_BAGGER -> generatedReport.setOneHundredBaggerReport(checklistReport);
         }
 
         generatedReportRepository.save(generatedReport);
