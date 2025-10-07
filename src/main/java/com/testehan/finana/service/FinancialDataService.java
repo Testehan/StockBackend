@@ -159,8 +159,11 @@ public class FinancialDataService {
             if (earningsEstimateFromDb.isPresent() && isRecent(earningsEstimateFromDb.get().getLastUpdated(), 10080)) {
                 return Mono.just(earningsEstimateFromDb.get());
             } else {
-                return alphaVantageService.fetchEarningsEstimatesFromApi(symbol.toUpperCase())
-                        .flatMap(earningsEstimate -> {
+                return fmpService.fetchAnalystEstimates(symbol.toUpperCase())
+                        .flatMap(estimates -> {
+                            EarningsEstimate earningsEstimate = new EarningsEstimate();
+                            earningsEstimate.setSymbol(symbol.toUpperCase());
+                            earningsEstimate.setEstimates(estimates);
                             earningsEstimate.setLastUpdated(LocalDateTime.now());
                             return Mono.just(earningsEstimatesRepository.save(earningsEstimate));
                         });

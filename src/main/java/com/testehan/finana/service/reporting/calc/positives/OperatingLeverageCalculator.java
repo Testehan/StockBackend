@@ -118,21 +118,21 @@ public class OperatingLeverageCalculator {
         if (earningEstimates.isEmpty() || earningEstimates.get().getEstimates().isEmpty() || lastYearRevenue == 0){
             return 0.0;
         }
-        List<com.testehan.finana.model.Estimate> estimates = earningEstimates.get().getEstimates();
+        List<Estimate> estimates = earningEstimates.get().getEstimates();
 
         // 1. Filter for valid dates and Sort by Date (Ascending) to find the NEAREST future estimate
         // We only want annual estimates (usually end in 12-31 or similar, but sorting finds the nearest)
-        List<com.testehan.finana.model.Estimate> sortedEstimates = estimates.stream()
-                .filter(e -> e.getDate() != null && e.getRevenueEstimateAverage() != null)
+        List<Estimate> sortedEstimates = estimates.stream()
+                .filter(e -> e.getDate() != null && e.getRevenueAvg() != null)
                 .sorted(Comparator.comparing(e -> LocalDate.parse(e.getDate(), DateTimeFormatter.ofPattern("yyyy-MM-dd"))))
                 .collect(Collectors.toList());
 
-        com.testehan.finana.model.Estimate targetEst = null;
+        Estimate targetEst = null;
         int estimateYear = 0;
 
         LocalDate lastIncomeReportFiscalDate = LocalDate.parse(lastAnualIncomeReport.getDate(), DateTimeFormatter.ofPattern("yyyy-MM-dd"));
         // Find the first estimate that is clearly in the future compared to last report
-        for (com.testehan.finana.model.Estimate e : sortedEstimates) {
+        for (Estimate e : sortedEstimates) {
             LocalDate d = LocalDate.parse(e.getDate(), DateTimeFormatter.ofPattern("yyyy-MM-dd"));
             if (d.getYear() >  lastIncomeReportFiscalDate.getYear()) {
                 targetEst = e;
@@ -152,7 +152,7 @@ public class OperatingLeverageCalculator {
 
         // 3. Calculate CAGR
         // Formula: (Future / Past)^(1/n) - 1
-        double futureRev = Double.parseDouble(targetEst.getRevenueEstimateAverage());
+        double futureRev = Double.parseDouble(targetEst.getRevenueAvg());
 
         double cagr = (Math.pow((futureRev / lastYearRevenue), 1.0 / yearsGap) - 1) * 100;
 

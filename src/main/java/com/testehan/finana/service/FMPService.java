@@ -262,4 +262,17 @@ public class FMPService {
         target.setAdr(source.isAdr());
         target.setFund(source.isFund());
     }
+
+    public Mono<List<Estimate>> fetchAnalystEstimates(String symbol) {
+        LOGGER.info("Fetching analyst estimates for {}", symbol);
+        return webClient.get()
+                .uri(uriBuilder -> uriBuilder.path("/stable/analyst-estimates")
+                        .queryParam("symbol", symbol)
+                        .queryParam("period", "annual")
+                        .queryParam("limit", 10)
+                        .queryParam("apikey", apiKey)
+                        .build())
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<List<Estimate>>() {});
+    }
 }
