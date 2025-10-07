@@ -46,7 +46,7 @@ public class EpsCalculator {
 
         List<QuarterlyEarning> quarterlyEarnings = earningsHistoryOptional.get().getQuarterlyEarnings();
         // Sort by reportedDate in descending order to get latest first
-        quarterlyEarnings.sort(Comparator.comparing(QuarterlyEarning::getReportedDate).reversed());
+        quarterlyEarnings.sort(Comparator.comparing(QuarterlyEarning::getFiscalDateEnding).reversed());
 
         // Get latest 8 quarters for current and previous TTM EPS
         List<QuarterlyEarning> relevantEarnings = quarterlyEarnings.stream().limit(8).collect(Collectors.toList());
