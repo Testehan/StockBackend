@@ -11,10 +11,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -76,7 +73,7 @@ public class SecFilingService {
 
         latest10K.ifPresent(filing -> {
             boolean reprocess = true;
-            if (existingSecFilingOptional.isPresent()) {
+            if (existingSecFilingOptional.isPresent() && Objects.nonNull(existingSecFilingOptional.get().getTenKFilings())) {
                 Optional<TenKFilings> existing10K = existingSecFilingOptional.get().getTenKFilings().stream()
                         .filter(tenK -> tenK.getFiledAt().equals(filing.getFilingDate()))
                         .findFirst();
@@ -99,7 +96,7 @@ public class SecFilingService {
 
         latest10Q.ifPresent(filing -> {
             boolean reprocess = true;
-            if (existingSecFilingOptional.isPresent()) {
+            if (existingSecFilingOptional.isPresent() &&  Objects.nonNull(existingSecFilingOptional.get().getTenQFilings())){
                 Optional<TenQFilings> existing10Q = existingSecFilingOptional.get().getTenQFilings().stream()
                         .filter(tenQ -> tenQ.getFiledAt().equals(filing.getFilingDate()))
                         .findFirst();

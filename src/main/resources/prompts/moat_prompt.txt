@@ -25,6 +25,8 @@ Input Text:
 {business_description}
 
 Analysis Strategy (Hybrid Approach):
+0. VERY IMPORTANT : true moats are rare and not so easy to identify all the time.
+Most companies do not have one. Do not hallucinate an advantage where one does not exist.
 1.Synthesize: Combine the provided text (claims) with your internal training data (reality/industry norms).
 2.Prioritize: Determine which *single* attribute is the strongest source of the moat.
 3.Allocate: Distribute the 20 points accordingly.

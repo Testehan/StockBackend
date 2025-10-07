@@ -56,6 +56,7 @@ public class FinancialRatiosCalculator {
         calculateDaysInventoryOutstanding(ratios, data);
         calculateDaysPayablesOutstanding(ratios, data);
         calculateCashConversionCycle(ratios, data);
+        calculateSalesToCapitalRatio(ratios, data);
 
         // Cash Flow Metrics
         calculateFreeCashFlow(ratios, data);
@@ -337,9 +338,13 @@ public class FinancialRatiosCalculator {
 
         if (investedCapital.compareTo(BigDecimal.ZERO) > 0) {
             ratios.setRoic(nopat.divide(investedCapital, 4, RoundingMode.HALF_UP));
+        } else if (nopat.compareTo(BigDecimal.ZERO) > 0) {
+            // If Capital is negative but Profit is positive, this is an Infinite Moat
+            // Set to a capped high number (e.g., 1000%)
+            ratios.setRoic(new BigDecimal("9.9999")); // Represents 999% or "Infinite"
         } else {
-            // Negative invested capital (rare, but happens in hollowed-out companies)
-            ratios.setRoic(null);
+            // If Capital is negative AND Profit is negative, the company is just bankrupt/dying.
+            ratios.setRoic(BigDecimal.ZERO);
         }
     }
 
@@ -619,6 +624,39 @@ public class FinancialRatiosCalculator {
             ratios.setCashConversionCycle(ccc);
         } else {
             ratios.setCashConversionCycle(null);
+        }
+    }
+
+    private void calculateSalesToCapitalRatio(FinancialRatiosReport ratios, ParsedFinancialData data) {
+        // 1. Safety Check: Ensure all data exists
+        // Note: We also need cashAndEquivalents now
+        if (data.totalRevenue != null &&
+                data.totalDebt != null &&
+                data.totalShareholderEquity != null &&
+                data.cash != null) {
+
+            // 2. Calculate Invested Capital (The Damodaran Way)
+            // Formula: Debt + Equity - Cash
+            BigDecimal investedCapital = data.totalDebt
+                    .add(data.totalShareholderEquity)
+                    .subtract(data.cash)
+                    .subtract(data.shortTermInvestments);
+
+            // 3. Logic Check: Invested Capital must be positive for the ratio to make sense.
+            // (Sometimes tech companies have more Cash than Debt+Equity, resulting in negative IC.
+            // In that case, the ratio is mathematically undefined/meaningless).
+            if (investedCapital.compareTo(BigDecimal.ZERO) > 0) {
+                ratios.setSalesToCapitalRatio(
+                        data.totalRevenue.divide(investedCapital, 4, RoundingMode.HALF_UP)
+                );
+            } else {
+                // Handle negative invested capital (common in mature tech or cash-rich companies)
+                // You might return null, 0, or a specific flag depending on your UI needs.
+                ratios.setSalesToCapitalRatio(null);
+            }
+
+        } else {
+            ratios.setSalesToCapitalRatio(null);
         }
     }
 

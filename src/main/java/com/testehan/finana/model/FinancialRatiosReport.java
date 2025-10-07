@@ -42,6 +42,7 @@ public class FinancialRatiosReport {
     private BigDecimal cashConversionCycle;        // Days to convert inventory to cash (The holy grail of efficiency)
     private BigDecimal daysInventoryOutstanding;
     private BigDecimal daysPayablesOutstanding;
+    private BigDecimal salesToCapitalRatio;         // how much a company needs to reinvest to generate future growth. for every 1$ invested, this tells us how much sales it will generate
 
     // Shareholder Returns
     private BigDecimal dividendYield;

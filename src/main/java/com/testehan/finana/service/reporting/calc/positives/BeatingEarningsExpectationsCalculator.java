@@ -37,6 +37,7 @@ public class BeatingEarningsExpectationsCalculator {
 
             var quarterlyEarningsHistory = earningsHistory.get().getQuarterlyEarnings();
             var last4quarters = quarterlyEarningsHistory.stream()
+                    .filter(qe -> Objects.nonNull(qe.getReportedEPS()) && Objects.nonNull(qe.getEstimatedEPS()))
                     .sorted(Comparator.comparing(QuarterlyEarning::getFiscalDateEnding).reversed())
                     .limit(4) // We only care about the last 4 quarters
                     .collect(Collectors.toList());
