@@ -17,6 +17,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -426,18 +427,31 @@ public class ChecklistReportOrchestrator {
         return checklistReportPersistenceService.buildAndSaveReport(ticker, checklistReportItems, reportType);
     }
 
-    public List<ChecklistReportSummaryDTO> getChecklistReportsSummary(ReportType reportType) {
+    public List<ChecklistReportSummaryDTO> getChecklistReportsSummary() {
         return generatedReportRepository.findAll().stream()
                 .map(generatedReport -> {
-                    ChecklistReport report = getReportFromGeneratedReport(generatedReport, reportType);
-                    if (report == null) {
-                        return null;
-                    }
+                    ChecklistReport ferolReport = generatedReport.getFerolReport();
+                    ChecklistReport hundredBaggerReport = generatedReport.getOneHundredBaggerReport();
+
                     String ticker = generatedReport.getSymbol();
-                    Double totalScore = report.getItems().stream()
-                            .mapToDouble(item -> item.getScore() != null ? item.getScore() : 0.0)
-                            .sum();
-                    return new ChecklistReportSummaryDTO(ticker, totalScore, report.getGeneratedAt());
+                    int totalFerolScore = 0;
+                    LocalDateTime ferolReportGeneratedAt = null;
+                    if (Objects.nonNull(ferolReport) && Objects.nonNull(ferolReport.getItems())) {
+                        ferolReportGeneratedAt = ferolReport.getGeneratedAt();
+                        totalFerolScore = ferolReport.getItems().stream()
+                                .mapToInt(item -> item.getScore() != null ? item.getScore() : (int) 0.0)
+                                .sum();
+                    }
+                    int totalHundredBaggerScore = 0;
+                    LocalDateTime hundredBaggerReportGeneratedAt = null;
+                    if (Objects.nonNull(hundredBaggerReport) && Objects.nonNull(hundredBaggerReport.getItems())) {
+                        hundredBaggerReportGeneratedAt = hundredBaggerReport.getGeneratedAt();
+                        totalHundredBaggerScore = hundredBaggerReport.getItems().stream()
+                                .mapToInt(item -> item.getScore() != null ? item.getScore() : (int) 0.0)
+                                .sum();
+                    }
+
+                    return new ChecklistReportSummaryDTO(ticker, totalFerolScore, totalHundredBaggerScore, ferolReportGeneratedAt, hundredBaggerReportGeneratedAt);
                 })
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());

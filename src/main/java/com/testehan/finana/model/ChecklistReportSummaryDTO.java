@@ -13,6 +13,8 @@ import java.time.LocalDateTime;
 @Setter
 public class ChecklistReportSummaryDTO {
     private String ticker;
-    private Double totalScore;
-    private LocalDateTime generationDate;
+    private Integer totalFerolScore;
+    private Integer total100BaggerScore;
+    private LocalDateTime generationFerolDate;
+    private LocalDateTime generation100BaggerDate;
 }

@@ -37,8 +37,8 @@ public class ReportingController {
     }
 
     @GetMapping("/checklist/summary")
-    public ResponseEntity<List<ChecklistReportSummaryDTO>> getChecklistReportsSummary(@RequestParam ReportType reportType) {
-        List<ChecklistReportSummaryDTO> summary = checklistReportOrchestrator.getChecklistReportsSummary(reportType);
+    public ResponseEntity<List<ChecklistReportSummaryDTO>> getChecklistReportsSummary() {
+        List<ChecklistReportSummaryDTO> summary = checklistReportOrchestrator.getChecklistReportsSummary();
         return new ResponseEntity<>(summary, HttpStatus.OK);
     }
 }
