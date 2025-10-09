@@ -300,4 +300,22 @@ public class SecFilingService {
         secFilingRepository.deleteBySymbol(upperCaseSymbol);
         secFilingUrlsRepository.deleteBySymbol(upperCaseSymbol);
     }
+
+    public boolean hasTenKFilings(String symbol) {
+        Optional<SecFiling> secFilingOptional = secFilingRepository.findBySymbol(symbol);
+        if (secFilingOptional.isPresent()) {
+            SecFiling secFiling = secFilingOptional.get();
+            return secFiling.getTenKFilings() != null && !secFiling.getTenKFilings().isEmpty();
+        }
+        return false;
+    }
+
+    public boolean hasTenQFilings(String symbol) {
+        Optional<SecFiling> secFilingOptional = secFilingRepository.findBySymbol(symbol);
+        if (secFilingOptional.isPresent()) {
+            SecFiling secFiling = secFilingOptional.get();
+            return secFiling.getTenQFilings() != null && !secFiling.getTenQFilings().isEmpty();
+        }
+        return false;
+    }
 }

@@ -5,6 +5,7 @@ import com.testehan.finana.model.BalanceSheetReport;
 import com.testehan.finana.model.CashFlowData;
 import com.testehan.finana.model.CashFlowReport;
 import com.testehan.finana.model.CompanyEarningsTranscripts;
+import com.testehan.finana.model.FinancialDataAvailability;
 import com.testehan.finana.model.CompanyOverview;
 import com.testehan.finana.model.EarningsEstimate;
 import com.testehan.finana.model.EarningsHistory;
@@ -473,5 +474,26 @@ public class FinancialDataService {
             String dateQuarter = dateUtils.getDateQuarter(latestReportDate);
             this.getEarningsCallTranscript(ticker, dateQuarter).block();
         }
+    }
+
+    public FinancialDataAvailability checkFinancialDataAvailability(String ticker) {
+        FinancialDataAvailability availability = new FinancialDataAvailability();
+        String upperCaseTicker = ticker.toUpperCase();
+
+        availability.setLastStockQuote(stockQuotesRepository.findBySymbol(upperCaseTicker).isPresent());
+        availability.setIncomeStatements(incomeStatementRepository.findBySymbol(upperCaseTicker).isPresent());
+        availability.setBalanceSheet(balanceSheetRepository.findBySymbol(upperCaseTicker).isPresent());
+        availability.setCashFlow(cashFlowRepository.findBySymbol(upperCaseTicker).isPresent());
+        availability.setEarningsEstimates(earningsEstimatesRepository.findBySymbol(upperCaseTicker).isPresent());
+        availability.setEarningsHistory(earningsHistoryRepository.findBySymbol(upperCaseTicker).isPresent());
+        availability.setCompanyOverview(companyOverviewRepository.findBySymbol(upperCaseTicker).isPresent());
+        availability.setRevenueSegmentation(revenueSegmentationDataRepository.findBySymbol(upperCaseTicker).isPresent());
+        availability.setRevenueGeographicSegmentation(revenueGeographicSegmentationRepository.findBySymbol(upperCaseTicker).isPresent());
+        availability.setFinancialRatios(financialRatiosRepository.findBySymbol(upperCaseTicker).isPresent());
+        availability.setEarningsCallTranscript(companyEarningsTranscriptsRepository.findById(upperCaseTicker).isPresent());
+        availability.setSecQuarterlyFilings(secFilingService.hasTenQFilings(upperCaseTicker));
+        availability.setSecAnnualFilings(secFilingService.hasTenKFilings(upperCaseTicker));
+
+        return availability;
     }
 }

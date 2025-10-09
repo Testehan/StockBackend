@@ -34,6 +34,11 @@ public class StockController {
         return getCompanyOverviewFmp(symbol);
     }
 
+    @GetMapping("/presentfinancialdata/{symbol}")
+    public FinancialDataAvailability getFinancialDataAvailability(@PathVariable String symbol) {
+        return financialDataService.checkFinancialDataAvailability(symbol);
+    }
+
     @GetMapping("/income-statement/{symbol}")
     public Mono<IncomeStatementData> getIncomeStatements(@PathVariable String symbol) {
         return financialDataService.getIncomeStatements(symbol);
