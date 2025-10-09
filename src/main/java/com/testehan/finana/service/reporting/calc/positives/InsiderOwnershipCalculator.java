@@ -2,6 +2,7 @@ package com.testehan.finana.service.reporting.calc.positives;
 
 import com.testehan.finana.model.CompanyOverview;
 import com.testehan.finana.model.ReportItem;
+import com.testehan.finana.model.ReportType;
 import com.testehan.finana.model.llm.responses.FerolLlmResponse;
 import com.testehan.finana.repository.CompanyOverviewRepository;
 import com.testehan.finana.service.LlmService;
@@ -28,47 +29,62 @@ public class InsiderOwnershipCalculator {
     @Value("classpath:/prompts/inside_ownership_prompt.txt")
     private Resource insiderOwnershipPrompt;
 
+    @Value("classpath:/prompts/100Bagger/inside_ownership_prompt.txt")
+    private Resource insiderOwnership100BaggerPrompt;
+
     private final CompanyOverviewRepository companyOverviewRepository;
     private final LlmService llmService;
-    private final ChecklistSseService ferolSseService;
+    private final ChecklistSseService checklistSseService;
 
-    public InsiderOwnershipCalculator(CompanyOverviewRepository companyOverviewRepository, LlmService llmService, ChecklistSseService ferolSseService) {
+    public InsiderOwnershipCalculator(CompanyOverviewRepository companyOverviewRepository, LlmService llmService, ChecklistSseService checklistSseService) {
         this.companyOverviewRepository = companyOverviewRepository;
         this.llmService = llmService;
-        this.ferolSseService = ferolSseService;
+        this.checklistSseService = checklistSseService;
     }
 
-    public ReportItem calculate(String ticker, SseEmitter sseEmitter) {
+    public ReportItem calculate(String ticker, SseEmitter sseEmitter, ReportType reportType) {
         Optional<CompanyOverview> companyOverview = companyOverviewRepository.findBySymbol(ticker);
         if (companyOverview.isEmpty()){
             LOGGER.warn("No Company overview found for ticker: {}", ticker);
-            ferolSseService.sendSseErrorEvent(sseEmitter, "No Company overview found for ticker " + ticker);
+            checklistSseService.sendSseErrorEvent(sseEmitter, "No Company overview found for ticker " + ticker);
             return new ReportItem("insideOwnership", -10, "Something went wrong and score could not be calculated ");
         }
 
-        PromptTemplate promptTemplate = new PromptTemplate(insiderOwnershipPrompt);
+        PromptTemplate promptTemplate = getReportTemplateBy(reportType);
         Map<String, Object> promptParameters = new HashMap<>();
 
-        var ferolLlmResponseOutputConverter = new BeanOutputConverter<>(FerolLlmResponse.class);
+        var llmResponseOutputConverter = new BeanOutputConverter<>(FerolLlmResponse.class);
 
         promptParameters.put("company_name", companyOverview.get().getCompanyName());
-        promptParameters.put("format", ferolLlmResponseOutputConverter.getFormat());
+        promptParameters.put("format", llmResponseOutputConverter.getFormat());
         Prompt prompt = promptTemplate.create(promptParameters);
 
         try {
-            ferolSseService.sendSseEvent(sseEmitter, "Sending data to LLM for insider ownership analysis...");
+            checklistSseService.sendSseEvent(sseEmitter, "Sending data to LLM for insider ownership analysis...");
             LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
             String llmResponse = llmService.callLlm(prompt);
-            ferolSseService.sendSseEvent(sseEmitter, "Received LLM response with insider ownership analysis.");
-            FerolLlmResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
+            checklistSseService.sendSseEvent(sseEmitter, "Received LLM response with insider ownership analysis.");
+            FerolLlmResponse convertedLlmResponse = llmResponseOutputConverter.convert(llmResponse);
 
             return new ReportItem("insideOwnership", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
         } catch (Exception e) {
             String errorMessage = "Operation 'calculateinsideOwnership' failed.";
             LOGGER.error(errorMessage, e);
-            ferolSseService.sendSseErrorEvent(sseEmitter, errorMessage);
+            checklistSseService.sendSseErrorEvent(sseEmitter, errorMessage);
             return new ReportItem("insideOwnership", -10, "Operation 'calculateinsideOwnership' failed.");
         }
+    }
+
+    private PromptTemplate getReportTemplateBy(ReportType reportType){
+        switch (reportType) {
+            case FEROL -> {
+                return new PromptTemplate(insiderOwnershipPrompt);
+            }
+            case ONE_HUNDRED_BAGGER -> {
+                return new PromptTemplate(insiderOwnership100BaggerPrompt);
+            }
+        }
+        throw new IllegalArgumentException("Invalid report type: " + reportType);
     }
 }
 

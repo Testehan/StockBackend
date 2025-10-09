@@ -17,12 +17,14 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
@@ -106,11 +108,7 @@ public class ChecklistReportOrchestrator {
         SseEmitter sseEmitter = new SseEmitter(3600000L); // Timeout set to 1 hour
 
         switch (reportType) {
-            case FEROL -> getFerolChecklistReport(ticker, recreateReport, reportType, sseEmitter);
-            case ONE_HUNDRED_BAGGER -> {
-                checklistSseService.sendSseEvent(sseEmitter, "100bagger report is not implemented yet.");
-                sseEmitter.complete();
-            }
+            case FEROL, ONE_HUNDRED_BAGGER -> getOrGenerateChecklistReport(ticker, recreateReport, reportType, sseEmitter);
             default -> {
                 checklistSseService.sendSseEvent(sseEmitter, "Invalid report type.");
                 sseEmitter.complete();
@@ -120,7 +118,7 @@ public class ChecklistReportOrchestrator {
         return sseEmitter;
     }
 
-    private void getFerolChecklistReport(String ticker, boolean recreateReport, ReportType reportType, SseEmitter sseEmitter) {
+    private void getOrGenerateChecklistReport(String ticker, boolean recreateReport, ReportType reportType, SseEmitter sseEmitter) {
         checklistExecutor.execute(() -> {
             try {
                 if (!recreateReport) {
@@ -128,7 +126,7 @@ public class ChecklistReportOrchestrator {
                     Optional<GeneratedReport> existingGeneratedReport = generatedReportRepository.findBySymbol(ticker);
                     if (existingGeneratedReport.isPresent()) {
                         ChecklistReport checklistReport = getReportFromGeneratedReport(existingGeneratedReport.get(), reportType);
-                        if (checklistReport != null) {
+                        if (Objects.nonNull(checklistReport)) {
                             checklistSseService.sendSseEvent(sseEmitter, "Report loaded from database.");
                             sseEmitter.send(SseEmitter.event()
                                     .name("COMPLETED")
@@ -136,6 +134,8 @@ public class ChecklistReportOrchestrator {
                             sseEmitter.complete();
                             LOGGER.info("Checklist report for {} loaded from DB and sent.", ticker);
                             return; // Exit as report is sent
+                        } else {
+                            generateReport(ticker, reportType, sseEmitter);
                         }
                     }
                     checklistSseService.sendSseEvent(sseEmitter, "Report not found in database or incomplete, generating new report.");
@@ -144,274 +144,7 @@ public class ChecklistReportOrchestrator {
                     checklistSseService.sendSseEvent(sseEmitter, "Initiating Checklist report generation for " + ticker + "...");
                 }
 
-                checklistSseService.sendSseEvent(sseEmitter, "Ensuring financial data is present...");
-                financialDataOrchestrator.ensureFinancialDataIsPresent(ticker);
-                checklistSseService.sendSseEvent(sseEmitter, "Financial data check complete.");
-
-                CompletableFuture<ReportItem> financialResilienceFuture = CompletableFuture.supplyAsync(() -> {
-                    checklistSseService.sendSseEvent(sseEmitter, "Calculating financial resilience...");
-                    ReportItem item = financialResilienceCalculator.calculate(ticker, sseEmitter);
-                    checklistSseService.sendSseEvent(sseEmitter, "Financial resilience calculation complete.");
-                    return item;
-                }, checklistExecutor);
-
-                CompletableFuture<ReportItem> grossMarginFuture = CompletableFuture.supplyAsync(() -> {
-                    checklistSseService.sendSseEvent(sseEmitter, "Calculating Gross Margin...");
-                    ReportItem item = grossMarginCalculator.calculate(ticker, sseEmitter);
-                    checklistSseService.sendSseEvent(sseEmitter, "Gross Margin calculation complete.");
-                    return item;
-                }, checklistExecutor);
-
-                CompletableFuture<ReportItem> roicFuture = CompletableFuture.supplyAsync(() -> {
-                    checklistSseService.sendSseEvent(sseEmitter, "Calculating Return on Invested Capital (ROIC)...");
-                    ReportItem item = roicCalculator.calculate(ticker, sseEmitter);
-                    checklistSseService.sendSseEvent(sseEmitter, "Return on Invested Capital (ROIC) calculation complete.");
-                    return item;
-                }, checklistExecutor);
-
-                CompletableFuture<ReportItem> fcfFuture = CompletableFuture.supplyAsync(() -> {
-                    checklistSseService.sendSseEvent(sseEmitter, "Calculating Free Cash Flow...");
-                    ReportItem item = fcfCalculator.calculate(ticker, sseEmitter);
-                    checklistSseService.sendSseEvent(sseEmitter, "Free Cash Flow calculation complete.");
-                    return item;
-                }, checklistExecutor);
-
-                CompletableFuture<ReportItem> epsFuture = CompletableFuture.supplyAsync(() -> {
-                    checklistSseService.sendSseEvent(sseEmitter, "Calculating Earnings Per Share (EPS)...");
-                    ReportItem item = epsCalculator.calculate(ticker, sseEmitter);
-                    checklistSseService.sendSseEvent(sseEmitter, "Earnings Per Share (EPS) calculation complete.");
-                    return item;
-                }, checklistExecutor);
-
-                CompletableFuture<FerolMoatAnalysisLlmResponse> moatsFuture = CompletableFuture.supplyAsync(() -> {
-                    checklistSseService.sendSseEvent(sseEmitter, "Thinking about moats...");
-                    FerolMoatAnalysisLlmResponse item = moatCalculator.calculate(ticker, sseEmitter);
-                    checklistSseService.sendSseEvent(sseEmitter, "Moats analysis is complete.");
-                    return item;
-                }, checklistExecutor);
-
-                CompletableFuture<ReportItem> optionalityFuture = CompletableFuture.supplyAsync(() -> {
-                    checklistSseService.sendSseEvent(sseEmitter, "Thinking about optionality...");
-                    ReportItem item = optionalityCalculator.calculate(ticker, sseEmitter);
-                    checklistSseService.sendSseEvent(sseEmitter, "Optionality analysis is complete.");
-                    return item;
-                }, checklistExecutor);
-
-                CompletableFuture<ReportItem> organicGrowthRunawayFuture = CompletableFuture.supplyAsync(() -> {
-                    checklistSseService.sendSseEvent(sseEmitter, "Thinking about organic growth runaway...");
-                    ReportItem item = organicGrowthRunawayCalculator.calculate(ticker, sseEmitter);
-                    checklistSseService.sendSseEvent(sseEmitter, "Organic growth runaway analysis is complete.");
-                    return item;
-                }, checklistExecutor);
-
-                CompletableFuture<ReportItem> topDogFuture = CompletableFuture.supplyAsync(() -> {
-                    checklistSseService.sendSseEvent(sseEmitter, "Thinking about top dog or first mover...");
-                    ReportItem item = topDogCalculator.calculate(ticker, sseEmitter);
-                    checklistSseService.sendSseEvent(sseEmitter, "Top dog or first mover analysis is complete.");
-                    return item;
-                }, checklistExecutor);
-
-                CompletableFuture<ReportItem> operatingLeverageFuture = CompletableFuture.supplyAsync(() -> {
-                    checklistSseService.sendSseEvent(sseEmitter, "Thinking about operating leverage...");
-                    ReportItem item = operatingLeverageCalculator.calculate(ticker, sseEmitter);
-                    checklistSseService.sendSseEvent(sseEmitter, "Operating leverage analysis is complete.");
-                    return item;
-                }, checklistExecutor);
-
-                CompletableFuture<ReportItem> customerAcquisitionsFuture = CompletableFuture.supplyAsync(() -> {
-                    checklistSseService.sendSseEvent(sseEmitter, "Thinking about Sales & Marketing % of gross profit...");
-                    ReportItem item = acquisitionsCalculator.calculate(ticker, sseEmitter);
-                    checklistSseService.sendSseEvent(sseEmitter, "Sales & Marketing % of gross profit analysis is complete.");
-                    return item;
-                }, checklistExecutor);
-
-                CompletableFuture<ReportItem> cyclicalityFuture = CompletableFuture.supplyAsync(() -> {
-                    checklistSseService.sendSseEvent(sseEmitter, "Thinking how cyclical is this business..");
-                    ReportItem item = cyclicalityCalculator.calculate(ticker, sseEmitter);
-                    checklistSseService.sendSseEvent(sseEmitter, "Business cyclicality analysis is complete.");
-                    return item;
-                }, checklistExecutor);
-
-                CompletableFuture<ReportItem> recurringRevenueFuture = CompletableFuture.supplyAsync(() -> {
-                    checklistSseService.sendSseEvent(sseEmitter, "Does this company have recurring revenue..?");
-                    ReportItem item = recurringRevenueCalculator.calculate(ticker, sseEmitter);
-                    checklistSseService.sendSseEvent(sseEmitter, "Recurring revenue analysis is complete.");
-                    return item;
-                }, checklistExecutor);
-
-                CompletableFuture<ReportItem> pricingPowerFuture = CompletableFuture.supplyAsync(() -> {
-                    checklistSseService.sendSseEvent(sseEmitter, "How about their pricing power..?");
-                    ReportItem item = pricingPowerCalculator.calculate(ticker, sseEmitter);
-                    checklistSseService.sendSseEvent(sseEmitter, "Pricing power analysis is complete.");
-                    return item;
-                }, checklistExecutor);
-
-                CompletableFuture<ReportItem> cultureCalculatorFuture = CompletableFuture.supplyAsync(() -> {
-                    checklistSseService.sendSseEvent(sseEmitter, "How is the culture..?");
-                    ReportItem item = cultureCalculator.calculate(ticker, sseEmitter);
-                    checklistSseService.sendSseEvent(sseEmitter, "Culture check done.");
-                    return item;
-                }, checklistExecutor);
-
-                CompletableFuture<ReportItem> soulInTheGameFuture = CompletableFuture.supplyAsync(() -> {
-                    checklistSseService.sendSseEvent(sseEmitter, "Soul in the game..?");
-                    ReportItem item = soulInTheGameCalculator.calculate(ticker, sseEmitter);
-                    checklistSseService.sendSseEvent(sseEmitter, "Soul in the game done.");
-                    return item;
-                }, checklistExecutor);
-
-                CompletableFuture<ReportItem> insiderOwnershipFuture = CompletableFuture.supplyAsync(() -> {
-                    checklistSseService.sendSseEvent(sseEmitter, "Skin in the game analysis...");
-                    ReportItem item = insiderOwnershipCalculator.calculate(ticker, sseEmitter);
-                    checklistSseService.sendSseEvent(sseEmitter, "Skin in the game done.");
-                    return item;
-                }, checklistExecutor);
-
-                CompletableFuture<ReportItem> missionStatementFuture = CompletableFuture.supplyAsync(() -> {
-                    checklistSseService.sendSseEvent(sseEmitter, "Mission statement..?");
-                    ReportItem item = missionStatementCalculator.calculate(ticker, sseEmitter);
-                    checklistSseService.sendSseEvent(sseEmitter, "Mission statement analysis is complete.");
-                    return item;
-                }, checklistExecutor);
-
-                CompletableFuture<ReportItem> performanceVsSP500Future = CompletableFuture.supplyAsync(() -> {
-                    checklistSseService.sendSseEvent(sseEmitter, "Calculating performance vs S&P500...");
-                    ReportItem item = performanceVsSP500Calculator.calculateUpsidePerformance(ticker, sseEmitter);
-                    checklistSseService.sendSseEvent(sseEmitter, "Performance vs S&P500 analysis is complete.");
-                    return item;
-                }, checklistExecutor);
-
-                CompletableFuture<ReportItem> shareholderFriendlyActivityFuture = CompletableFuture.supplyAsync(() -> {
-                    checklistSseService.sendSseEvent(sseEmitter, "Analyzing shareholder friendly activities...");
-                    ReportItem item = shareholderFriendlyActivityCalculator.calculate(ticker, sseEmitter);
-                    checklistSseService.sendSseEvent(sseEmitter, "Shareholder friendly activities analysis is complete.");
-                    return item;
-                }, checklistExecutor);
-
-                CompletableFuture<ReportItem> beatingExpectationsFuture = CompletableFuture.supplyAsync(() -> {
-                    checklistSseService.sendSseEvent(sseEmitter, "Are they beating expectations ?...");
-                    ReportItem item = beatingEarningsExpectationsCalculator.calculateUpsidePerformance(ticker, sseEmitter);
-                    checklistSseService.sendSseEvent(sseEmitter, "Earnings beating analysis is complete.");
-                    return item;
-                }, checklistExecutor);
-
-
-
-                // Negatives
-                CompletableFuture<FerolNegativesAnalysisLlmResponse> multipleRiskFuture = CompletableFuture.supplyAsync(() -> {
-                    checklistSseService.sendSseEvent(sseEmitter, "Analysing various negatives..");
-                    FerolNegativesAnalysisLlmResponse item = multipleRisksCalculator.calculate(ticker, sseEmitter);
-                    checklistSseService.sendSseEvent(sseEmitter, "Various negatives analysis is done.");
-                    return item;
-                }, checklistExecutor);
-
-                CompletableFuture<ReportItem> performanceDownVsSP500Future = CompletableFuture.supplyAsync(() -> {
-                    checklistSseService.sendSseEvent(sseEmitter, "Calculating performance vs S&P500...");
-                    ReportItem item = performanceVsSP500Calculator.calculateDownsidePerformance(ticker, sseEmitter);
-                    checklistSseService.sendSseEvent(sseEmitter, "Performance vs S&P500 analysis is complete.");
-                    return item;
-                }, checklistExecutor);
-
-
-                CompletableFuture<ReportItem> dilutionRiskFuture = CompletableFuture.supplyAsync(() -> {
-                    checklistSseService.sendSseEvent(sseEmitter, "How was the dilution in the past years..?");
-                    ReportItem item = dilutionRiskCalculator.calculate(ticker, sseEmitter);
-                    checklistSseService.sendSseEvent(sseEmitter, "Dilution analysis is done.");
-                    return item;
-                }, checklistExecutor);
-
-                CompletableFuture<ReportItem> headquartersRiskFuture = CompletableFuture.supplyAsync(() -> {
-                    checklistSseService.sendSseEvent(sseEmitter, "Any headquarters risk..?");
-                    ReportItem item = headquarterRiskCalculator.calculate(ticker, sseEmitter);
-                    checklistSseService.sendSseEvent(sseEmitter, "Headquarters risk analysis is done.");
-                    return item;
-                }, checklistExecutor);
-
-                CompletableFuture<ReportItem> currencyRiskFuture = CompletableFuture.supplyAsync(() -> {
-                    checklistSseService.sendSseEvent(sseEmitter, "Any currency risk..?");
-                    ReportItem item = currencyRiskCalculator.calculate(ticker, sseEmitter);
-                    checklistSseService.sendSseEvent(sseEmitter, "Currency risk analysis is done.");
-                    return item;
-                }, checklistExecutor);
-
-
-                CompletableFuture.allOf(
-                        financialResilienceFuture, grossMarginFuture, roicFuture, fcfFuture, epsFuture,
-                        moatsFuture,
-                        optionalityFuture, organicGrowthRunawayFuture, topDogFuture, operatingLeverageFuture,
-                        customerAcquisitionsFuture, cyclicalityFuture,
-                        recurringRevenueFuture, pricingPowerFuture,
-
-                        soulInTheGameFuture,insiderOwnershipFuture,cultureCalculatorFuture,missionStatementFuture,
-
-                        performanceVsSP500Future, shareholderFriendlyActivityFuture, beatingExpectationsFuture,
-
-                        // negatives
-                        multipleRiskFuture,
-                        performanceDownVsSP500Future,
-                        dilutionRiskFuture,
-                        headquartersRiskFuture,
-                        currencyRiskFuture)
-                        .join();
-
-                List<ReportItem> checklistReportItems = new ArrayList<>();
-                checklistReportItems.add(financialResilienceFuture.get());
-                checklistReportItems.add(grossMarginFuture.get());
-                checklistReportItems.add(roicFuture.get());
-                checklistReportItems.add(fcfFuture.get());
-                checklistReportItems.add(epsFuture.get());
-
-                FerolMoatAnalysisLlmResponse moatAnalysis = moatsFuture.get();
-                checklistReportItems.add(new ReportItem("networkEffect",moatAnalysis.getNetworkEffectScore(), moatAnalysis.getNetworkEffectExplanation()));
-                checklistReportItems.add(new ReportItem("switchingCosts",moatAnalysis.getSwitchingCostsScore(), moatAnalysis.getSwitchingCostsExplanation()));
-                checklistReportItems.add(new ReportItem("durableCostAdvantage",moatAnalysis.getDurableCostAdvantageScore(), moatAnalysis.getDurableCostAdvantageExplanation()));
-                checklistReportItems.add(new ReportItem("intangibles",moatAnalysis.getIntangiblesScore(), moatAnalysis.getIntangiblesExplanation()));
-                checklistReportItems.add(new ReportItem("counterPositioning",moatAnalysis.getCounterPositioningScore(), moatAnalysis.getCounterPositioningExplanation()));
-                checklistReportItems.add(new ReportItem("moatDirection",moatAnalysis.getMoatDirectionScore(), moatAnalysis.getMoatDirectionExplanation()));
-
-                checklistReportItems.add(optionalityFuture.get());
-                checklistReportItems.add(organicGrowthRunawayFuture.get());
-                checklistReportItems.add(topDogFuture.get());
-                checklistReportItems.add(operatingLeverageFuture.get());
-                checklistReportItems.add(customerAcquisitionsFuture.get());
-                checklistReportItems.add(cyclicalityFuture.get());
-                checklistReportItems.add(recurringRevenueFuture.get());
-                checklistReportItems.add(pricingPowerFuture.get());
-
-                checklistReportItems.add(soulInTheGameFuture.get());
-                checklistReportItems.add(insiderOwnershipFuture.get());
-                checklistReportItems.add(cultureCalculatorFuture.get());
-                checklistReportItems.add(missionStatementFuture.get());
-
-                checklistReportItems.add(performanceVsSP500Future.get());
-                checklistReportItems.add(shareholderFriendlyActivityFuture.get());
-                checklistReportItems.add(beatingExpectationsFuture.get());
-
-                FerolNegativesAnalysisLlmResponse negativesAnalysis = multipleRiskFuture.get();
-                checklistReportItems.add(new ReportItem("accountingIrregularities",negativesAnalysis.getAccountingIrregularitiesScore(), negativesAnalysis.getAccountingIrregularitiesExplanation()));
-                checklistReportItems.add(new ReportItem("customerConcentration",negativesAnalysis.getCustomerConcentrationScore(), negativesAnalysis.getCustomerConcentrationExplanation()));
-                checklistReportItems.add(new ReportItem("industryDisruption",negativesAnalysis.getIndustryDisruptionScore(), negativesAnalysis.getIndustryDisruptionExplanation()));
-                checklistReportItems.add(new ReportItem("outsideForces",negativesAnalysis.getOutsideForcesScore(), negativesAnalysis.getOutsideForcesExplanation()));
-                checklistReportItems.add(new ReportItem("binaryEvent",negativesAnalysis.getBinaryEventScore(), negativesAnalysis.getBinaryEventExplanation()));
-                checklistReportItems.add(new ReportItem("growthByAcquisition",negativesAnalysis.getGrowthByAcquisitionScore(), negativesAnalysis.getGrowthByAcquisitionExplanation()));
-                checklistReportItems.add(new ReportItem("complicatedFinancials",negativesAnalysis.getComplicatedFinancialsScore(), negativesAnalysis.getComplicatedFinancialsExplanation()));
-                checklistReportItems.add(new ReportItem("antitrustConcerns",negativesAnalysis.getAntitrustConcernsScore(), negativesAnalysis.getAntitrustConcernsExplanation()));
-                checklistReportItems.add(performanceDownVsSP500Future.get());
-                checklistReportItems.add(dilutionRiskFuture.get());
-                checklistReportItems.add(headquartersRiskFuture.get());
-                checklistReportItems.add(currencyRiskFuture.get());
-
-
-                checklistSseService.sendSseEvent(sseEmitter, "Building and saving Checklist report...");
-                ChecklistReport checklistReport = checklistReportPersistenceService.buildAndSaveReport(ticker, checklistReportItems, reportType);
-                checklistSseService.sendSseEvent(sseEmitter, "Checklist report built and saved.");
-
-                sseEmitter.send(SseEmitter.event()
-                        .name("COMPLETED")
-                        .data(checklistReport, MediaType.APPLICATION_JSON));
-
-                sseEmitter.complete();
-                LOGGER.info("Checklist report generation complete for {}", ticker);
+                generateReport(ticker, reportType, sseEmitter);
 
             } catch (Exception e) {
                 LOGGER.error("Error generating Checklist report for {}: {}", ticker, e.getMessage(), e);
@@ -420,7 +153,313 @@ public class ChecklistReportOrchestrator {
         });
     }
 
+    private void generateReport(String ticker, ReportType reportType, SseEmitter sseEmitter) throws InterruptedException, ExecutionException, IOException {
+        checklistSseService.sendSseEvent(sseEmitter, "Ensuring financial data is present...");
+        financialDataOrchestrator.ensureFinancialDataIsPresent(ticker);
+        checklistSseService.sendSseEvent(sseEmitter, "Financial data check complete.");
 
+        switch (reportType) {
+            case FEROL ->  generateFerolReport(ticker, sseEmitter, reportType);
+            case ONE_HUNDRED_BAGGER -> generate100BaggerReport(ticker, sseEmitter, reportType);
+        }
+    }
+
+    private void generateFerolReport(String ticker, SseEmitter sseEmitter, ReportType reportType) throws InterruptedException, ExecutionException, IOException {
+        CompletableFuture<ReportItem> financialResilienceFuture = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "Calculating financial resilience...");
+            ReportItem item = financialResilienceCalculator.calculate(ticker, sseEmitter);
+            checklistSseService.sendSseEvent(sseEmitter, "Financial resilience calculation complete.");
+            return item;
+        }, checklistExecutor);
+
+        CompletableFuture<ReportItem> grossMarginFuture = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "Calculating Gross Margin...");
+            ReportItem item = grossMarginCalculator.calculate(ticker, sseEmitter);
+            checklistSseService.sendSseEvent(sseEmitter, "Gross Margin calculation complete.");
+            return item;
+        }, checklistExecutor);
+
+        CompletableFuture<ReportItem> roicFuture = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "Calculating Return on Invested Capital (ROIC)...");
+            ReportItem item = roicCalculator.calculate(ticker, sseEmitter);
+            checklistSseService.sendSseEvent(sseEmitter, "Return on Invested Capital (ROIC) calculation complete.");
+            return item;
+        }, checklistExecutor);
+
+        CompletableFuture<ReportItem> fcfFuture = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "Calculating Free Cash Flow...");
+            ReportItem item = fcfCalculator.calculate(ticker, sseEmitter);
+            checklistSseService.sendSseEvent(sseEmitter, "Free Cash Flow calculation complete.");
+            return item;
+        }, checklistExecutor);
+
+        CompletableFuture<ReportItem> epsFuture = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "Calculating Earnings Per Share (EPS)...");
+            ReportItem item = epsCalculator.calculate(ticker, sseEmitter);
+            checklistSseService.sendSseEvent(sseEmitter, "Earnings Per Share (EPS) calculation complete.");
+            return item;
+        }, checklistExecutor);
+
+        CompletableFuture<FerolMoatAnalysisLlmResponse> moatsFuture = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "Thinking about moats...");
+            FerolMoatAnalysisLlmResponse item = moatCalculator.calculate(ticker, sseEmitter);
+            checklistSseService.sendSseEvent(sseEmitter, "Moats analysis is complete.");
+            return item;
+        }, checklistExecutor);
+
+        CompletableFuture<ReportItem> optionalityFuture = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "Thinking about optionality...");
+            ReportItem item = optionalityCalculator.calculate(ticker, sseEmitter);
+            checklistSseService.sendSseEvent(sseEmitter, "Optionality analysis is complete.");
+            return item;
+        }, checklistExecutor);
+
+        CompletableFuture<ReportItem> organicGrowthRunawayFuture = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "Thinking about organic growth runaway...");
+            ReportItem item = organicGrowthRunawayCalculator.calculate(ticker, sseEmitter);
+            checklistSseService.sendSseEvent(sseEmitter, "Organic growth runaway analysis is complete.");
+            return item;
+        }, checklistExecutor);
+
+        CompletableFuture<ReportItem> topDogFuture = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "Thinking about top dog or first mover...");
+            ReportItem item = topDogCalculator.calculate(ticker, sseEmitter);
+            checklistSseService.sendSseEvent(sseEmitter, "Top dog or first mover analysis is complete.");
+            return item;
+        }, checklistExecutor);
+
+        CompletableFuture<ReportItem> operatingLeverageFuture = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "Thinking about operating leverage...");
+            ReportItem item = operatingLeverageCalculator.calculate(ticker, sseEmitter);
+            checklistSseService.sendSseEvent(sseEmitter, "Operating leverage analysis is complete.");
+            return item;
+        }, checklistExecutor);
+
+        CompletableFuture<ReportItem> customerAcquisitionsFuture = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "Thinking about Sales & Marketing % of gross profit...");
+            ReportItem item = acquisitionsCalculator.calculate(ticker, sseEmitter);
+            checklistSseService.sendSseEvent(sseEmitter, "Sales & Marketing % of gross profit analysis is complete.");
+            return item;
+        }, checklistExecutor);
+
+        CompletableFuture<ReportItem> cyclicalityFuture = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "Thinking how cyclical is this business..");
+            ReportItem item = cyclicalityCalculator.calculate(ticker, sseEmitter);
+            checklistSseService.sendSseEvent(sseEmitter, "Business cyclicality analysis is complete.");
+            return item;
+        }, checklistExecutor);
+
+        CompletableFuture<ReportItem> recurringRevenueFuture = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "Does this company have recurring revenue..?");
+            ReportItem item = recurringRevenueCalculator.calculate(ticker, sseEmitter);
+            checklistSseService.sendSseEvent(sseEmitter, "Recurring revenue analysis is complete.");
+            return item;
+        }, checklistExecutor);
+
+        CompletableFuture<ReportItem> pricingPowerFuture = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "How about their pricing power..?");
+            ReportItem item = pricingPowerCalculator.calculate(ticker, sseEmitter);
+            checklistSseService.sendSseEvent(sseEmitter, "Pricing power analysis is complete.");
+            return item;
+        }, checklistExecutor);
+
+        CompletableFuture<ReportItem> cultureCalculatorFuture = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "How is the culture..?");
+            ReportItem item = cultureCalculator.calculate(ticker, sseEmitter);
+            checklistSseService.sendSseEvent(sseEmitter, "Culture check done.");
+            return item;
+        }, checklistExecutor);
+
+        CompletableFuture<ReportItem> soulInTheGameFuture = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "Soul in the game..?");
+            ReportItem item = soulInTheGameCalculator.calculate(ticker, sseEmitter);
+            checklistSseService.sendSseEvent(sseEmitter, "Soul in the game done.");
+            return item;
+        }, checklistExecutor);
+
+        CompletableFuture<ReportItem> insiderOwnershipFuture = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "Skin in the game analysis...");
+            ReportItem item = insiderOwnershipCalculator.calculate(ticker, sseEmitter,reportType);
+            checklistSseService.sendSseEvent(sseEmitter, "Skin in the game done.");
+            return item;
+        }, checklistExecutor);
+
+        CompletableFuture<ReportItem> missionStatementFuture = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "Mission statement..?");
+            ReportItem item = missionStatementCalculator.calculate(ticker, sseEmitter);
+            checklistSseService.sendSseEvent(sseEmitter, "Mission statement analysis is complete.");
+            return item;
+        }, checklistExecutor);
+
+        CompletableFuture<ReportItem> performanceVsSP500Future = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "Calculating performance vs S&P500...");
+            ReportItem item = performanceVsSP500Calculator.calculateUpsidePerformance(ticker, sseEmitter);
+            checklistSseService.sendSseEvent(sseEmitter, "Performance vs S&P500 analysis is complete.");
+            return item;
+        }, checklistExecutor);
+
+        CompletableFuture<ReportItem> shareholderFriendlyActivityFuture = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "Analyzing shareholder friendly activities...");
+            ReportItem item = shareholderFriendlyActivityCalculator.calculate(ticker, sseEmitter);
+            checklistSseService.sendSseEvent(sseEmitter, "Shareholder friendly activities analysis is complete.");
+            return item;
+        }, checklistExecutor);
+
+        CompletableFuture<ReportItem> beatingExpectationsFuture = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "Are they beating expectations ?...");
+            ReportItem item = beatingEarningsExpectationsCalculator.calculateUpsidePerformance(ticker, sseEmitter);
+            checklistSseService.sendSseEvent(sseEmitter, "Earnings beating analysis is complete.");
+            return item;
+        }, checklistExecutor);
+
+
+        // Negatives
+        CompletableFuture<FerolNegativesAnalysisLlmResponse> multipleRiskFuture = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "Analysing various negatives..");
+            FerolNegativesAnalysisLlmResponse item = multipleRisksCalculator.calculate(ticker, sseEmitter);
+            checklistSseService.sendSseEvent(sseEmitter, "Various negatives analysis is done.");
+            return item;
+        }, checklistExecutor);
+
+        CompletableFuture<ReportItem> performanceDownVsSP500Future = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "Calculating performance vs S&P500...");
+            ReportItem item = performanceVsSP500Calculator.calculateDownsidePerformance(ticker, sseEmitter);
+            checklistSseService.sendSseEvent(sseEmitter, "Performance vs S&P500 analysis is complete.");
+            return item;
+        }, checklistExecutor);
+
+
+        CompletableFuture<ReportItem> dilutionRiskFuture = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "How was the dilution in the past years..?");
+            ReportItem item = dilutionRiskCalculator.calculate(ticker, sseEmitter);
+            checklistSseService.sendSseEvent(sseEmitter, "Dilution analysis is done.");
+            return item;
+        }, checklistExecutor);
+
+        CompletableFuture<ReportItem> headquartersRiskFuture = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "Any headquarters risk..?");
+            ReportItem item = headquarterRiskCalculator.calculate(ticker, sseEmitter);
+            checklistSseService.sendSseEvent(sseEmitter, "Headquarters risk analysis is done.");
+            return item;
+        }, checklistExecutor);
+
+        CompletableFuture<ReportItem> currencyRiskFuture = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "Any currency risk..?");
+            ReportItem item = currencyRiskCalculator.calculate(ticker, sseEmitter);
+            checklistSseService.sendSseEvent(sseEmitter, "Currency risk analysis is done.");
+            return item;
+        }, checklistExecutor);
+
+
+        CompletableFuture.allOf(
+                financialResilienceFuture, grossMarginFuture, roicFuture, fcfFuture, epsFuture,
+                moatsFuture,
+                optionalityFuture, organicGrowthRunawayFuture, topDogFuture, operatingLeverageFuture,
+                customerAcquisitionsFuture, cyclicalityFuture,
+                recurringRevenueFuture, pricingPowerFuture,
+
+                soulInTheGameFuture,insiderOwnershipFuture,cultureCalculatorFuture,missionStatementFuture,
+
+                performanceVsSP500Future, shareholderFriendlyActivityFuture, beatingExpectationsFuture,
+
+                // negatives
+                multipleRiskFuture,
+                performanceDownVsSP500Future,
+                dilutionRiskFuture,
+                headquartersRiskFuture,
+                currencyRiskFuture)
+                .join();
+
+        List<ReportItem> checklistReportItems = new ArrayList<>();
+        checklistReportItems.add(financialResilienceFuture.get());
+        checklistReportItems.add(grossMarginFuture.get());
+        checklistReportItems.add(roicFuture.get());
+        checklistReportItems.add(fcfFuture.get());
+        checklistReportItems.add(epsFuture.get());
+
+        FerolMoatAnalysisLlmResponse moatAnalysis = moatsFuture.get();
+        checklistReportItems.add(new ReportItem("networkEffect",moatAnalysis.getNetworkEffectScore(), moatAnalysis.getNetworkEffectExplanation()));
+        checklistReportItems.add(new ReportItem("switchingCosts",moatAnalysis.getSwitchingCostsScore(), moatAnalysis.getSwitchingCostsExplanation()));
+        checklistReportItems.add(new ReportItem("durableCostAdvantage",moatAnalysis.getDurableCostAdvantageScore(), moatAnalysis.getDurableCostAdvantageExplanation()));
+        checklistReportItems.add(new ReportItem("intangibles",moatAnalysis.getIntangiblesScore(), moatAnalysis.getIntangiblesExplanation()));
+        checklistReportItems.add(new ReportItem("counterPositioning",moatAnalysis.getCounterPositioningScore(), moatAnalysis.getCounterPositioningExplanation()));
+        checklistReportItems.add(new ReportItem("moatDirection",moatAnalysis.getMoatDirectionScore(), moatAnalysis.getMoatDirectionExplanation()));
+
+        checklistReportItems.add(optionalityFuture.get());
+        checklistReportItems.add(organicGrowthRunawayFuture.get());
+        checklistReportItems.add(topDogFuture.get());
+        checklistReportItems.add(operatingLeverageFuture.get());
+        checklistReportItems.add(customerAcquisitionsFuture.get());
+        checklistReportItems.add(cyclicalityFuture.get());
+        checklistReportItems.add(recurringRevenueFuture.get());
+        checklistReportItems.add(pricingPowerFuture.get());
+
+        checklistReportItems.add(soulInTheGameFuture.get());
+        checklistReportItems.add(insiderOwnershipFuture.get());
+        checklistReportItems.add(cultureCalculatorFuture.get());
+        checklistReportItems.add(missionStatementFuture.get());
+
+        checklistReportItems.add(performanceVsSP500Future.get());
+        checklistReportItems.add(shareholderFriendlyActivityFuture.get());
+        checklistReportItems.add(beatingExpectationsFuture.get());
+
+        FerolNegativesAnalysisLlmResponse negativesAnalysis = multipleRiskFuture.get();
+        checklistReportItems.add(new ReportItem("accountingIrregularities",negativesAnalysis.getAccountingIrregularitiesScore(), negativesAnalysis.getAccountingIrregularitiesExplanation()));
+        checklistReportItems.add(new ReportItem("customerConcentration",negativesAnalysis.getCustomerConcentrationScore(), negativesAnalysis.getCustomerConcentrationExplanation()));
+        checklistReportItems.add(new ReportItem("industryDisruption",negativesAnalysis.getIndustryDisruptionScore(), negativesAnalysis.getIndustryDisruptionExplanation()));
+        checklistReportItems.add(new ReportItem("outsideForces",negativesAnalysis.getOutsideForcesScore(), negativesAnalysis.getOutsideForcesExplanation()));
+        checklistReportItems.add(new ReportItem("binaryEvent",negativesAnalysis.getBinaryEventScore(), negativesAnalysis.getBinaryEventExplanation()));
+        checklistReportItems.add(new ReportItem("growthByAcquisition",negativesAnalysis.getGrowthByAcquisitionScore(), negativesAnalysis.getGrowthByAcquisitionExplanation()));
+        checklistReportItems.add(new ReportItem("complicatedFinancials",negativesAnalysis.getComplicatedFinancialsScore(), negativesAnalysis.getComplicatedFinancialsExplanation()));
+        checklistReportItems.add(new ReportItem("antitrustConcerns",negativesAnalysis.getAntitrustConcernsScore(), negativesAnalysis.getAntitrustConcernsExplanation()));
+        checklistReportItems.add(performanceDownVsSP500Future.get());
+        checklistReportItems.add(dilutionRiskFuture.get());
+        checklistReportItems.add(headquartersRiskFuture.get());
+        checklistReportItems.add(currencyRiskFuture.get());
+
+
+        checklistSseService.sendSseEvent(sseEmitter, "Building and saving Checklist report...");
+        ChecklistReport checklistReport = checklistReportPersistenceService.buildAndSaveReport(ticker, checklistReportItems, ReportType.FEROL);
+        checklistSseService.sendSseEvent(sseEmitter, "Checklist report built and saved.");
+
+        sseEmitter.send(SseEmitter.event()
+                .name("COMPLETED")
+                .data(checklistReport, MediaType.APPLICATION_JSON));
+
+        sseEmitter.complete();
+        LOGGER.info("Checklist report generation complete for {}", ticker);
+    }
+
+    private void generate100BaggerReport(String ticker, SseEmitter sseEmitter, ReportType reportType) throws InterruptedException, ExecutionException, IOException {
+        CompletableFuture<ReportItem> insiderOwnershipFuture = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "Skin in the game analysis...");
+            ReportItem item = insiderOwnershipCalculator.calculate(ticker, sseEmitter, reportType);
+            checklistSseService.sendSseEvent(sseEmitter, "Skin in the game done.");
+            return item;
+        }, checklistExecutor);
+
+        CompletableFuture.allOf(
+                        insiderOwnershipFuture
+
+                        // negatives
+
+                       )
+                .join();
+
+        List<ReportItem> checklistReportItems = new ArrayList<>();
+        checklistReportItems.add(insiderOwnershipFuture.get());
+
+        checklistSseService.sendSseEvent(sseEmitter, "Building and saving Checklist report...");
+        ChecklistReport checklistReport = checklistReportPersistenceService.buildAndSaveReport(ticker, checklistReportItems, ReportType.ONE_HUNDRED_BAGGER);
+        checklistSseService.sendSseEvent(sseEmitter, "Checklist report built and saved.");
+
+        sseEmitter.send(SseEmitter.event()
+                .name("COMPLETED")
+                .data(checklistReport, MediaType.APPLICATION_JSON));
+
+        sseEmitter.complete();
+        LOGGER.info("Checklist report generation complete for {}", ticker);
+    }
 
     public ChecklistReport saveChecklistReport(String ticker, List<ReportItem> checklistReportItems, ReportType reportType) {
         LOGGER.info("Saving Checklist report for {}", ticker);

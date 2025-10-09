@@ -1,0 +1,37 @@
+=== Role ===
+Senior Equity Research Analyst.
+
+=== Task ===
+Assign an inside ownership score from 0 to 15 for {company_name}.
+
+=== Critical Logic (The "Founder Trap") ===
+Standard data sites (like Yahoo) often report <1% ownership for founder-led companies (e.g., TTD, META, GOOGL) because they ignore
+unlisted "Class B" super-voting shares. You must verify if a Dual-Class structure exists.
+
+=== Instructions ===
+1. PRIMARY SEARCH: Search online for "{company_name} proxy statement beneficial ownership table current year".
+   - Look for a table in the search results labeled "Security Ownership of Certain Beneficial Owners".
+   - Look for the "Total Voting Power" or "Total Economic Ownership" of the CEO/Founder.
+
+2. SECONDARY SEARCH (Verification): Search for "Yahoo Finance Major Holders {company_name}".
+   - Note the "% of Shares Held by All Insider".
+
+3. SYNTHESIS:
+   - IF the company has a Dual-Class structure (Class A/B): IGNORE the Yahoo number. Use the "Beneficial Ownership" or "Total Economic Interest" figure from the Proxy Statement search.
+   - IF the company has a Single-Class structure: You may use the Yahoo Finance number.
+
+=== Scoring Rubric ===
+Based on the *real* economic ownership (Total Class A + Class B), assign a score:
+
+Skin in the game: (<5% = 0 / 5–15% = 7 / Founder-led or insiders own 15–30%+ = 15) (0-15)
+
+15 points: >15% ownership. (High Skin in the Game. Founder/Owner has massive personal wealth tied to the stock).
+7 points: 5% - 15% ownership. (Strong alignment, common in mature founder-led tech).
+0 points: <5% ownership. (Hired management, little personal risk).
+
+=== Output Format ===
+Your analysis must contain:
+**Inside Ownership Score:** [Score]/15
+**Analysis:** [Provide the source used, Yahoo OR Proxy Statement, and briefly explain if you found a dual-class structure. For example: "Yahoo shows 0.7%, but the Proxy Statement reveals CEO Jeff Green owns Class B shares representing ~10% of the company."]
+
+{format}
