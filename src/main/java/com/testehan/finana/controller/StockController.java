@@ -3,7 +3,6 @@ package com.testehan.finana.controller;
 import com.testehan.finana.model.*;
 import com.testehan.finana.service.AlphaVantageService;
 import com.testehan.finana.service.FMPService;
-import com.testehan.finana.service.FinancialDataOrchestrator;
 import com.testehan.finana.service.FinancialDataService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -21,19 +20,17 @@ public class StockController {
     private final FinancialDataService financialDataService;
     private final FMPService fmpService;
 
-    private final FinancialDataOrchestrator financialDataOrchestrator;
 
     @Autowired
-    public StockController(AlphaVantageService alphaVantageService, FinancialDataService financialDataService, FMPService fmpService, FinancialDataOrchestrator financialDataOrchestrator) {
+    public StockController(AlphaVantageService alphaVantageService, FinancialDataService financialDataService, FMPService fmpService) {
         this.alphaVantageService = alphaVantageService;
         this.financialDataService = financialDataService;
         this.fmpService = fmpService;
-        this.financialDataOrchestrator = financialDataOrchestrator;
     }
 
     @GetMapping("/overview/{symbol}")
     public Mono<CompanyOverview> getCompanyOverview(@PathVariable String symbol) {
-        financialDataOrchestrator.ensureFinancialDataIsPresent(symbol.toUpperCase());
+        financialDataService.ensureFinancialDataIsPresent(symbol.toUpperCase());
         return getCompanyOverviewFmp(symbol);
     }
 

@@ -450,4 +450,28 @@ public class FinancialDataService {
 
         }
     }
+
+    public void ensureFinancialDataIsPresent(String ticker) {
+        this.getLastStockQuote(ticker).block();
+        this.getIndexQuotes("^GSPC").block();
+        this.getIncomeStatements(ticker).block();
+        this.getBalanceSheet(ticker).block();
+        this.getCashFlow(ticker).block();
+        this.getEarningsEstimates(ticker).block();
+        this.getEarningsHistory(ticker).block();
+        this.getCompanyOverview(ticker).block().get(0);
+        this.getRevenueSegmentation(ticker).block();
+        this.getRevenueGeographicSegmentation(ticker).block();
+        secFilingService.fetchAndSaveSecFilings(ticker);
+        secFilingService.getAndSaveSecFilings(ticker);
+
+        this.getFinancialRatios(ticker);
+
+        var latestReportDate = this.getLatestReportedDate(ticker);
+
+        if (latestReportDate != null) {
+            String dateQuarter = dateUtils.getDateQuarter(latestReportDate);
+            this.getEarningsCallTranscript(ticker, dateQuarter).block();
+        }
+    }
 }
