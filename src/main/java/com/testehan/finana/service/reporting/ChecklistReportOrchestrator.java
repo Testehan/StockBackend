@@ -438,8 +438,16 @@ public class ChecklistReportOrchestrator {
             return item;
         }, checklistExecutor);
 
+        CompletableFuture<ReportItem> moatsFuture = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "Thinking about moats...");
+            ReportItem item = moatCalculator.calculate100BaggerMoat(ticker, sseEmitter);
+            checklistSseService.sendSseEvent(sseEmitter, "Moats analysis is complete.");
+            return item;
+        }, checklistExecutor);
+
         CompletableFuture.allOf(
-                        insiderOwnershipFuture
+                        insiderOwnershipFuture,
+                        moatsFuture
 
                         // negatives
 
@@ -448,6 +456,7 @@ public class ChecklistReportOrchestrator {
 
         List<ReportItem> checklistReportItems = new ArrayList<>();
         checklistReportItems.add(insiderOwnershipFuture.get());
+        checklistReportItems.add(moatsFuture.get());
 
         checklistSseService.sendSseEvent(sseEmitter, "Building and saving Checklist report...");
         ChecklistReport checklistReport = checklistReportPersistenceService.buildAndSaveReport(ticker, checklistReportItems, ReportType.ONE_HUNDRED_BAGGER);
