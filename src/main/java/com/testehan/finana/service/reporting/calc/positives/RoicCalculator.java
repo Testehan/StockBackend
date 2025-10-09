@@ -22,20 +22,20 @@ public class RoicCalculator {
     private static final Logger LOGGER = LoggerFactory.getLogger(RoicCalculator.class);
 
     private final FinancialRatiosRepository financialRatiosRepository;
-    private final ChecklistSseService ferolSseService;
+    private final ChecklistSseService checklistSseService;
 
-    public RoicCalculator(FinancialRatiosRepository financialRatiosRepository, ChecklistSseService ferolSseService) {
+    public RoicCalculator(FinancialRatiosRepository financialRatiosRepository, ChecklistSseService checklistSseService) {
         this.financialRatiosRepository = financialRatiosRepository;
-        this.ferolSseService = ferolSseService;
+        this.checklistSseService = checklistSseService;
     }
 
     public ReportItem calculate(String ticker, SseEmitter sseEmitter) {
-        ferolSseService.sendSseEvent(sseEmitter, "Calculating Return on Invested Capital (ROIC)...");
+        checklistSseService.sendSseEvent(sseEmitter, "Calculating Return on Invested Capital (ROIC)...");
         Optional<FinancialRatiosData> financialRatiosData = financialRatiosRepository.findBySymbol(ticker);
 
         if (financialRatiosData.isEmpty() || financialRatiosData.get().getAnnualReports().isEmpty() || financialRatiosData.get().getQuarterlyReports().isEmpty()) {
             LOGGER.warn("No financial ratios data found for ticker: {}", ticker);
-            ferolSseService.sendSseEvent(sseEmitter, "ROIC calculation skipped: No data found.");
+            checklistSseService.sendSseEvent(sseEmitter, "ROIC calculation skipped: No data found.");
             return new ReportItem("roic", 0, "No annual or quarterly financial ratios data available.");
         }
 
@@ -48,7 +48,7 @@ public class RoicCalculator {
                 .collect(Collectors.toList());
 
         if (annualRoicValues.isEmpty()) {
-            ferolSseService.sendSseEvent(sseEmitter, "ROIC calculation skipped: No annual ROIC data found.");
+            checklistSseService.sendSseEvent(sseEmitter, "ROIC calculation skipped: No annual ROIC data found.");
             return new ReportItem("roic", 0, "No annual ROIC data available for median calculation.");
         }
 
@@ -62,7 +62,7 @@ public class RoicCalculator {
         } else {
             medianRoic = (annualRoicValues.get(middle - 1).add(annualRoicValues.get(middle))).divide(BigDecimal.valueOf(2), 2, BigDecimal.ROUND_HALF_UP);
         }
-        ferolSseService.sendSseEvent(sseEmitter, "5-Year Median ROIC: " + medianRoic.toPlainString() + "%");
+        checklistSseService.sendSseEvent(sseEmitter, "5-Year Median ROIC: " + medianRoic.toPlainString() + "%");
 
 
         // Get latest TTM ROIC (assuming the latest quarterly report's ROIC represents TTM or is close enough)
@@ -75,9 +75,9 @@ public class RoicCalculator {
 
         if (latestQuarterlyReport.isPresent()) {
             currentTtmRoic = latestQuarterlyReport.get().getRoic();
-            ferolSseService.sendSseEvent(sseEmitter, "Latest TTM ROIC: " + currentTtmRoic.toPlainString() + "%");
+            checklistSseService.sendSseEvent(sseEmitter, "Latest TTM ROIC: " + currentTtmRoic.toPlainString() + "%");
         } else {
-            ferolSseService.sendSseEvent(sseEmitter, "ROIC calculation partially skipped: No latest quarterly ROIC data for TTM.");
+            checklistSseService.sendSseEvent(sseEmitter, "ROIC calculation partially skipped: No latest quarterly ROIC data for TTM.");
             return new ReportItem("roic", 0, "No latest quarterly ROIC data for TTM calculation.");
         }
 
@@ -107,7 +107,7 @@ public class RoicCalculator {
             score++;
             explanation += " Additionally, ROIC is rising, suggesting an improving trend.";
         }
-        ferolSseService.sendSseEvent(sseEmitter, "ROIC calculation complete. Score: " + score);
+        checklistSseService.sendSseEvent(sseEmitter, "ROIC calculation complete. Score: " + score);
 
         return new ReportItem("roic", score, explanation);
     }

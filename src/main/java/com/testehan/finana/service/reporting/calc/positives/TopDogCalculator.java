@@ -3,7 +3,7 @@ package com.testehan.finana.service.reporting.calc.positives;
 import com.testehan.finana.model.CompanyOverview;
 import com.testehan.finana.model.ReportItem;
 import com.testehan.finana.model.SecFiling;
-import com.testehan.finana.model.llm.responses.FerolLlmResponse;
+import com.testehan.finana.model.llm.responses.LlmScoreExplanationResponse;
 import com.testehan.finana.repository.CompanyOverviewRepository;
 import com.testehan.finana.repository.SecFilingRepository;
 import com.testehan.finana.service.LlmService;
@@ -68,7 +68,7 @@ public class TopDogCalculator {
         var latestEarningsTranscript = optionalityCalculator.getLatestEarningsTranscript(ticker);
 
         PromptTemplate promptTemplate = new PromptTemplate(topDogPrompt);
-        var ferolLlmResponseOutputConverter = new BeanOutputConverter<>(FerolLlmResponse.class);
+        var ferolLlmResponseOutputConverter = new BeanOutputConverter<>(LlmScoreExplanationResponse.class);
 
         Map<String, Object> promptParameters = new HashMap<>();
         promptParameters.put("company_name", companyOverview.get().getCompanyName());
@@ -82,7 +82,7 @@ public class TopDogCalculator {
             LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
             String llmResponse = llmService.callLlm(prompt);
             ferolSseService.sendSseEvent(sseEmitter, "Received LLM response for top dog or first mover analysis.");
-            FerolLlmResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
+            LlmScoreExplanationResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
 
             return new ReportItem("topDogFirstMover", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
         } catch (Exception e) {

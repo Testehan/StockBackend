@@ -6,7 +6,7 @@ import com.testehan.finana.model.FinancialRatiosData;
 import com.testehan.finana.model.IncomeReport;
 import com.testehan.finana.model.IncomeStatementData;
 import com.testehan.finana.model.SecFiling;
-import com.testehan.finana.model.llm.responses.FerolLlmResponse;
+import com.testehan.finana.model.llm.responses.LlmScoreExplanationResponse;
 import com.testehan.finana.repository.CompanyOverviewRepository;
 import com.testehan.finana.repository.FinancialRatiosRepository;
 import com.testehan.finana.repository.IncomeStatementRepository;
@@ -138,7 +138,7 @@ public class PricingPowerCalculator {
             promptParameters.put("financial_table", financialTable);
         }
 
-        var ferolLlmResponseOutputConverter = new BeanOutputConverter<>(FerolLlmResponse.class);
+        var ferolLlmResponseOutputConverter = new BeanOutputConverter<>(LlmScoreExplanationResponse.class);
 
         promptParameters.put("company_name", companyOverview.get().getCompanyName());
 
@@ -154,7 +154,7 @@ public class PricingPowerCalculator {
             LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
             String llmResponse = llmService.callLlm(prompt);
             ferolSseService.sendSseEvent(sseEmitter, "Received LLM response for pricing power analysis.");
-            FerolLlmResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
+            LlmScoreExplanationResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
 
             return new ReportItem("pricingPower", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
         } catch (Exception e) {

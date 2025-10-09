@@ -3,7 +3,7 @@ package com.testehan.finana.service.reporting.calc.positives;
 import com.testehan.finana.model.CompanyOverview;
 import com.testehan.finana.model.ReportItem;
 import com.testehan.finana.model.SecFiling;
-import com.testehan.finana.model.llm.responses.FerolLlmResponse;
+import com.testehan.finana.model.llm.responses.LlmScoreExplanationResponse;
 import com.testehan.finana.repository.CompanyOverviewRepository;
 import com.testehan.finana.repository.SecFilingRepository;
 import com.testehan.finana.service.LlmService;
@@ -68,7 +68,7 @@ public class MissionStatementCalculator {
         PromptTemplate promptTemplate = new PromptTemplate(missionStatementPrompt);
         Map<String, Object> promptParameters = new HashMap<>();
 
-        var ferolLlmResponseOutputConverter = new BeanOutputConverter<>(FerolLlmResponse.class);
+        var ferolLlmResponseOutputConverter = new BeanOutputConverter<>(LlmScoreExplanationResponse.class);
 
         promptParameters.put("company_description", companyOverview.get().getDescription());
         promptParameters.put("business_description", businessDescription.toString());
@@ -80,7 +80,7 @@ public class MissionStatementCalculator {
             LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
             String llmResponse = llmService.callLlm(prompt);
             ferolSseService.sendSseEvent(sseEmitter, "Received LLM response with mission statement analysis.");
-            FerolLlmResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
+            LlmScoreExplanationResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
 
             return new ReportItem("missionStatement", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
         } catch (Exception e) {

@@ -1,7 +1,7 @@
 package com.testehan.finana.service.reporting.calc.positives;
 
 import com.testehan.finana.model.*;
-import com.testehan.finana.model.llm.responses.FerolLlmResponse;
+import com.testehan.finana.model.llm.responses.LlmScoreExplanationResponse;
 import com.testehan.finana.repository.*;
 import com.testehan.finana.service.LlmService;
 import com.testehan.finana.service.reporting.ChecklistSseService;
@@ -77,7 +77,7 @@ public class OrganicGrowthRunawayCalculator {
         var latestEarningsTranscript = optionalityCalculator.getLatestEarningsTranscript(ticker);
 
         PromptTemplate promptTemplate = new PromptTemplate(organicGrowthPrompt);
-        var ferolLlmResponseOutputConverter = new BeanOutputConverter<>(FerolLlmResponse.class);
+        var ferolLlmResponseOutputConverter = new BeanOutputConverter<>(LlmScoreExplanationResponse.class);
 
         Map<String, Object> promptParameters = new HashMap<>();
         promptParameters.put("management_discussion", stringBuilder.toString());
@@ -92,7 +92,7 @@ public class OrganicGrowthRunawayCalculator {
             LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
             String llmResponse = llmService.callLlm(prompt);
             ferolSseService.sendSseEvent(sseEmitter, "Received LLM response for organic growth runaway analysis.");
-            FerolLlmResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
+            LlmScoreExplanationResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
 
             return new ReportItem("organicGrowthRunway", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
         } catch (Exception e) {

@@ -6,7 +6,7 @@ import com.testehan.finana.model.FinancialRatiosData;
 import com.testehan.finana.model.IncomeReport;
 import com.testehan.finana.model.IncomeStatementData;
 import com.testehan.finana.model.SecFiling;
-import com.testehan.finana.model.llm.responses.FerolLlmResponse;
+import com.testehan.finana.model.llm.responses.LlmScoreExplanationResponse;
 import com.testehan.finana.repository.CompanyOverviewRepository;
 import com.testehan.finana.repository.FinancialRatiosRepository;
 import com.testehan.finana.repository.IncomeStatementRepository;
@@ -148,7 +148,7 @@ public class OptionalityCalculator {
         var latestEarningsTranscript = getLatestEarningsTranscript(ticker);
 
         PromptTemplate promptTemplate = new PromptTemplate(optionalityPrompt);
-        var ferolLlmResponseOutputConverter = new BeanOutputConverter<>(FerolLlmResponse.class);
+        var ferolLlmResponseOutputConverter = new BeanOutputConverter<>(LlmScoreExplanationResponse.class);
 
         Map<String, Object> promptParameters = new HashMap<>();
         promptParameters.put("business_description", stringBuilder.toString());
@@ -173,7 +173,7 @@ public class OptionalityCalculator {
             LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
             String llmResponse = llmService.callLlm(prompt);
             ferolSseService.sendSseEvent(sseEmitter, "Received LLM response for optionality analysis.");
-            FerolLlmResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
+            LlmScoreExplanationResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
 
             return new ReportItem("optionality", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
         } catch (Exception e) {

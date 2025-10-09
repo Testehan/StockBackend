@@ -5,7 +5,7 @@ import com.testehan.finana.model.ReportItem;
 import com.testehan.finana.model.FinancialRatiosData;
 import com.testehan.finana.model.IncomeStatementData;
 import com.testehan.finana.model.SecFiling;
-import com.testehan.finana.model.llm.responses.FerolLlmResponse;
+import com.testehan.finana.model.llm.responses.LlmScoreExplanationResponse;
 import com.testehan.finana.repository.CompanyOverviewRepository;
 import com.testehan.finana.repository.FinancialRatiosRepository;
 import com.testehan.finana.repository.IncomeStatementRepository;
@@ -110,7 +110,7 @@ public class CyclicalityCalculator {
             promptParameters.put("company_operating_margin_trend", operatingMarginTrend.toString());
         }
 
-        var ferolLlmResponseOutputConverter = new BeanOutputConverter<>(FerolLlmResponse.class);
+        var ferolLlmResponseOutputConverter = new BeanOutputConverter<>(LlmScoreExplanationResponse.class);
 
         promptParameters.put("company_name", companyOverview.get().getCompanyName());
         promptParameters.put("company_industry", companyOverview.get().getIndustry());
@@ -127,7 +127,7 @@ public class CyclicalityCalculator {
             LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
             String llmResponse = llmService.callLlm(prompt);
             ferolSseService.sendSseEvent(sseEmitter, "Received LLM response for company cyclicality analysis.");
-            FerolLlmResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
+            LlmScoreExplanationResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
 
             return new ReportItem("companyCyclicality", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
         } catch (Exception e) {

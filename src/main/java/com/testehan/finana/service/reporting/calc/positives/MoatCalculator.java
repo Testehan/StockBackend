@@ -3,7 +3,7 @@ package com.testehan.finana.service.reporting.calc.positives;
 import com.testehan.finana.model.CompanyOverview;
 import com.testehan.finana.model.ReportItem;
 import com.testehan.finana.model.SecFiling;
-import com.testehan.finana.model.llm.responses.FerolLlmResponse;
+import com.testehan.finana.model.llm.responses.LlmScoreExplanationResponse;
 import com.testehan.finana.model.llm.responses.FerolMoatAnalysisLlmResponse;
 import com.testehan.finana.repository.CompanyOverviewRepository;
 import com.testehan.finana.repository.SecFilingRepository;
@@ -126,7 +126,7 @@ public class MoatCalculator {
 
 
         PromptTemplate promptTemplate = new PromptTemplate(moat100BaggerPrompt);
-        var llmResponseOutputConverter = new BeanOutputConverter<>(FerolLlmResponse.class);
+        var llmResponseOutputConverter = new BeanOutputConverter<>(LlmScoreExplanationResponse.class);
 
         Map<String, Object> promptParameters = new HashMap<>();
         promptParameters.put("business_description", stringBuilder.toString());
@@ -139,7 +139,7 @@ public class MoatCalculator {
             LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
             String llmResponse = llmService.callLlm(prompt);
             checklistSseService.sendSseEvent(sseEmitter, "Received LLM response for moat analysis.");
-            FerolLlmResponse convertedLlmResponse = llmResponseOutputConverter.convert(llmResponse);
+            LlmScoreExplanationResponse convertedLlmResponse = llmResponseOutputConverter.convert(llmResponse);
 
             return new ReportItem("competitiveAdvantageMoat", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
 

@@ -1,0 +1,71 @@
+=== Role ===
+Senior Equity Research Analyst specializing in capital allocation and long-term return on invested capital.
+
+=== Task ===
+Assign a Reinvestment (5y) score from 0 to 10 for {company_name} based on the provided financial metrics and SEC disclosure excerpts.
+
+=== Core Definition ===
+Reinvestment evaluates whether the company can deploy retained earnings at high incremental returns over a sustained period.
+
+This score reflects:
+1) How much earnings are reinvested
+2) The returns earned on that reinvested capital
+3) The durability of reinvestment opportunities
+
+=== Provided Quantitative Data (5-Year Averages) ===
+- Reinvestment Rate: {reinvestment_rate}% of earnings
+- ROIC (5y avg): {roic_5y}%
+- ROE (5y avg): {roe_5y}%
+- Trend in Invested Capital: {invested_capital_trend}
+  (Increasing / Flat / Declining)
+
+IMPORTANT:
+- Treat these figures as authoritative.
+- Do NOT recalculate, override, or question the inputs unless there is a clear logical contradiction.
+
+=== Provided Qualitative Evidence (SEC Filings) ===
+{management_discussion}
+
+=== Critical Logic (Capital Saturation Check) ===
+Even strong historical returns can be misleading if management indicates limited future reinvestment opportunities.
+
+Explicit signals such as:
+- “Limited reinvestment opportunities”
+- “Mature or saturated markets”
+- “Returning excess capital to shareholders”
+
+must be treated as NEGATIVE reinvestment indicators.
+
+=== Scoring Rubric ===
+
+0 points:
+- Cannot reinvest profitably
+- Reinvestment Rate < 50%
+- AND/OR ROIC or ROE < 15%
+- AND/OR management signals capital saturation
+
+5 points:
+- Partial reinvestment (<50% of earnings)
+- AND/OR ROIC or ROE between 15–20%
+- Mixed or unclear reinvestment commentary
+
+10 points:
+- Reinvestment Rate ≥ 50%
+- Sustained ROIC and/or ROE ≥ 20%
+- Clear, repeatable reinvestment pathways described by management
+
+=== Hard Constraints ===
+- If ROIC < 15% OR ROE < 15%, the score CANNOT exceed 5.
+- If reinvestment rate < 50%, the score CANNOT be 10.
+
+IMPORTANT:
+- Do NOT introduce external data.
+- Do NOT speculate beyond the provided inputs.
+- The score must be justified strictly by the rubric above.
+
+=== Output Format ===
+
+**Reinvestment Score:** [Score]/10
+**Conclusion:** 2-3 sentences explicitly mapping the evidence to the scoring rubric.
+
+{format}

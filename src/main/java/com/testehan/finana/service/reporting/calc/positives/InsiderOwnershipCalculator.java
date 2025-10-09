@@ -3,7 +3,7 @@ package com.testehan.finana.service.reporting.calc.positives;
 import com.testehan.finana.model.CompanyOverview;
 import com.testehan.finana.model.ReportItem;
 import com.testehan.finana.model.ReportType;
-import com.testehan.finana.model.llm.responses.FerolLlmResponse;
+import com.testehan.finana.model.llm.responses.LlmScoreExplanationResponse;
 import com.testehan.finana.repository.CompanyOverviewRepository;
 import com.testehan.finana.service.LlmService;
 import com.testehan.finana.service.reporting.ChecklistSseService;
@@ -53,7 +53,7 @@ public class InsiderOwnershipCalculator {
         PromptTemplate promptTemplate = getReportTemplateBy(reportType);
         Map<String, Object> promptParameters = new HashMap<>();
 
-        var llmResponseOutputConverter = new BeanOutputConverter<>(FerolLlmResponse.class);
+        var llmResponseOutputConverter = new BeanOutputConverter<>(LlmScoreExplanationResponse.class);
 
         promptParameters.put("company_name", companyOverview.get().getCompanyName());
         promptParameters.put("format", llmResponseOutputConverter.getFormat());
@@ -64,7 +64,7 @@ public class InsiderOwnershipCalculator {
             LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
             String llmResponse = llmService.callLlm(prompt);
             checklistSseService.sendSseEvent(sseEmitter, "Received LLM response with insider ownership analysis.");
-            FerolLlmResponse convertedLlmResponse = llmResponseOutputConverter.convert(llmResponse);
+            LlmScoreExplanationResponse convertedLlmResponse = llmResponseOutputConverter.convert(llmResponse);
 
             return new ReportItem("insideOwnership", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
         } catch (Exception e) {

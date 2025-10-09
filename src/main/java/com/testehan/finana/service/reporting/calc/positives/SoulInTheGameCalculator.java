@@ -2,7 +2,7 @@ package com.testehan.finana.service.reporting.calc.positives;
 
 import com.testehan.finana.model.CompanyOverview;
 import com.testehan.finana.model.ReportItem;
-import com.testehan.finana.model.llm.responses.FerolLlmResponse;
+import com.testehan.finana.model.llm.responses.LlmScoreExplanationResponse;
 import com.testehan.finana.repository.CompanyOverviewRepository;
 import com.testehan.finana.service.LlmService;
 import com.testehan.finana.service.reporting.ChecklistSseService;
@@ -48,7 +48,7 @@ public class SoulInTheGameCalculator {
 
         PromptTemplate promptTemplate = new PromptTemplate(soulInTheGamePrompt);
         Map<String, Object> promptParameters = new HashMap<>();
-        var ferolLlmResponseOutputConverter = new BeanOutputConverter<>(FerolLlmResponse.class);
+        var ferolLlmResponseOutputConverter = new BeanOutputConverter<>(LlmScoreExplanationResponse.class);
         promptParameters.put("company_description", companyOverview.get().getDescription());
         promptParameters.put("company_ceo", companyOverview.get().getCeo());
         promptParameters.put("format", ferolLlmResponseOutputConverter.getFormat());
@@ -59,7 +59,7 @@ public class SoulInTheGameCalculator {
             LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
             String llmResponse = llmService.callLlm(prompt);
             ferolSseService.sendSseEvent(sseEmitter, "Received LLM response with soul in the game analysis.");
-            FerolLlmResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
+            LlmScoreExplanationResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
 
             return new ReportItem("soulInTheGame", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
         } catch (Exception e) {

@@ -5,7 +5,7 @@ import com.testehan.finana.model.BalanceSheetReport;
 import com.testehan.finana.model.ReportItem;
 import com.testehan.finana.model.IncomeReport;
 import com.testehan.finana.model.IncomeStatementData;
-import com.testehan.finana.model.llm.responses.FerolLlmResponse;
+import com.testehan.finana.model.llm.responses.LlmScoreExplanationResponse;
 import com.testehan.finana.repository.BalanceSheetRepository;
 import com.testehan.finana.repository.IncomeStatementRepository;
 import com.testehan.finana.service.LlmService;
@@ -90,7 +90,7 @@ public class FinancialResilienceCalculator {
 
 
         PromptTemplate promptTemplate = new PromptTemplate(financialResiliencePrompt);
-        var ferolLlmResponseOutputConverter = new BeanOutputConverter<>(FerolLlmResponse.class);
+        var ferolLlmResponseOutputConverter = new BeanOutputConverter<>(LlmScoreExplanationResponse.class);
 
         Map<String, Object> promptParameters = new HashMap<>();
         promptParameters.put("totalCashAndEquivalents", totalCashAndEquivalents[0].toPlainString());
@@ -105,7 +105,7 @@ public class FinancialResilienceCalculator {
             LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
             String llmResponse = llmService.callLlm(prompt);
             ferolSseService.sendSseEvent(sseEmitter, "Received LLM response for resilience analysis.");
-            FerolLlmResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
+            LlmScoreExplanationResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
 
             return new ReportItem("financialResilience", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
         } catch (Exception e) {

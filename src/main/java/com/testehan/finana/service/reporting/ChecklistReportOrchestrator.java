@@ -66,11 +66,13 @@ public class ChecklistReportOrchestrator {
     private final HeadquarterRiskCalculator headquarterRiskCalculator;
     private final CurrencyRiskCalculator currencyRiskCalculator;
 
+    private final ReinvestmentCalculator reinvestmentCalculator;
+
     private final GeneratedReportRepository generatedReportRepository;
     private final Executor checklistExecutor;
 
 
-    public ChecklistReportOrchestrator(FinancialDataOrchestrator financialDataOrchestrator, ChecklistSseService checklistSseService, ChecklistReportPersistenceService checklistReportPersistenceService, FinancialResilienceCalculator financialResilienceCalculator, GrossMarginCalculator grossMarginCalculator, RoicCalculator roicCalculator, FcfCalculator fcfCalculator, EpsCalculator epsCalculator, MoatCalculator moatCalculator, OptionalityCalculator optionalityCalculator, OrganicGrowthRunawayCalculator organicGrowthRunawayCalculator, TopDogCalculator topDogCalculator, OperatingLeverageCalculator operatingLeverageCalculator, AcquisitionsCalculator acquisitionsCalculator, CyclicalityCalculator cyclicalityCalculator, RecurringRevenueCalculator recurringRevenueCalculator, PricingPowerCalculator pricingPowerCalculator, SoulInTheGameCalculator soulInTheGameCalculator, InsiderOwnershipCalculator insiderOwnershipCalculator, CultureCalculator cultureCalculator, MissionStatementCalculator missionStatementCalculator, PerformanceVsSP500Calculator performanceVsSP500Calculator, ShareholderFriendlyActivityCalculator shareholderFriendlyActivityCalculator, BeatingEarningsExpectationsCalculator beatingEarningsExpectationsCalculator, MultipleRisksCalculator multipleRisksCalculator, DilutionRiskCalculator dilutionRiskCalculator, HeadquarterRiskCalculator headquarterRiskCalculator, CurrencyRiskCalculator currencyRiskCalculator, GeneratedReportRepository generatedReportRepository, @Qualifier("checklistExecutor") Executor checklistExecutor) {
+    public ChecklistReportOrchestrator(FinancialDataOrchestrator financialDataOrchestrator, ChecklistSseService checklistSseService, ChecklistReportPersistenceService checklistReportPersistenceService, FinancialResilienceCalculator financialResilienceCalculator, GrossMarginCalculator grossMarginCalculator, RoicCalculator roicCalculator, FcfCalculator fcfCalculator, EpsCalculator epsCalculator, MoatCalculator moatCalculator, OptionalityCalculator optionalityCalculator, OrganicGrowthRunawayCalculator organicGrowthRunawayCalculator, TopDogCalculator topDogCalculator, OperatingLeverageCalculator operatingLeverageCalculator, AcquisitionsCalculator acquisitionsCalculator, CyclicalityCalculator cyclicalityCalculator, RecurringRevenueCalculator recurringRevenueCalculator, PricingPowerCalculator pricingPowerCalculator, SoulInTheGameCalculator soulInTheGameCalculator, InsiderOwnershipCalculator insiderOwnershipCalculator, CultureCalculator cultureCalculator, MissionStatementCalculator missionStatementCalculator, PerformanceVsSP500Calculator performanceVsSP500Calculator, ShareholderFriendlyActivityCalculator shareholderFriendlyActivityCalculator, BeatingEarningsExpectationsCalculator beatingEarningsExpectationsCalculator, MultipleRisksCalculator multipleRisksCalculator, DilutionRiskCalculator dilutionRiskCalculator, HeadquarterRiskCalculator headquarterRiskCalculator, CurrencyRiskCalculator currencyRiskCalculator, ReinvestmentCalculator reinvestmentCalculator, GeneratedReportRepository generatedReportRepository, @Qualifier("checklistExecutor") Executor checklistExecutor) {
         this.financialDataOrchestrator = financialDataOrchestrator;
         this.checklistSseService = checklistSseService;
         this.checklistReportPersistenceService = checklistReportPersistenceService;
@@ -99,6 +101,7 @@ public class ChecklistReportOrchestrator {
         this.dilutionRiskCalculator = dilutionRiskCalculator;
         this.headquarterRiskCalculator = headquarterRiskCalculator;
         this.currencyRiskCalculator = currencyRiskCalculator;
+        this.reinvestmentCalculator = reinvestmentCalculator;
         this.generatedReportRepository = generatedReportRepository;
         this.checklistExecutor = checklistExecutor;
     }
@@ -431,23 +434,41 @@ public class ChecklistReportOrchestrator {
     }
 
     private void generate100BaggerReport(String ticker, SseEmitter sseEmitter, ReportType reportType) throws InterruptedException, ExecutionException, IOException {
-        CompletableFuture<ReportItem> insiderOwnershipFuture = CompletableFuture.supplyAsync(() -> {
-            checklistSseService.sendSseEvent(sseEmitter, "Skin in the game analysis...");
-            ReportItem item = insiderOwnershipCalculator.calculate(ticker, sseEmitter, reportType);
-            checklistSseService.sendSseEvent(sseEmitter, "Skin in the game done.");
+
+        CompletableFuture<ReportItem> reinvestmentFuture = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "Reinvestment 5yrs analysis...");
+            ReportItem item = reinvestmentCalculator.calculate(ticker, sseEmitter);
+            checklistSseService.sendSseEvent(sseEmitter, "Reinvestment 5yrs done.");
             return item;
         }, checklistExecutor);
 
-        CompletableFuture<ReportItem> moatsFuture = CompletableFuture.supplyAsync(() -> {
-            checklistSseService.sendSseEvent(sseEmitter, "Thinking about moats...");
-            ReportItem item = moatCalculator.calculate100BaggerMoat(ticker, sseEmitter);
-            checklistSseService.sendSseEvent(sseEmitter, "Moats analysis is complete.");
+        CompletableFuture<ReportItem> sustainedReturnsOnCapitalFuture = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "Sustained returns on capital ROIC analysis...");
+            ReportItem item = reinvestmentCalculator.calculateSustainedReturnsOnCapital(ticker, sseEmitter);
+            checklistSseService.sendSseEvent(sseEmitter, "Sustained returns on capital ROIC done.");
             return item;
         }, checklistExecutor);
+
+
+//        CompletableFuture<ReportItem> insiderOwnershipFuture = CompletableFuture.supplyAsync(() -> {
+//            checklistSseService.sendSseEvent(sseEmitter, "Skin in the game analysis...");
+//            ReportItem item = insiderOwnershipCalculator.calculate(ticker, sseEmitter, reportType);
+//            checklistSseService.sendSseEvent(sseEmitter, "Skin in the game done.");
+//            return item;
+//        }, checklistExecutor);
+//
+//        CompletableFuture<ReportItem> moatsFuture = CompletableFuture.supplyAsync(() -> {
+//            checklistSseService.sendSseEvent(sseEmitter, "Thinking about moats...");
+//            ReportItem item = moatCalculator.calculate100BaggerMoat(ticker, sseEmitter);
+//            checklistSseService.sendSseEvent(sseEmitter, "Moats analysis is complete.");
+//            return item;
+//        }, checklistExecutor);
 
         CompletableFuture.allOf(
-                        insiderOwnershipFuture,
-                        moatsFuture
+                        reinvestmentFuture,
+                        sustainedReturnsOnCapitalFuture
+//                        insiderOwnershipFuture,
+//                        moatsFuture
 
                         // negatives
 
@@ -455,8 +476,10 @@ public class ChecklistReportOrchestrator {
                 .join();
 
         List<ReportItem> checklistReportItems = new ArrayList<>();
-        checklistReportItems.add(insiderOwnershipFuture.get());
-        checklistReportItems.add(moatsFuture.get());
+        checklistReportItems.add(reinvestmentFuture.get());
+        checklistReportItems.add(sustainedReturnsOnCapitalFuture.get());
+//        checklistReportItems.add(insiderOwnershipFuture.get());
+//        checklistReportItems.add(moatsFuture.get());
 
         checklistSseService.sendSseEvent(sseEmitter, "Building and saving Checklist report...");
         ChecklistReport checklistReport = checklistReportPersistenceService.buildAndSaveReport(ticker, checklistReportItems, ReportType.ONE_HUNDRED_BAGGER);

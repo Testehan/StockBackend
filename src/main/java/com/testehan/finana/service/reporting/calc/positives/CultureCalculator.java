@@ -2,7 +2,7 @@ package com.testehan.finana.service.reporting.calc.positives;
 
 import com.testehan.finana.model.CompanyOverview;
 import com.testehan.finana.model.ReportItem;
-import com.testehan.finana.model.llm.responses.FerolLlmResponse;
+import com.testehan.finana.model.llm.responses.LlmScoreExplanationResponse;
 import com.testehan.finana.repository.CompanyOverviewRepository;
 import com.testehan.finana.service.LlmService;
 import com.testehan.finana.service.reporting.ChecklistSseService;
@@ -49,7 +49,7 @@ public class CultureCalculator {
         PromptTemplate promptTemplate = new PromptTemplate(culturePrompt);
         Map<String, Object> promptParameters = new HashMap<>();
 
-        var ferolLlmResponseOutputConverter = new BeanOutputConverter<>(FerolLlmResponse.class);
+        var ferolLlmResponseOutputConverter = new BeanOutputConverter<>(LlmScoreExplanationResponse.class);
 
         promptParameters.put("company_name", companyOverview.get().getCompanyName());
         promptParameters.put("format", ferolLlmResponseOutputConverter.getFormat());
@@ -60,7 +60,7 @@ public class CultureCalculator {
             LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
             String llmResponse = llmService.callLlm(prompt);
             ferolSseService.sendSseEvent(sseEmitter, "Received LLM response with company culture analysis.");
-            FerolLlmResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
+            LlmScoreExplanationResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
 
             return new ReportItem("cultureRatings", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
         } catch (Exception e) {

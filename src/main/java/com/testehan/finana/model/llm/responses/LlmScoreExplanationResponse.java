@@ -3,7 +3,7 @@ package com.testehan.finana.model.llm.responses;
 import lombok.Data;
 
 @Data
-public class FerolLlmResponse {
+public class LlmScoreExplanationResponse {
     private Integer score;
     private String explanation;
 }
