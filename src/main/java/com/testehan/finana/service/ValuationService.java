@@ -1,6 +1,9 @@
 package com.testehan.finana.service;
 
 import com.testehan.finana.model.*;
+import com.testehan.finana.model.valuation.DcfCalculationData;
+import com.testehan.finana.model.valuation.DcfValuation;
+import com.testehan.finana.model.valuation.Valuations;
 import com.testehan.finana.repository.*;
 import com.testehan.finana.util.SafeParser;
 import org.springframework.stereotype.Service;
@@ -20,6 +23,7 @@ public class ValuationService {
     private final IncomeStatementRepository incomeStatementRepository;
     private final BalanceSheetRepository balanceSheetRepository;
     private final CashFlowRepository cashFlowRepository;
+    private final ValuationsRepository valuationsRepository;
 
     private final FMPService fmpService;
     private final SafeParser safeParser;
@@ -29,16 +33,26 @@ public class ValuationService {
                             IncomeStatementRepository incomeStatementRepository,
                             BalanceSheetRepository balanceSheetRepository,
                             CashFlowRepository cashFlowRepository,
-                            FMPService fmpService,
+                            ValuationsRepository valuationsRepository, FMPService fmpService,
                             SafeParser safeParser) {
         this.companyOverviewRepository = companyOverviewRepository;
         this.stockQuotesRepository = stockQuotesRepository;
         this.incomeStatementRepository = incomeStatementRepository;
         this.balanceSheetRepository = balanceSheetRepository;
         this.cashFlowRepository = cashFlowRepository;
+        this.valuationsRepository = valuationsRepository;
         this.fmpService = fmpService;
         this.safeParser = safeParser;
     }
+
+    public void saveDcfValuation(DcfValuation dcfValuation) {
+        String ticker = dcfValuation.getDcfCalculationData().meta().ticker();
+        Valuations valuations = valuationsRepository.findById(ticker).orElse(new Valuations());
+        valuations.setTicker(ticker);
+        valuations.getDcfValuations().add(dcfValuation);
+        valuationsRepository.save(valuations);
+    }
+
 
     public DcfCalculationData getDcfCalculationData(String ticker) {
         // Fetch Company Meta

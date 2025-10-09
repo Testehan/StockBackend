@@ -1,16 +1,23 @@
 package com.testehan.finana.controller;
 
-import com.testehan.finana.model.DcfCalculationData;
+import com.testehan.finana.model.valuation.DcfCalculationData;
+import com.testehan.finana.model.valuation.DcfValuation;
 import com.testehan.finana.service.ValuationService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/stock/valuation")
 public class ValuationController {
+
+    private static final Logger logger = LoggerFactory.getLogger(ValuationController.class);
 
     private final ValuationService valuationService;
 
@@ -30,6 +37,13 @@ public class ValuationController {
         return ResponseEntity.ok(data);
     }
 
+    @PostMapping("/dcf")
+    public ResponseEntity<Void> saveDcfValuation(@RequestBody DcfValuation dcfValuation) {
+        logger.info("Received DCF valuation to save: {}", dcfValuation);
+        valuationService.saveDcfValuation(dcfValuation);
+        return ResponseEntity.ok().build();
+    }
+
     @GetMapping("/reverse-dcf/{symbol}")
     public ResponseEntity<DcfCalculationData> getReverseDcfValuationData(@PathVariable String symbol) {
         DcfCalculationData data = valuationService.getDcfCalculationData(symbol.toUpperCase());
@@ -38,4 +52,7 @@ public class ValuationController {
         }
         return ResponseEntity.ok(data);
     }
+
+    // todo have a way of persisting valuations and also exposing persisted valuations on the
+    //  client UI...so that you can track them over time..
 }

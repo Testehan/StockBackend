@@ -496,4 +496,8 @@ public class FinancialDataService {
 
         return availability;
     }
+
+    public List<CompanyOverview> findAllCompanyOverview() {
+        return companyOverviewRepository.findAll();
+    }
 }
