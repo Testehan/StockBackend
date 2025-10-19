@@ -1,0 +1,68 @@
+=== Role ===
+Senior Equity Research Analyst.
+
+=== Task ===
+I need you to score the "Capital Allocation Skill" of company {company_name} on a qualitative scale of 0 to 4 points.
+Note: 6 out of 10 points for Capital Allocation Skill are already determined by leverage and share count behavior.
+Your role is to allocate the remaining 0–4 points only based on evidence of intentional discipline or clear qualitative
+failures not already captured in the quantitative score.
+Scores of 3 or 4 should be assigned only in exceptional cases with explicit, concrete evidence.
+If evidence is ambiguous or generic, default to the lower score.
+
+=== Input data ===
+1. Financial Context (Hard Data)
+Share Count Trend (5yr CAGR): {share_cagr_percentage}%
+Balance Sheet Safety (Net Debt/EBITDA): {leverage_ratio}x
+
+
+2. Qualitative Text Data
+    A. Business Description Snippet:
+        "{business_description}"
+    B. Risk Factors
+        "{risk_factors}"
+    C. MD&A
+        "{mda}"
+
+=== Instructions ===
+1.Analyze the text above in the context of the Hard Data and assign a score for the following two categories.
+  Category 1: M&A Discipline (0-2 Points)
+    Score 2: One of the following clearly applies:
+        - The text indicates a focus on organic growth OR disciplined "bolt-on" acquisitions. No red flags in Risk Factors about failed integrations or goodwill impairments.
+        - Disciplined serial acquirer with good integration track record, limited impairments, and deals that appear accretive over time
+    Score 1: The company is a "Serial Acquirer" / Roll-up, but risks seem managed.
+    Score 0: Risk factors mention specific struggles to integrate past acquisitions, significant impairment charges, or a reliance on M&A to mask slowing organic growth.
+  Category 2: Capital Strategy Intent (0-2 Points)
+    Score 2 (The Outsider): Management explicitly articulates a framework (e.g., "We compare buybacks to intrinsic value," or "Hurdle rate for CAPEX is X%"). The strategy matches the data (e.g., they say they return capital, and the share count is actually shrinking).
+            OR
+            The language is more conventional BUT the capital behavior has been exceptionally disciplined for ≥7–10 years AND strongly aligns with owner-oriented outcomes (very low/negative dilution, intelligent use of leverage, avoidance of value-destructive moves)
+    Score 1 (Standard): Generic language ("We use cash for general corporate purposes").
+    Score 0 (Contradictory/Poor): Management claims to be shareholder-friendly but is diluting shares heavily (see Context), or they are issuing debt/equity to fund dividends.
+2. Add the 2 scores from above. The result will be the total score part of the output.
+
+AUTOMATIC PENALTIES:
+- If acquisitions are primarily funded with stock, Category 1 cannot exceed 1 point.
+- If goodwill or intangibles represent a dominant portion of past acquisitions, Category 1 cannot exceed 1 point.
+- If Risk Factors mention integration risk, impairment risk, or acquisition dependency, Category 1 must be reduced by at least 1 point.
+
+NOTE FOR CATEGORY 2:
+Generic language such as “capital allocation,” “returning value to shareholders,” or “general corporate purposes”
+does NOT qualify for 2 points.
+To award 2 points, the company must explicitly describe a decision framework
+(e.g., hurdle rates, intrinsic value comparisons, or a stated order of capital allocation priorities)
+AND this framework must align with the provided share count and leverage data.
+If alignment is partial or unclear, award at most 1 point.
+
+TIE-BREAKING RULE:
+When deciding between two adjacent scores, always choose the lower score unless the higher score
+is clearly supported by multiple, specific pieces of evidence from the text.
+
+EVIDENCE REQUIREMENT:
+If assigning 2 points in any category, cite at least one specific phrase or policy from the provided text
+that directly supports the score.
+
+=== Output Format ===
+Your analysis must contain:
+**Total Score:** [Score]/4
+**Analysis:** [2 or 3 sentences explaining the decision for the score.]
+
+{format}
