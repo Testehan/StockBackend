@@ -2,6 +2,7 @@ package com.testehan.finana.controller;
 
 import com.testehan.finana.model.valuation.DcfCalculationData;
 import com.testehan.finana.model.valuation.DcfValuation;
+import com.testehan.finana.model.valuation.ReverseDcfValuation;
 import com.testehan.finana.service.ValuationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,6 +42,13 @@ public class ValuationController {
         return ResponseEntity.ok().build();
     }
 
+    @PostMapping("/reverse-dcf")
+    public ResponseEntity<Void> saveReverseDcfValuation(@RequestBody ReverseDcfValuation reverseDcfValuation) {
+        logger.info("Received reverse DCF valuation to save: {}", reverseDcfValuation);
+        valuationService.saveReverseDcfValuation(reverseDcfValuation);
+        return ResponseEntity.ok().build();
+    }
+
     @GetMapping("/reverse-dcf/{symbol}")
     public ResponseEntity<DcfCalculationData> getReverseDcfValuationData(@PathVariable String symbol) {
         DcfCalculationData data = valuationService.getDcfCalculationData(symbol.toUpperCase());
@@ -55,7 +63,10 @@ public class ValuationController {
         return ResponseEntity.ok(valuationService.getDcfHistory(symbol.toUpperCase()));
     }
 
+    @GetMapping("/reverse-dcf/history/{symbol}")
+    public ResponseEntity<List<ReverseDcfValuation>> getReverseDcfHistory(@PathVariable String symbol) {
+        return ResponseEntity.ok(valuationService.getReverseDcfHistory(symbol.toUpperCase()));
+    }
 
-    // todo have a way of persisting valuations and also exposing persisted valuations on the
-    //  client UI...so that you can track them over time..
+
 }

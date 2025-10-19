@@ -3,6 +3,7 @@ package com.testehan.finana.service;
 import com.testehan.finana.model.*;
 import com.testehan.finana.model.valuation.DcfCalculationData;
 import com.testehan.finana.model.valuation.DcfValuation;
+import com.testehan.finana.model.valuation.ReverseDcfValuation;
 import com.testehan.finana.model.valuation.Valuations;
 import com.testehan.finana.repository.*;
 import com.testehan.finana.util.SafeParser;
@@ -55,9 +56,24 @@ public class ValuationService {
         valuationsRepository.save(valuations);
     }
 
+    public void saveReverseDcfValuation(ReverseDcfValuation reverseDcfValuation) {
+        reverseDcfValuation.setValuationDate(LocalDateTime.now().toString());
+        String ticker = reverseDcfValuation.getDcfCalculationData().meta().ticker();
+        Valuations valuations = valuationsRepository.findById(ticker).orElse(new Valuations());
+        valuations.setTicker(ticker);
+        valuations.getReverseDcfValuations().add(reverseDcfValuation);
+        valuationsRepository.save(valuations);
+    }
+
     public List<DcfValuation> getDcfHistory(String ticker) {
         return valuationsRepository.findById(ticker)
                 .map(Valuations::getDcfValuations)
+                .orElse(java.util.Collections.emptyList());
+    }
+
+    public List<ReverseDcfValuation> getReverseDcfHistory(String ticker) {
+        return valuationsRepository.findById(ticker)
+                .map(Valuations::getReverseDcfValuations)
                 .orElse(java.util.Collections.emptyList());
     }
 

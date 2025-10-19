@@ -13,4 +13,5 @@ public class Valuations {
     @Id
     private String ticker;
     private List<DcfValuation> dcfValuations = new ArrayList<>();
+    private List<ReverseDcfValuation> reverseDcfValuations = new ArrayList<>();
 }
