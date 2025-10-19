@@ -1,0 +1,87 @@
+=== Role ===
+Senior Equity Research Analyst
+
+=== Task ===
+I need you to score the "Total Addressable Market (TAM)" for a company’s primary revenue-generating business,
+ {company_name} on a scale of 0, 3, or 5.
+Your goal is to determine if the global market opportunity is Niche (<$10B), Mid-Sized ($10–50B), or Massive (>$50B).
+
+=== Input Data ===
+1. Financial Context (Hard Data - The Reality Check)
+Trailing 12-Month Revenue: {ttm_revenue}
+(Note: The TAM cannot logically be smaller than the company's current revenue.)
+
+2. Qualitative Text Data
+    A. Business Description Snippet:
+        "{business_description}"
+    B. MD&A / Market Overview:
+        "{mda}"
+
+=== Instructions ===
+Analyze the text provided combined with the Hard Data to assign one of the following scores.
+
+SCORE DEFINITIONS:
+Score 5 (Massive): Global Market > $50 Billion.
+    - Explicit evidence: The text cites a market size figure greater than $50B (or in Trillions).
+    - Implicit evidence: The company operates broadly in a massive sector (“Globally scaled, capital-intensive, or
+    systemically important industries (e.g., cloud infrastructure, semiconductors, automotive manufacturing, energy,
+    telecommunications, pharmaceuticals)”) where the market is universally known to be >$50B, even if no specific number
+    is cited.
+
+Score 3 (Mid-Sized): Market $10 Billion – $50 Billion.
+    - Explicit evidence: Text cites a market size between $10B and $50B.
+    - Implicit evidence: Text describes a "multi-billion dollar opportunity" without specifying a number, or defines a
+    specific sub-sector (e.g., "North American HVAC equipment").
+
+Score 0 (Niche): Market < $10 Billion or "Niche".
+    - Explicit evidence: Text cites a market size below $10B.
+    - Implicit evidence: The company describes itself as a "niche" provider, or the market is geographically limited
+    (e.g., "regional bank," "local utility") or highly specialized (e.g., "equipment for watch repair").
+
+LOGIC & OVERRIDES (Order of Operations):
+1. THE REVENUE FLOOR:
+   - If TTM Revenue is > $50B, the Score MUST be 5 (Override any text analysis).
+   - If TTM Revenue is > $10B, the Score MUST be at least 3.
+2. GLOBAL VS. DOMESTIC:
+   - If the text gives two numbers (e.g., "Domestic SAM: $8B" vs "Global TAM: $60B"), score based on the GLOBAL figure.
+3. VAGUE TEXT:
+   - If the text uses vague terms like "huge opportunity" or "massive market" without numbers, look at the industry.
+   If it is a commodity or major global industry, lean toward Score 5. If it is a specialized product, lean toward Score 3.
+4. CONFIDENCE:
+   - If the text mentions NO numbers and the industry is obscure, default to Score 0 (Niche) to be conservative.
+
+Multi-Segment Rule:
+If the company operates in multiple segments, score the TAM based on the largest segment that materially contributes to
+revenue, unless the text explicitly frames the company as diversified across several unrelated markets.
+
+RECENCY & TIME-SENSITIVITY (2025–2026 Context):
+Market size figures should preferably come from sources dated 2023 or later.
+If the only available figure is older than 2023, apply a reasonable growth uplift for high-growth sectors (AI, cloud,
+semiconductors, EVs, renewables, digital health, fintech infrastructure) of +15–40% depending on sector momentum, and
+document the adjustment.
+For mature/defensive sectors (traditional retail, legacy manufacturing, regional services) do NOT apply growth uplift
+unless explicitly supported.
+
+SAM vs TAM CLARIFICATION:
+Always prefer GLOBAL TAM when available.
+If only SAM (Serviceable Addressable Market) is provided and no global TAM is mentioned, downgrade one level unless the
+business is clearly global by nature (e.g. SaaS, semiconductors, cloud infrastructure).
+Example: "North America SAM $12B" with no global figure → treat as Score 3 at best, even if implicit global potential exists.
+
+DEFAULT WHEN EVIDENCE IS THIN (Updated conservative rule):
+If NO market size numbers appear anywhere in the text AND the industry is not obviously obscure/niche → default to Score
+3 (Mid-Sized) rather than 0, especially for technology, healthcare, or industrial sectors founded after 2010.
+Reserve Score 0 default only for clearly specialized, regional, or hobby/professional-niche businesses (examples: luxury
+watch repair tools, artisanal food ingredients, local/regional waste management, boutique consulting).
+
+HIGH-GROWTH & EMERGING SECTORS OVERRIDE (AI, Quantum, Web3, Climate Tech, Autonomous Systems, etc.):
+When the company is in a currently hyper-growing category (2024–2026), and credible third-party forecasts (Gartner, IDC,
+McKinsey, BloombergNEF, ARK Invest, etc.) commonly place the 2030 TAM >$100B–$1T+, you may assign Score 5 even if current
+cited TAM is in the $20–60B range, provided the text shows the company is participating in the core value chain of that expansion.
+Document the reasoning and name at least one reputable source family that supports the >$50B long-term view.
+
+=== Output Format ===
+Your analysis must contain:
+**Total Score:** [Score]/5
+**Analysis:** [2 or 3 sentences explaining the decision for the score.]
+{format}
