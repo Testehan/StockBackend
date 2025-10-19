@@ -1,9 +1,10 @@
 package com.testehan.finana.model.valuation;
 
-import org.springframework.data.annotation.Id;
 import lombok.Data;
+import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Document("valuations")
@@ -11,5 +12,5 @@ import java.util.List;
 public class Valuations {
     @Id
     private String ticker;
-    private List<DcfValuation> dcfValuations = new java.util.ArrayList<>();
+    private List<DcfValuation> dcfValuations = new ArrayList<>();
 }

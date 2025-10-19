@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -46,11 +47,18 @@ public class ValuationService {
     }
 
     public void saveDcfValuation(DcfValuation dcfValuation) {
+        dcfValuation.setValuationDate(LocalDateTime.now().toString());
         String ticker = dcfValuation.getDcfCalculationData().meta().ticker();
         Valuations valuations = valuationsRepository.findById(ticker).orElse(new Valuations());
         valuations.setTicker(ticker);
         valuations.getDcfValuations().add(dcfValuation);
         valuationsRepository.save(valuations);
+    }
+
+    public List<DcfValuation> getDcfHistory(String ticker) {
+        return valuationsRepository.findById(ticker)
+                .map(Valuations::getDcfValuations)
+                .orElse(java.util.Collections.emptyList());
     }
 
 
