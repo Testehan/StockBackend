@@ -2,86 +2,120 @@
 Senior Equity Research Analyst
 
 === Task ===
-I need you to score the "Total Addressable Market (TAM)" for a company’s primary revenue-generating business,
- {company_name} on a scale of 0, 3, or 5.
-Your goal is to determine if the global market opportunity is Niche (<$10B), Mid-Sized ($10–50B), or Massive (>$50B).
+You are evaluating company {company_name}.
+
+Your task is to score TWO checklist items:
+1. Total Addressable Market (TAM) for a company’s primary revenue-generating business
+2. Current TAM Penetration
+
+Each item must be scored independently on a scale of 0, 3, or 5, using the definitions and logic below.
+
+Your analysis must be conservative, evidence-based, and internally consistent.
 
 === Input Data ===
-1. Financial Context (Hard Data - The Reality Check)
+
+1. Financial Context (Hard Data – Constraint)
 Trailing 12-Month Revenue: {ttm_revenue}
-(Note: The TAM cannot logically be smaller than the company's current revenue.)
+(Note: TAM cannot logically be smaller than the company’s current revenue.)
 
 2. Qualitative Text Data
     A. Business Description Snippet:
-        "{business_description}"
+    "{business_description}"
+
     B. MD&A / Market Overview:
-        "{mda}"
+    "{mda}"
 
-=== Instructions ===
-Analyze the text provided combined with the Hard Data to assign one of the following scores.
+=== General Definitions & Constraints ===
+- TAM refers to the **global end-market opportunity** for the company’s primary revenue-generating business.
+- Do NOT score product-level features, customer sub-segments, or company-specific SAM unless explicitly stated as the total market.
+- If the company operates across multiple segments, score based on the **largest segment that materially contributes to
+revenue**, unless the text clearly frames the company as broadly diversified.
 
-SCORE DEFINITIONS:
-Score 5 (Massive): Global Market > $50 Billion.
-    - Explicit evidence: The text cites a market size figure greater than $50B (or in Trillions).
-    - Implicit evidence: The company operates broadly in a massive sector (“Globally scaled, capital-intensive, or
-    systemically important industries (e.g., cloud infrastructure, semiconductors, automotive manufacturing, energy,
-    telecommunications, pharmaceuticals)”) where the market is universally known to be >$50B, even if no specific number
-    is cited.
+---
 
-Score 3 (Mid-Sized): Market $10 Billion – $50 Billion.
-    - Explicit evidence: Text cites a market size between $10B and $50B.
-    - Implicit evidence: Text describes a "multi-billion dollar opportunity" without specifying a number, or defines a
-    specific sub-sector (e.g., "North American HVAC equipment").
+## Checklist Item 1: Total Addressable Market (TAM)
 
-Score 0 (Niche): Market < $10 Billion or "Niche".
-    - Explicit evidence: Text cites a market size below $10B.
-    - Implicit evidence: The company describes itself as a "niche" provider, or the market is geographically limited
-    (e.g., "regional bank," "local utility") or highly specialized (e.g., "equipment for watch repair").
+### Score Definitions
 
-LOGIC & OVERRIDES (Order of Operations):
-1. THE REVENUE FLOOR:
-   - If TTM Revenue is > $50B, the Score MUST be 5 (Override any text analysis).
-   - If TTM Revenue is > $10B, the Score MUST be at least 3.
-2. GLOBAL VS. DOMESTIC:
-   - If the text gives two numbers (e.g., "Domestic SAM: $8B" vs "Global TAM: $60B"), score based on the GLOBAL figure.
+Score 5 (Massive):
+- Global market > $50B.
+- Explicit evidence: Market size cited above $50B (or in trillions).
+- Implicit evidence: Company operates in a globally scaled, systemically important industry
+  (e.g., cloud infrastructure, semiconductors, automotive manufacturing, energy, telecommunications, pharmaceuticals).
+
+Score 3 (Mid-Sized):
+- Market size between $10B and $50B.
+- Explicit evidence: Market size cited in this range.
+- Implicit evidence: “Multi-billion-dollar opportunity” language or a clearly defined sub-sector
+  (e.g., North American industrial equipment, regional financial services).
+
+Score 0 (Niche):
+- Market < $10B or explicitly described as niche.
+- Implicit evidence: Highly specialized products, geographically constrained markets,
+  or narrowly defined use cases.
+
+### Logic & Overrides (Order of Operations)
+
+1. REVENUE-BASED OVERRIDE:
+   - If TTM Revenue > $50B → TAM Score MUST be 5.
+   - If TTM Revenue > $10B → TAM Score MUST be at least 3.
+
+2. GLOBAL VS DOMESTIC:
+   - If multiple market sizes are cited, score based on the GLOBAL TAM.
+
 3. VAGUE TEXT:
-   - If the text uses vague terms like "huge opportunity" or "massive market" without numbers, look at the industry.
-   If it is a commodity or major global industry, lean toward Score 5. If it is a specialized product, lean toward Score 3.
-4. CONFIDENCE:
-   - If the text mentions NO numbers and the industry is obscure, default to Score 0 (Niche) to be conservative.
+   - If language is vague (“large opportunity,” “huge market”), infer based on industry scale.
+   - Lean toward 5 for globally scaled industries; toward 3 for specialized or vertical software.
 
-Multi-Segment Rule:
-If the company operates in multiple segments, score the TAM based on the largest segment that materially contributes to
-revenue, unless the text explicitly frames the company as diversified across several unrelated markets.
+4. NO CONFIDENT SIGNAL:
+   - If no numbers are cited and the industry is obscure or specialized, default to Score 0.
 
-RECENCY & TIME-SENSITIVITY (2025–2026 Context):
-Market size figures should preferably come from sources dated 2023 or later.
-If the only available figure is older than 2023, apply a reasonable growth uplift for high-growth sectors (AI, cloud,
-semiconductors, EVs, renewables, digital health, fintech infrastructure) of +15–40% depending on sector momentum, and
-document the adjustment.
-For mature/defensive sectors (traditional retail, legacy manufacturing, regional services) do NOT apply growth uplift
-unless explicitly supported.
+---
 
-SAM vs TAM CLARIFICATION:
-Always prefer GLOBAL TAM when available.
-If only SAM (Serviceable Addressable Market) is provided and no global TAM is mentioned, downgrade one level unless the
-business is clearly global by nature (e.g. SaaS, semiconductors, cloud infrastructure).
-Example: "North America SAM $12B" with no global figure → treat as Score 3 at best, even if implicit global potential exists.
+## Checklist Item 2: Current TAM Penetration
 
-DEFAULT WHEN EVIDENCE IS THIN (Updated conservative rule):
-If NO market size numbers appear anywhere in the text AND the industry is not obviously obscure/niche → default to Score
-3 (Mid-Sized) rather than 0, especially for technology, healthcare, or industrial sectors founded after 2010.
-Reserve Score 0 default only for clearly specialized, regional, or hobby/professional-niche businesses (examples: luxury
-watch repair tools, artisanal food ingredients, local/regional waste management, boutique consulting).
+### Objective
+Assess how much of the global TAM has already been captured and how much runway remains.
 
-HIGH-GROWTH & EMERGING SECTORS OVERRIDE (AI, Quantum, Web3, Climate Tech, Autonomous Systems, etc.):
-When the company is in a currently hyper-growing category (2024–2026), and credible third-party forecasts (Gartner, IDC,
-McKinsey, BloombergNEF, ARK Invest, etc.) commonly place the 2030 TAM >$100B–$1T+, you may assign Score 5 even if current
-cited TAM is in the $20–60B range, provided the text shows the company is participating in the core value chain of that expansion.
-Document the reasoning and name at least one reputable source family that supports the >$50B long-term view.
+### Score Definitions
+
+Score 5 (Low Penetration / High Upside):
+- Explicit or implicit evidence that less than 10% of global TAM has been penetrated.
+- Management language such as “early innings,” “nascent adoption,” “significant whitespace,” or “long runway.”
+- Revenue is small relative to implied TAM AND the business model supports continued share gains.
+
+Score 3 (Moderate Penetration):
+- Evidence suggests approximately 10–30% TAM penetration.
+- Company is a recognized leader in a defined segment, but the overall market is still growing.
+- Growth is driven by a mix of market expansion and incremental share gains.
+
+Score 0 (High Penetration / Saturated):
+- Explicit or implicit evidence that more than 30% of TAM has already been captured.
+- Company is described as mature, dominant, or operating in a saturated market.
+- Growth is primarily replacement-driven or incremental.
+
+### Logic & Constraints
+
+1. CONSISTENCY WITH TAM:
+   - If TAM Score = 0 (Niche), Current TAM Penetration CANNOT be scored as 5.
+
+2. NO FABRICATED PRECISION:
+   - Do NOT calculate or invent exact market share percentages.
+   - Use order-of-magnitude reasoning based on revenue scale, market description, and management language.
+
+3. NO EVIDENCE DEFAULT:
+   - If the text provides no clear indication of adoption stage, market share, or remaining runway,
+     default to Score 3.
+
+4. SANITY CHECK:
+   - If revenue is described as large, dominant, or industry-leading relative to the described market,
+     lean toward a higher penetration score.
+
+---
 
 === Output Format ===
-Your analysis must contain:
-**Total Score:** [Score]/5
-**Analysis:** [2 or 3 sentences explaining the decision for the score.]
+Return a single valid JSON object in the following format:
 {format}
+
+It must contain a score for Total Addressable Market, a score for Current TAM Penetration and 1 explanation for each score.
+

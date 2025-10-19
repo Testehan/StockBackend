@@ -1,7 +1,10 @@
 package com.testehan.finana.service.reporting.calc.positives;
 
-import com.testehan.finana.model.*;
-import com.testehan.finana.model.llm.responses.LlmScoreExplanationResponse;
+import com.testehan.finana.model.CompanyOverview;
+import com.testehan.finana.model.IncomeReport;
+import com.testehan.finana.model.IncomeStatementData;
+import com.testehan.finana.model.SecFiling;
+import com.testehan.finana.model.llm.responses.TAMScoreExplanationResponse;
 import com.testehan.finana.repository.CompanyOverviewRepository;
 import com.testehan.finana.repository.IncomeStatementRepository;
 import com.testehan.finana.repository.SecFilingRepository;
@@ -46,13 +49,13 @@ public class TamCalculator {
         this.safeParser = safeParser;
     }
 
-    public ReportItem calculate(String ticker, SseEmitter sseEmitter) {
+    public TAMScoreExplanationResponse calculate(String ticker, SseEmitter sseEmitter) {
 
         Optional<CompanyOverview> companyOverview = companyOverviewRepository.findBySymbol(ticker);
         if (companyOverview.isEmpty()){
             LOGGER.warn("No Company overview found for ticker: {}", ticker);
             checklistSseService.sendSseErrorEvent(sseEmitter, "No Company overview found for ticker " + ticker);
-            return new ReportItem("totalAddressableMarket", -10, "Something went wrong and score could not be calculated ");
+            return new TAMScoreExplanationResponse(-10, "Something went wrong and score could not be calculated ");
         }
 
         Optional<SecFiling> secFilingData = secFilingRepository.findBySymbol(ticker);
@@ -80,7 +83,7 @@ public class TamCalculator {
         if (incomeStatementDataOptional.isEmpty()) {
             LOGGER.warn("No income statement data found for ticker: {}", ticker);
             checklistSseService.sendSseErrorEvent(sseEmitter, "No income statement data found for ticker " + ticker);
-            return new ReportItem("totalAddressableMarket", 0, "Something went wrong and score could not be calculated ");
+            return new TAMScoreExplanationResponse(-10, "Something went wrong and score could not be calculated ");
         }
 
         BigDecimal[] ttmRevenue = getTtmRevenue(ticker, incomeStatementDataOptional);
@@ -88,7 +91,7 @@ public class TamCalculator {
         PromptTemplate promptTemplate = new PromptTemplate(tamPrompt);
         Map<String, Object> promptParameters = new HashMap<>();
 
-        var llmResponseOutputConverter = new BeanOutputConverter<>(LlmScoreExplanationResponse.class);
+        var llmResponseOutputConverter = new BeanOutputConverter<>(TAMScoreExplanationResponse.class);
 
         promptParameters.put("company_name", companyOverview.get().getCompanyName());
         promptParameters.put("ttm_revenue", ttmRevenue[0].toPlainString());
@@ -102,16 +105,13 @@ public class TamCalculator {
             LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
             String llmResponse = llmService.callLlm(prompt);
             checklistSseService.sendSseEvent(sseEmitter, "Received LLM response with TAM analysis.");
-            LlmScoreExplanationResponse convertedLlmResponse = llmResponseOutputConverter.convert(llmResponse);
+             return llmResponseOutputConverter.convert(llmResponse);
 
-            return new ReportItem("totalAddressableMarket",
-                    convertedLlmResponse.getScore(),
-                    convertedLlmResponse.getExplanation());
         } catch (Exception e) {
             String errorMessage = "Operation 'calculatetotalAddressableMarket' failed.";
             LOGGER.error(errorMessage, e);
             checklistSseService.sendSseErrorEvent(sseEmitter, errorMessage);
-            return new ReportItem("totalAddressableMarket", -10, "Operation 'calculatetotalAddressableMarket' failed.");
+            return new TAMScoreExplanationResponse(-10, "Operation 'calculatetotalAddressableMarket' failed.");
         }
     }
 
