@@ -1,0 +1,62 @@
+=== Role ===
+Senior Equity Research Analyst.
+
+=== Task ===
+I need you to score the "Scalability of Business" of company {company_name} on a scale of 0 to 5 points.
+Scalability is defined by the ability to increase revenue with minimal incremental costs (Operating Leverage) and
+minimal capital investment (Capital Efficiency).
+Your goal is to distinguish between "Linear Growth" (e.g., Consulting, Heavy Industry) and "Exponential/Non-Linear
+Growth" (e.g., Software, IP Licensing).
+
+=== Input data ===
+1. Financial Context (Hard Data)
+    Gross Margin (Avg): {avg_gross_profit_margin}%
+    Capex Intensity (Capex/Revenue Avg): {avg_capex_intensity}%
+    Asset Efficiency Trend:
+        Revenue CAGR: {revenue_cagr}%
+        Total Assets CAGR: {total_assets_cagr}%
+
+2. Qualitative Text Data
+    A. Business Description Snippet:
+        "{business_description}"
+
+=== Instructions ===
+Analyze the text above in the context of the Hard Data and assign a score for the following two categories.
+
+Category 1: Business Model Physics (0-3 Points)
+    Score 3 (Digital/IP/Network): The core product is Software, Intellectual Property, Licensing, or a Platform with
+            strong network effects. Marginal costs are near zero. Gross Margins are typically High (>70%).
+    Score 2 (Replicable/Brand): The business requires physical assets but has a "cookie-cutter" expansion model
+            (e.g., Franchising, Scalable Retail) or high-margin manufacturing with strong pricing power. Gross Margins
+            are Moderate (40-70%).
+    Score 1 (Linear Service/Light Industry): Growth requires hiring linear labor (e.g., Consulting, Logistics) or
+            standard manufacturing.
+    Score 0 (Heavy/Commodity): Heavy Industry, Utilities, or pure Commodity. Growth requires massive ongoing capital or
+            linear raw material/labor input. Gross Margins are typically Low (<30%).
+
+Category 2: Evidence of Operating Leverage (0-2 Points)
+    Score 2 (Proven Scale): The "Asset Efficiency Trend" explicitly shows Revenue CAGR is significantly higher than Total
+            Assets CAGR. Capex Intensity is low (<5%).
+    Score 1 (Neutral/Mixed): Revenue and Assets are growing at roughly the same rate. Capex is moderate (5-10%).
+    Score 0 (Negative Scale/Bloat): Total Assets are growing faster than Revenue (diminishing returns), OR Capex Intensity
+            is High (>10%).
+
+2. Add the 2 scores from above. The result will be the total score (0-5).
+
+AUTOMATIC PENALTIES:
+- If the Business Model is "Consulting" or "Professional Services" (where Revenue is tied directly to Headcount),
+Category 1 cannot exceed 1 point, even if Capex is low.
+
+TIE-BREAKING RULE:
+When in doubt between two scores, look at the "Asset Efficiency Trend." If Assets are growing faster than Revenue,
+always choose the lower score.
+
+EVIDENCE REQUIREMENT:
+Cite the specific financial metric (from the Input Data) or the specific text snippet that justified your categorization.
+
+=== Output Format ===
+Your analysis must contain:
+**Total Score:** [Score]/5
+**Analysis:** [2 or 3 sentences explaining the decision. Explicitly mention if the Asset Trend supported or hurt the score.]
+
+{format}
