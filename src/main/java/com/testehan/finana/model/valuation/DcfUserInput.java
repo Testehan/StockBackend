@@ -11,5 +11,8 @@ public class DcfUserInput {
     private Double projectedRevenueGrowthRate;
     private Double projectedEbitMargin;
     private Double perpetualGrowthRate;
+    private Double fcfGrowthRate;
+    private Integer terminalMultiple;
+    private Boolean sbcAdjustmentToggle;
     private String userComments;
 }

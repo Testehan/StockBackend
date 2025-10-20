@@ -95,7 +95,7 @@ public class ValuationService {
         DcfCalculationData.CashFlowData cashFlow = getTtmCashFlowData(ticker);
 
         // Fetch Historical Assumptions
-        DcfCalculationData.HistoricalAssumptions assumptions = getHistoricalAssumptions(ticker, income, companyOverviewOptional);
+        DcfCalculationData.HistoricalAssumptions assumptions = getHistoricalAssumptions(ticker, income, companyOverviewOptional, meta, cashFlow);
 
         return DcfCalculationData.builder()
                 .meta(meta)
@@ -234,12 +234,17 @@ public class ValuationService {
 
         if (ttmReports.size() < 4) {
             return DcfCalculationData.CashFlowData.builder()
+                    .operatingCashFlow(BigDecimal.ZERO)
                     .depreciationAndAmortization(BigDecimal.ZERO)
                     .capitalExpenditure(BigDecimal.ZERO)
                     .stockBasedCompensation(BigDecimal.ZERO)
                     .build();
         }
 
+        BigDecimal operatingCashFlow = ttmReports.stream()
+                .map(CashFlowReport::getOperatingCashFlow)
+                .map(safeParser::parse)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal depreciationAndAmortization = ttmReports.stream()
                 .map(CashFlowReport::getDepreciationAndAmortization)
                 .map(safeParser::parse)
@@ -254,13 +259,14 @@ public class ValuationService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         return DcfCalculationData.CashFlowData.builder()
+                .operatingCashFlow(operatingCashFlow)
                 .depreciationAndAmortization(depreciationAndAmortization)
                 .capitalExpenditure(capitalExpenditure)
                 .stockBasedCompensation(stockBasedCompensation)
                 .build();
     }
 
-    private DcfCalculationData.HistoricalAssumptions getHistoricalAssumptions(String ticker, DcfCalculationData.IncomeData incomeData, Optional<CompanyOverview> companyOverviewOptional) {
+    private DcfCalculationData.HistoricalAssumptions getHistoricalAssumptions(String ticker, DcfCalculationData.IncomeData incomeData, Optional<CompanyOverview> companyOverviewOptional, DcfCalculationData.CompanyMeta meta, DcfCalculationData.CashFlowData cashFlow) {
         double beta = companyOverviewOptional.map(co -> safeParser.parse(co.getBeta()).doubleValue()).orElse(1.0); // Default beta to 1.0
 
         // Hardcoding for now, these would typically come from a configuration or external service
@@ -310,6 +316,15 @@ public class ValuationService {
                     .orElse(0.0);
         }
 
+        double fcfGrowthRateAverage3Year = calculateFcfGrowthRateAverageLast3Years(ticker);
+
+        BigDecimal ttmFcf = cashFlow.operatingCashFlow().subtract(cashFlow.capitalExpenditure());
+        BigDecimal marketCap = meta.currentSharePrice().multiply(meta.sharesOutstanding());
+        double marketCapToFcfMultiple = 0.0;
+        if (ttmFcf.compareTo(BigDecimal.ZERO) != 0) {
+            marketCapToFcfMultiple = marketCap.divide(ttmFcf, 2, BigDecimal.ROUND_HALF_UP).doubleValue();
+        }
+
         return DcfCalculationData.HistoricalAssumptions.builder()
                 .beta(beta)
                 .riskFreeRate(riskFreeRate)
@@ -317,6 +332,62 @@ public class ValuationService {
                 .effectiveTaxRate(effectiveTaxRate)
                 .revenueGrowthCagr3Year(revenueGrowthCagr3Year)
                 .averageEbitMargin3Year(averageEbitMargin3Year)
+                .fcfGrowthRate(fcfGrowthRateAverage3Year)
+                .marketCapToFcfMultiple(marketCapToFcfMultiple)
                 .build();
+    }
+
+    private double calculateFcfGrowthRateAverageLast3Years(String ticker) {
+        List<CashFlowReport> annualReports = cashFlowRepository.findBySymbol(ticker)
+                .map(CashFlowData::getAnnualReports)
+                .orElse(List.of());
+
+        // Sort by date descending to get most recent years first
+        List<CashFlowReport> sortedAnnualReports = annualReports.stream()
+                .sorted(Comparator.comparing(CashFlowReport::getDate).reversed())
+                .collect(Collectors.toList());
+
+        if (sortedAnnualReports.size() < 4) { // Need at least 4 years for 3 growth rates
+            return 0.0; // Not enough data
+        }
+
+        // We need reports for Year 0, Year -1, Year -2, Year -3 to calculate 3 growth rates
+        // Year 0 is most recent
+        List<BigDecimal> fcfValues = sortedAnnualReports.subList(0, 4).stream()
+                .map(report -> {
+                    BigDecimal operatingCashFlow = safeParser.parse(report.getOperatingCashFlow());
+                    BigDecimal capitalExpenditure = safeParser.parse(report.getCapitalExpenditure());
+                    return operatingCashFlow.subtract(capitalExpenditure);
+                })
+                .collect(Collectors.toList());
+
+        // fcfValues will be in reverse chronological order (most recent first)
+        // fcfValues[0] = FCF Year 0
+        // fcfValues[1] = FCF Year -1
+        // fcfValues[2] = FCF Year -2
+        // fcfValues[3] = FCF Year -3
+
+        List<Double> growthRates = new java.util.ArrayList<>();
+
+        // Calculate growth rate for Year -1 to Year 0
+        if (fcfValues.get(1).compareTo(BigDecimal.ZERO) != 0) {
+            growthRates.add(fcfValues.get(0).subtract(fcfValues.get(1)).divide(fcfValues.get(1), 4, BigDecimal.ROUND_HALF_UP).doubleValue());
+        }
+
+        // Calculate growth rate for Year -2 to Year -1
+        if (fcfValues.get(2).compareTo(BigDecimal.ZERO) != 0) {
+            growthRates.add(fcfValues.get(1).subtract(fcfValues.get(2)).divide(fcfValues.get(2), 4, BigDecimal.ROUND_HALF_UP).doubleValue());
+        }
+
+        // Calculate growth rate for Year -3 to Year -2
+        if (fcfValues.get(3).compareTo(BigDecimal.ZERO) != 0) {
+            growthRates.add(fcfValues.get(2).subtract(fcfValues.get(3)).divide(fcfValues.get(3), 4, BigDecimal.ROUND_HALF_UP).doubleValue());
+        }
+
+        if (growthRates.isEmpty()) {
+            return 0.0;
+        }
+
+        return growthRates.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
     }
 }

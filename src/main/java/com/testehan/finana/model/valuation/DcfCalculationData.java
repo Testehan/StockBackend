@@ -69,6 +69,7 @@ public record DcfCalculationData(
      */
     @Builder
     public record CashFlowData(
+        BigDecimal operatingCashFlow,
         BigDecimal depreciationAndAmortization,
         BigDecimal capitalExpenditure,         // Usually a negative number, check your sign logic!
         BigDecimal stockBasedCompensation      // Optional: Many analysts add this back
@@ -85,6 +86,8 @@ public record DcfCalculationData(
         double marketRiskPremium,       // e.g., 0.055 (5.5%)
         double effectiveTaxRate,        // Calculated: Tax Expense / Pre-Tax Income
         double revenueGrowthCagr3Year,  // Compound Annual Growth Rate (3y)
-        double averageEbitMargin3Year   // To set a realistic margin target
+        double averageEbitMargin3Year,   // To set a realistic margin target
+        double fcfGrowthRate, // Average FCF Growth Rate (3y)
+        double marketCapToFcfMultiple
     ) {}
 }
