@@ -1,0 +1,47 @@
+package com.testehan.finana.service.reporting.calc.positives;
+
+import com.testehan.finana.model.CompanyOverview;
+import com.testehan.finana.model.ReportItem;
+import com.testehan.finana.repository.CompanyOverviewRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+
+import java.util.Optional;
+
+@Service
+public class MarketCapCalculator {
+    private static final Logger LOGGER = LoggerFactory.getLogger(MarketCapCalculator.class);
+    private final CompanyOverviewRepository companyOverviewRepository;
+
+    public MarketCapCalculator(CompanyOverviewRepository companyOverviewRepository) {
+        this.companyOverviewRepository = companyOverviewRepository;
+    }
+
+    public ReportItem calculate(String ticker) {
+        Optional<CompanyOverview> companyOverviewOpt = companyOverviewRepository.findBySymbol(ticker);
+        if (companyOverviewOpt.isEmpty()) {
+            LOGGER.warn("No company overview found for ticker: {}", ticker);
+            return new ReportItem("marketCapSize", -1, "Could not retrieve company overview.");
+        }
+
+        CompanyOverview companyOverview = companyOverviewOpt.get();
+        long marketCap = Long.parseLong(companyOverview.getMarketCap());
+
+        int score;
+        String explanation;
+
+        if (marketCap < 2_000_000_000L) {
+            score = 5;
+            explanation = "Market cap (" + marketCap +") is less than $2B, which is ideal for a potential 100-bagger.";
+        } else if (marketCap < 5_000_000_000L) {
+            score = 3;
+            explanation = "Market cap (" + marketCap +") is less than $5B, which is a good starting point for high growth.";
+        } else {
+            score = 0;
+            explanation ="Market cap (" + marketCap +") is greater than $5B, which may limit exponential growth potential.";
+        }
+
+        return new ReportItem("marketCapSize", score, explanation);
+    }
+}
