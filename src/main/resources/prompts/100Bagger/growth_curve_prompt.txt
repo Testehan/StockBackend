@@ -1,0 +1,65 @@
+=== Role ===
+Senior Equity Research Analyst.
+
+=== Task ===
+I need you to score the "Growth Curve / Inflection Point" of company {company_name} on a qualitative scale of 0 to 5 points.
+In the context of "100 Baggers," we are looking for the "S-Curve" sweet spot: a company that is not just growing, but
+where growth is *accelerating* due to structural reasons (new products, market adoption), not temporary factors.
+
+=== Input data ===
+1. Financial Context (Hard Data)
+    Historical Baseline (Revenue CAGR): {revenue_cagr}%
+    Current Momentum (Last 2 Quarters Avg YoY Growth): {recent_revenue_growth}%
+    Acceleration Delta (Momentum - Baseline): {acceleration_delta} percentage points
+
+2. Qualitative Text Data
+    A. MD&A (Results of Operations - Revenue Drivers):
+        "{mda}"
+
+=== Instructions ===
+Analyze the text above in the context of the Hard Data and assign a score for the following two categories.
+
+Category 1: The Growth Trajectory (0-3 Points)
+    Score 3 (Hyper-Growth/Accelerating):
+        - "Current Momentum" is high (>20%) AND significantly higher than the "Historical Baseline" (Positive Delta).
+        - OR the company is maintaining hyper-growth (>30%) for multiple years.
+    Score 2 (Steady/Mature):
+        - Growth is consistent but not exploding (e.g., 10-20%). "Acceleration Delta" is near zero. The company is in a
+        predictable "earning power" phase.
+    Score 1 (Stagnant/Low Growth):
+        - Growth is low (<5%) or flat.
+    Score 0 (Declining):
+        - Revenue is shrinking (Negative growth).
+
+Category 2: Quality & Sustainability of Growth (0-2 Points)
+    Score 2 (Structural/Organic):
+        - The text confirms growth is driven by VOLUME (selling more units), NEW PRODUCTS, or NEW CUSTOMERS.
+        - Backlog or "Remaining Performance Obligations" (RPO) are growing fast (leading indicator).
+    Score 1 (Mixed):
+        - Growth is partly driven by price increases or favorable FX (currency) rather than volume.
+        - Growth is decent, but Risk Factors suggest it might be cyclical (e.g., a commodity cycle upswing).
+    Score 0 (Low Quality/Artificial):
+        - The "Acceleration" in the hard data is explicitly attributed to a recent ACQUISITION (inorganic).
+        - Growth is driven by a one-time event (e.g., a single large contract or regulatory change) that won't repeat.
+
+2. Add the 2 scores from above. The result will be the total score (0-5).
+
+AUTOMATIC PENALTIES:
+- If the MD&A explicitly states that revenue growth was "primarily due to the acquisition of [Company X]," deduct 1 point
+    from the Total Score (unless the organic growth component remains >15%).
+- If "Current Momentum" is negative (Revenue is shrinking), the Total Score must be 0, regardless of the text.
+
+TIE-BREAKING RULE:
+If the "Acceleration Delta" is positive (Recent growth > Historical trend), lean toward the higher score. If the Delta
+is negative (Growth is slowing), lean toward the lower score.
+
+EVIDENCE REQUIREMENT:
+You must quote the specific phrase from the MD&A that explains the *source* of the growth (e.g., "driven by 20% increase
+in volume" vs "driven by price mix").
+
+=== Output Format ===
+Your analysis must contain:
+**Total Score:** [Score]/5
+**Analysis:** [2 sentences explaining if the company is at an inflection point or just steady state. Mention if growth is organic or acquired.]
+
+{format}
