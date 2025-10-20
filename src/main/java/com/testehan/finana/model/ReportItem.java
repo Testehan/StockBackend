@@ -11,4 +11,11 @@ public class ReportItem {
     private String name;
     private Integer score;
     private String explanation;
+    private String personalNotes;
+
+    public ReportItem(String name, Integer score, String explanation) {
+        this.name = name;
+        this.score = score;
+        this.explanation = explanation;
+    }
 }
