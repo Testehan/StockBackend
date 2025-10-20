@@ -14,11 +14,14 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 public class FMPService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(FMPService.class);
+    private static final Set<String> ALLOWED_FORM_TYPES = Set.of("10-K", "20-F", "10-Q", "6-K");
+
 
     @Value("${fmp.api.key}")
     private String apiKey;
@@ -42,7 +45,7 @@ public class FMPService {
                 .bodyToMono(new ParameterizedTypeReference<List<GlobalQuote>>() {})
                 .onErrorResume(e -> {
                     LOGGER.error("Error fetching historical dividend adjusted EOD price for symbol: " + symbol, e);
-                    return Mono.just(java.util.Collections.emptyList());
+                    return Mono.just(java.util.Collections.<GlobalQuote>emptyList());
                 });
     }
 
@@ -57,7 +60,7 @@ public class FMPService {
                 .bodyToMono(new ParameterizedTypeReference<List<IndexData>>() {})
                 .onErrorResume(e -> {
                     LOGGER.error("Error fetching index historical data for symbol: " + symbol, e);
-                    return Mono.just(java.util.Collections.emptyList());
+                    return Mono.just(java.util.Collections.<IndexData>emptyList());
                 });
     }
 
@@ -111,10 +114,32 @@ public class FMPService {
 
 
     public Mono<List<SecFilingUrlData>> getSecFilings(String symbol) {
-        String to = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE);
-        String from = LocalDate.now().minusMonths(18).format(DateTimeFormatter.ISO_LOCAL_DATE);
+        LocalDate to = LocalDate.now();
+        LocalDate from = to.minusMonths(18);
 
-        return fetchSecFilingsPage(symbol, from, to, 0);
+        return fetchSecFilingsPage(symbol, from.format(DateTimeFormatter.ISO_LOCAL_DATE), to.format(DateTimeFormatter.ISO_LOCAL_DATE), 0)
+                .flatMap(filings -> {
+                    Set<String> annualReports = Set.of("10-K", "20-F");
+                    Set<String> quarterlyReports = Set.of("10-Q", "6-K");
+
+                    boolean hasAnnual = filings.stream().anyMatch(f -> annualReports.contains(f.getFormType()));
+                    boolean hasQuarterly = filings.stream().anyMatch(f -> quarterlyReports.contains(f.getFormType()));
+
+                    if (hasAnnual && hasQuarterly) {
+                        return Mono.just(filings);
+                    } else {
+                        LOGGER.info("Initial fetch for {} did not contain all required SEC filing types. Fetching for an earlier period.", symbol);
+                        LocalDate earlierTo = from.minusDays(1);
+                        LocalDate earlierFrom = earlierTo.minusMonths(18);
+
+                        return fetchSecFilingsPage(symbol, earlierFrom.format(DateTimeFormatter.ISO_LOCAL_DATE), earlierTo.format(DateTimeFormatter.ISO_LOCAL_DATE), 0)
+                                .map(earlierFilings -> {
+                                    List<SecFilingUrlData> combined = new java.util.ArrayList<>(filings);
+                                    combined.addAll(earlierFilings);
+                                    return combined;
+                                });
+                    }
+                });
     }
 
     private Mono<List<SecFilingUrlData>> fetchSecFilingsPage(String symbol, String from, String to, int page) {
@@ -133,14 +158,18 @@ public class FMPService {
                 .flatMap(filings -> {
                     if (filings.isEmpty()) {
                         return Mono.just(java.util.Collections.<SecFilingUrlData>emptyList());
-                    } else {
-                        return fetchSecFilingsPage(symbol, from, to, page + 1)
-                                .map(nextPageFilings -> {
-                                    List<SecFilingUrlData> allFilings = new java.util.ArrayList<>(filings);
-                                    allFilings.addAll(nextPageFilings);
-                                    return allFilings;
-                                });
                     }
+
+                    List<SecFilingUrlData> filteredFilings = filings.stream()
+                            .filter(filing -> ALLOWED_FORM_TYPES.contains(filing.getFormType()))
+                            .collect(java.util.stream.Collectors.toList());
+
+                    return fetchSecFilingsPage(symbol, from, to, page + 1)
+                            .map(nextPageFilings -> {
+                                List<SecFilingUrlData> allFilings = new java.util.ArrayList<>(filteredFilings);
+                                allFilings.addAll(nextPageFilings);
+                                return allFilings;
+                            });
                 })
                 .onErrorResume(e -> {
                     LOGGER.error("Error fetching SEC filings for symbol: " + symbol + " on page " + page, e);
