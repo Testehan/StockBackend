@@ -18,6 +18,16 @@ public class MarketCapCalculator {
         this.companyOverviewRepository = companyOverviewRepository;
     }
 
+    private String formatMarketCap(double marketCap) {
+        if (marketCap >= 1_000_000_000) {
+            return String.format("%.1fB", marketCap / 1_000_000_000);
+        } else if (marketCap >= 1_000_000) {
+            return String.format("%.1fM", marketCap / 1_000_000);
+        } else {
+            return String.format("%.0f", marketCap); // For smaller values, just display the number
+        }
+    }
+
     public ReportItem calculate(String ticker) {
         Optional<CompanyOverview> companyOverviewOpt = companyOverviewRepository.findBySymbol(ticker);
         if (companyOverviewOpt.isEmpty()) {
@@ -26,20 +36,21 @@ public class MarketCapCalculator {
         }
 
         CompanyOverview companyOverview = companyOverviewOpt.get();
-        long marketCap = Long.parseLong(companyOverview.getMarketCap());
+        var marketCap = Double.valueOf(companyOverview.getMarketCap());
+        String formattedMarketCap = formatMarketCap(marketCap);
 
         int score;
         String explanation;
 
         if (marketCap < 2_000_000_000L) {
             score = 5;
-            explanation = "Market cap (" + marketCap +") is less than $2B, which is ideal for a potential 100-bagger.";
+            explanation = "Market cap (" + formattedMarketCap +") is less than $2B, which is ideal for a potential 100-bagger.";
         } else if (marketCap < 5_000_000_000L) {
             score = 3;
-            explanation = "Market cap (" + marketCap +") is less than $5B, which is a good starting point for high growth.";
+            explanation = "Market cap (" + formattedMarketCap +") is less than $5B, which is a good starting point for high growth.";
         } else {
             score = 0;
-            explanation ="Market cap (" + marketCap +") is greater than $5B, which may limit exponential growth potential.";
+            explanation ="Market cap (" + formattedMarketCap +") is greater than $5B, which may limit exponential growth potential.";
         }
 
         return new ReportItem("marketCapSize", score, explanation);
