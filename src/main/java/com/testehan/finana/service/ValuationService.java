@@ -318,7 +318,7 @@ public class ValuationService {
 
         double fcfGrowthRateAverage3Year = calculateFcfGrowthRateAverageLast3Years(ticker);
 
-        BigDecimal ttmFcf = cashFlow.operatingCashFlow().subtract(cashFlow.capitalExpenditure());
+        BigDecimal ttmFcf = cashFlow.operatingCashFlow().subtract(cashFlow.capitalExpenditure().abs());
         BigDecimal marketCap = meta.currentSharePrice().multiply(meta.sharesOutstanding());
         double marketCapToFcfMultiple = 0.0;
         if (ttmFcf.compareTo(BigDecimal.ZERO) != 0) {
