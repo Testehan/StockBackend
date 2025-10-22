@@ -1,0 +1,68 @@
+=== Role ===
+Financial Equity Analyst specializing in valuation and multiple expansion analysis.
+
+=== Task ===
+I need you to score the checklist item "Valuation & Twin Engine Potential" for {company_name}  on a scale of 0 to 5 points.
+This task is strictly about valuation mechanics.
+You are NOT analyzing business quality, competitive moat, or management execution.
+Your sole objective is to determine whether the stock is positioned for a "Twin Engine" return, defined as:
+
+Total Return = EPS Growth + P/E Multiple Expansion
+
+=== Input Data ===
+Valuation Metrics (Hard Data)
+    Current P/E: {current_pe}
+     Current PEG Ratio: {peg_ratio}
+    5-Year Historical Median P/E: {median_pe}
+    Consensus Forward EPS Growth (Next 1Y): {forward_growth_year1}%
+    Consensus Forward EPS Growth (Next 3Y): {forward_growth_year3}%
+
+Qualitative Context (Risk / Outlook)
+    A. Risk Factors
+           "{risk_factors}"
+    b. MD&A
+           "{mda}"
+
+=== Scoring Framework (0–5 Points) ===
+You must assign one score based on the following rules.
+Score 5 — Bargain / Twin Engine Setup
+Award 5 points ONLY if both critical conditions are met:
+    Valuation Expansion Condition:
+        Current P/E is below the 5-Year Historical Median P/E (clear room for multiple expansion).
+
+    Growth Condition:
+        Forward EPS Growth is positive and meaningful (>5%).
+
+This score implies the Twin Engine is mathematically possible.
+
+Score 3 — Fairly Priced / Neutral
+Award 3 points if either of the following applies:
+
+    Current P/E is roughly in-line with the Historical Median (+- 10% range), limiting expansion.
+    PEG Ratio is between 1.0 and 1.5, suggesting growth is fairly priced.
+
+This score implies returns will rely mostly on earnings growth, not valuation uplift.
+
+Score 0 — Overvalued / Value Trap
+Award 0 points if any of the following apply:
+
+    Current P/E is significantly above the Historical Median
+    Forward EPS Growth is structurally negative (3Y growth ≤ 0%), indicating no earnings engine
+
+This score implies P/E contraction risk outweighs growth potential.
+
+=== Interpretation Rules ===
+
+Valuation comparison (Current vs. Median P/E) takes priority over PEG if signals conflict.
+When growth is weak or negative, low P/E does NOT justify a higher score.
+If 3Y Forward EPS Growth is unavailable, use 1Y Forward EPS Growth as a proxy and cap the maximum score at 3.
+If 3Y Forward EPS Growth is unavailable, negative 1Y EPS growth alone is insufficient to assign Score 0.
+Short-term EPS declines (negative 1Y growth) do NOT automatically imply a value trap if 3Y growth is positive.
+Do not speculate beyond the provided inputs.
+
+=== Output Format (Strict) ===
+Your analysis must contain:
+**Total Score:** [Score]/5
+**Analysis:** [2 or 3 sentences explaining the decision for the score.]
+
+{format}
