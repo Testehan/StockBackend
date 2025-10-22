@@ -49,6 +49,29 @@ public class FMPService {
                 });
     }
 
+    public Mono<List<FmpRatios>> getFinancialRatios(String symbol) {
+        return webClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/stable/ratios")
+                        .queryParam("symbol", symbol)
+                        .queryParam("apikey", apiKey)
+                        .build())
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<List<FmpRatios>>() {});
+    }
+
+    public Mono<FmpRatiosTtm> getFinancialRatiosTtm(String symbol) {
+        return webClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/stable/ratios-ttm")
+                        .queryParam("symbol", symbol)
+                        .queryParam("apikey", apiKey)
+                        .build())
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<List<FmpRatiosTtm>>() {})
+                .map(list -> list.get(0));
+    }
+
     public Mono<List<IndexData>> getIndexHistoricalData(String symbol) {
         return webClient.get()
                 .uri(uriBuilder -> uriBuilder

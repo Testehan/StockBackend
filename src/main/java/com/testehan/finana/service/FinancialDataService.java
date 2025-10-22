@@ -1,38 +1,7 @@
 package com.testehan.finana.service;
 
-import com.testehan.finana.model.BalanceSheetData;
-import com.testehan.finana.model.BalanceSheetReport;
-import com.testehan.finana.model.CashFlowData;
-import com.testehan.finana.model.CashFlowReport;
-import com.testehan.finana.model.CompanyEarningsTranscripts;
-import com.testehan.finana.model.FinancialDataAvailability;
-import com.testehan.finana.model.CompanyOverview;
-import com.testehan.finana.model.EarningsEstimate;
-import com.testehan.finana.model.EarningsHistory;
-import com.testehan.finana.model.FinancialRatiosData;
-import com.testehan.finana.model.FinancialRatiosReport;
-import com.testehan.finana.model.GlobalQuote;
-import com.testehan.finana.model.IncomeReport;
-import com.testehan.finana.model.IncomeStatementData;
-import com.testehan.finana.model.IndexData;
-import com.testehan.finana.model.IndexQuotes;
-import com.testehan.finana.model.QuarterlyEarningsTranscript;
-import com.testehan.finana.model.RevenueGeographicSegmentationData;
-import com.testehan.finana.model.RevenueSegmentationData;
-import com.testehan.finana.model.StockQuotes;
-import com.testehan.finana.repository.BalanceSheetRepository;
-import com.testehan.finana.repository.CashFlowRepository;
-import com.testehan.finana.repository.CompanyEarningsTranscriptsRepository;
-import com.testehan.finana.repository.CompanyOverviewRepository;
-import com.testehan.finana.repository.EarningsEstimatesRepository;
-import com.testehan.finana.repository.EarningsHistoryRepository;
-import com.testehan.finana.repository.FinancialRatiosRepository;
-import com.testehan.finana.repository.GeneratedReportRepository;
-import com.testehan.finana.repository.IncomeStatementRepository;
-import com.testehan.finana.repository.IndexQuotesRepository;
-import com.testehan.finana.repository.RevenueGeographicSegmentationRepository;
-import com.testehan.finana.repository.RevenueSegmentationDataRepository;
-import com.testehan.finana.repository.StockQuotesRepository;
+import com.testehan.finana.model.*;
+import com.testehan.finana.repository.*;
 import com.testehan.finana.util.DateUtils;
 import com.testehan.finana.util.FinancialRatiosCalculator;
 import org.jetbrains.annotations.NotNull;
@@ -45,12 +14,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -175,7 +139,7 @@ public class FinancialDataService {
     public Mono<GlobalQuote> getLastStockQuote(String symbol) {
         return Mono.defer(() -> {
             Optional<StockQuotes> stockQuotesFromDb = stockQuotesRepository.findBySymbol(symbol);
-            if (stockQuotesFromDb.isPresent() && isRecent(stockQuotesFromDb.get().getLastUpdated(), 100)) {
+            if (stockQuotesFromDb.isPresent() && !stockQuotesFromDb.get().getQuotes().isEmpty() && isRecent(stockQuotesFromDb.get().getLastUpdated(), 100)) {
                 return Mono.just(stockQuotesFromDb.get());
             } else {
                 return fmpService.getHistoricalDividendAdjustedEodPrice(symbol)
@@ -468,12 +432,118 @@ public class FinancialDataService {
 
         this.getFinancialRatios(ticker);
 
+        this.updateFinancialRatiosFromFmp(ticker);
+        this.updateTtmFinancialRatios(ticker);
+
         var latestReportDate = this.getLatestReportedDate(ticker);
 
         if (latestReportDate != null) {
             String dateQuarter = dateUtils.getDateQuarter(latestReportDate);
             this.getEarningsCallTranscript(ticker, dateQuarter).block();
         }
+    }
+
+    private void updateTtmFinancialRatios(String ticker) {
+        fmpService.getFinancialRatiosTtm(ticker)
+                .map(fmpRatios -> {
+                    FinancialRatiosData data = financialRatiosRepository.findBySymbol(ticker).orElse(new FinancialRatiosData());
+                    data.setSymbol(ticker);
+
+                    FinancialRatiosReport report = new FinancialRatiosReport();
+                    report.setDate(fmpRatios.getDate());
+
+                    if (fmpRatios.getPriceToEarningsRatioTTM() != null) {
+                        report.setPeRatio(java.math.BigDecimal.valueOf(fmpRatios.getPriceToEarningsRatioTTM()));
+                    }
+                    if (fmpRatios.getPriceToEarningsGrowthRatioTTM() != null) {
+                        report.setPriceToEarningsGrowthRatio(java.math.BigDecimal.valueOf(fmpRatios.getPriceToEarningsGrowthRatioTTM()));
+                    }
+                    if (fmpRatios.getForwardPriceToEarningsGrowthRatioTTM() != null) {
+                        report.setForwardPriceToEarningsGrowthRatio(java.math.BigDecimal.valueOf(fmpRatios.getForwardPriceToEarningsGrowthRatioTTM()));
+                    }
+                    if (fmpRatios.getPriceToBookRatioTTM() != null) {
+                        report.setPbRatio(java.math.BigDecimal.valueOf(fmpRatios.getPriceToBookRatioTTM()));
+                    }
+                    if (fmpRatios.getPriceToSalesRatioTTM() != null) {
+                        report.setPriceToSalesRatio(java.math.BigDecimal.valueOf(fmpRatios.getPriceToSalesRatioTTM()));
+                    }
+                    if (fmpRatios.getPriceToFreeCashFlowRatioTTM() != null) {
+                        report.setPfcfRatio(java.math.BigDecimal.valueOf(fmpRatios.getPriceToFreeCashFlowRatioTTM()));
+                    }
+                    if (fmpRatios.getPriceToOperatingCashFlowRatioTTM() != null) {
+                        report.setPocfratio(java.math.BigDecimal.valueOf(fmpRatios.getPriceToOperatingCashFlowRatioTTM()));
+                    }
+                    if (fmpRatios.getPriceToFairValueTTM() != null) {
+                        report.setPriceToFairValue(java.math.BigDecimal.valueOf(fmpRatios.getPriceToFairValueTTM()));
+                    }
+                    if (fmpRatios.getEnterpriseValueMultipleTTM() != null) {
+                        report.setEnterpriseValueMultiple(java.math.BigDecimal.valueOf(fmpRatios.getEnterpriseValueMultipleTTM()));
+                    }
+                    data.setTtmReport(report);
+                    return data;
+                })
+                .doOnSuccess(financialRatiosRepository::save)
+                .doOnError(e -> LOGGER.error("Error with TTM financial ratios for " + ticker, e)).block();
+    }
+
+
+    private void updateFinancialRatiosFromFmp(String ticker) {
+        fmpService.getFinancialRatios(ticker)
+                .map(reports -> { // reports is List<FmpRatios>
+                    FinancialRatiosData data = financialRatiosRepository.findBySymbol(ticker).orElse(new FinancialRatiosData());
+
+                    data.setSymbol(ticker);
+                    List<FinancialRatiosReport> annualReports = data.getAnnualReports();
+                    if (annualReports == null) {
+                        annualReports = new ArrayList<>();
+                        data.setAnnualReports(annualReports);
+                    }
+
+                    Map<String, FinancialRatiosReport> reportsByDate = annualReports.stream()
+                            .collect(Collectors.toMap(FinancialRatiosReport::getDate, java.util.function.Function.identity()));
+
+                    for (FmpRatios fmpRatios : reports) {
+                        FinancialRatiosReport report = reportsByDate.get(fmpRatios.getDate());
+
+                        if (report == null) {
+                            report = new FinancialRatiosReport();
+                            report.setDate(fmpRatios.getDate());
+                            annualReports.add(report);
+                        }
+
+                        if (fmpRatios.getPriceToEarningsRatio() != null) {
+                            report.setPeRatio(java.math.BigDecimal.valueOf(fmpRatios.getPriceToEarningsRatio()));
+                        }
+                        if (fmpRatios.getPriceToEarningsGrowthRatio() != null) {
+                            report.setPriceToEarningsGrowthRatio(java.math.BigDecimal.valueOf(fmpRatios.getPriceToEarningsGrowthRatio()));
+                        }
+                        if (fmpRatios.getForwardPriceToEarningsGrowthRatio() != null) {
+                            report.setForwardPriceToEarningsGrowthRatio(java.math.BigDecimal.valueOf(fmpRatios.getForwardPriceToEarningsGrowthRatio()));
+                        }
+                        if (fmpRatios.getPriceToBookRatio() != null) {
+                            report.setPbRatio(java.math.BigDecimal.valueOf(fmpRatios.getPriceToBookRatio()));
+                        }
+                        if (fmpRatios.getPriceToSalesRatio() != null) {
+                            report.setPriceToSalesRatio(java.math.BigDecimal.valueOf(fmpRatios.getPriceToSalesRatio()));
+                        }
+                        if (fmpRatios.getPriceToFreeCashFlowRatio() != null) {
+                            report.setPfcfRatio(java.math.BigDecimal.valueOf(fmpRatios.getPriceToFreeCashFlowRatio()));
+                        }
+                        if (fmpRatios.getPriceToOperatingCashFlowRatio() != null) {
+                            report.setPocfratio(java.math.BigDecimal.valueOf(fmpRatios.getPriceToOperatingCashFlowRatio()));
+                        }
+                        if (fmpRatios.getPriceToFairValue() != null) {
+                            report.setPriceToFairValue(java.math.BigDecimal.valueOf(fmpRatios.getPriceToFairValue()));
+                        }
+                        if (fmpRatios.getEnterpriseValueMultiple() != null) {
+                            report.setEnterpriseValueMultiple(java.math.BigDecimal.valueOf(fmpRatios.getEnterpriseValueMultiple()));
+                        }
+                    }
+
+                    return data;
+                })
+                .doOnSuccess(financialRatiosRepository::save)
+                .doOnError(e -> LOGGER.error("Error with financial ratios for " + ticker, e)).block();
     }
 
     public FinancialDataAvailability checkFinancialDataAvailability(String ticker) {

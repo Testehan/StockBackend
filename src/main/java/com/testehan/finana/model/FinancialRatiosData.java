@@ -14,4 +14,5 @@ public class FinancialRatiosData {
     private String symbol;
     private List<FinancialRatiosReport> annualReports;
     private List<FinancialRatiosReport> quarterlyReports;
+    private FinancialRatiosReport ttmReport;
 }

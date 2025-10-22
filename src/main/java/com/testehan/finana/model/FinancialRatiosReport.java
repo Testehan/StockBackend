@@ -70,4 +70,14 @@ public class FinancialRatiosReport {
     // Advanced Valuation
     private BigDecimal tangibleBookValuePerShare;  // ((Equity - Goodwill - Intangibles) / Shares)
 
+    // obtained from FMP API
+    private BigDecimal priceToEarningsGrowthRatio;
+    private BigDecimal forwardPriceToEarningsGrowthRatio;
+    private BigDecimal priceToFairValue;
+    private BigDecimal enterpriseValueMultiple;
+    private BigDecimal peRatio;
+    private BigDecimal pbRatio;
+    private BigDecimal pfcfRatio;
+    private BigDecimal pocfratio;
+    private BigDecimal priceToSalesRatio;
 }
