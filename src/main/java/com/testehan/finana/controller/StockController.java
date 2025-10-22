@@ -79,6 +79,11 @@ public class StockController {
         return financialDataService.getRevenueSegmentation(symbol);
     }
 
+    @GetMapping("/revenue-geography/{symbol}")
+    public Mono<RevenueGeographicSegmentationData> getRevenueGeography(@PathVariable String symbol) {
+        return financialDataService.getRevenueGeographicSegmentation(symbol);
+    }
+
     @GetMapping("/earnings-history/{symbol}")
     public Mono<EarningsHistory> getEarningsHistory(@PathVariable String symbol) {
         return financialDataService.getEarningsHistory(symbol);
