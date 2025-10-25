@@ -4,6 +4,9 @@ import com.testehan.finana.model.ChecklistReport;
 import com.testehan.finana.model.ChecklistReportSummaryDTO;
 import com.testehan.finana.model.ReportItem;
 import com.testehan.finana.model.ReportType;
+import com.testehan.finana.model.UserStock;
+import com.testehan.finana.model.UserStockStatus;
+import com.testehan.finana.repository.UserStockRepository;
 import com.testehan.finana.service.reporting.ChecklistReportOrchestrator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -13,16 +16,20 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/stocks/reporting")
 public class ReportingController {
 
     private final ChecklistReportOrchestrator checklistReportOrchestrator;
+    private final UserStockRepository userStockRepository;
 
     @Autowired
-    public ReportingController(ChecklistReportOrchestrator checklistReportOrchestrator) {
+    public ReportingController(ChecklistReportOrchestrator checklistReportOrchestrator, UserStockRepository userStockRepository) {
         this.checklistReportOrchestrator = checklistReportOrchestrator;
+        this.userStockRepository = userStockRepository;
     }
 
     @GetMapping(value = "/checklist/{ticker}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -36,9 +43,18 @@ public class ReportingController {
         return new ResponseEntity<>(savedReport, HttpStatus.CREATED);
     }
 
-    @GetMapping("/checklist/summary")
-    public ResponseEntity<List<ChecklistReportSummaryDTO>> getChecklistReportsSummary() {
+    @GetMapping("/checklist/summary/{userId}")
+    public ResponseEntity<List<ChecklistReportSummaryDTO>> getChecklistReportsSummary(@PathVariable String userId) {
         List<ChecklistReportSummaryDTO> summary = checklistReportOrchestrator.getChecklistReportsSummary();
+        List<UserStock> userStocks = userStockRepository.findByUserId(userId);
+        Map<String, UserStockStatus> userStockStatusMap = userStocks.stream()
+                .collect(Collectors.toMap(UserStock::getStockId, UserStock::getStatus));
+
+        summary.forEach(dto -> {
+            UserStockStatus status = userStockStatusMap.getOrDefault(dto.getTicker(), UserStockStatus.NEW);
+            dto.setStatus(status);
+        });
+
         return new ResponseEntity<>(summary, HttpStatus.OK);
     }
 }
