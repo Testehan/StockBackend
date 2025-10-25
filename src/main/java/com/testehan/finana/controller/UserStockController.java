@@ -64,12 +64,36 @@ public class UserStockController {
                 });
     }
 
+    @PutMapping("/{stockId}/personalnotes")
+    public ResponseEntity<UserStock> updateUserStockPersonalNotes(@PathVariable String userId, @PathVariable String stockId, @RequestBody String personalNotes) {
+        return userStockRepository.findByUserIdAndStockId(userId, stockId)
+                .map(userStock -> {
+                    userStock.setNotes(personalNotes);
+                    return new ResponseEntity<>(userStockRepository.save(userStock), HttpStatus.OK);
+                })
+                .orElseGet(() -> {
+                    UserStock newUserStock = new UserStock();
+                    newUserStock.setUserId(userId);
+                    newUserStock.setStockId(stockId);
+                    newUserStock.setNotes(personalNotes);
+                    return new ResponseEntity<>(userStockRepository.save(newUserStock), HttpStatus.CREATED);
+                });
+    }
+
     @GetMapping("/{stockId}/status")
     public ResponseEntity<UserStockStatus> getUserStockStatus(@PathVariable String userId, @PathVariable String stockId) {
         UserStockStatus status = userStockRepository.findByUserIdAndStockId(userId, stockId)
                 .map(UserStock::getStatus)
                 .orElse(UserStockStatus.NEW);
         return new ResponseEntity<>(status, HttpStatus.OK);
+    }
+
+    @GetMapping("/{stockId}/personalnotes")
+    public ResponseEntity<String> getUserStockPersonalNotes(@PathVariable String userId, @PathVariable String stockId) {
+        String notes = userStockRepository.findByUserIdAndStockId(userId, stockId)
+                .map(UserStock::getNotes)
+                .orElse("");
+        return new ResponseEntity<>(notes, HttpStatus.OK);
     }
 
     @DeleteMapping("/{stockId}")
