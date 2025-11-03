@@ -125,8 +125,8 @@ public class ValuationCalculator {
         BigDecimal price = new BigDecimal(lastStockQuote.getAdjOpen());
 
         Optional<EarningsHistory> earningsHistoryOptional = earningsHistoryRepository.findBySymbol(ticker);
-        if (earningsHistoryOptional.isEmpty() || Objects.isNull(earningsHistoryOptional.get().getQuarterlyEarnings()) || earningsHistoryOptional.get().getQuarterlyEarnings().size() < 4) {
-            LOGGER.warn("No sufficient earnings history data for P/E calculation for ticker: {}", ticker);
+        if (earningsHistoryOptional.isEmpty() || Objects.isNull(earningsHistoryOptional.get().getQuarterlyEarnings())) {
+            LOGGER.warn("No earnings history data for P/E calculation for ticker: {}", ticker);
             return null;
         }
 
@@ -134,15 +134,19 @@ public class ValuationCalculator {
         quarterlyEarnings.sort(Comparator.comparing(QuarterlyEarning::getFiscalDateEnding).reversed());
 
         var last4quarters = quarterlyEarnings.stream()
-                .filter(qe -> Objects.nonNull(qe.getReportedEPS()) && Objects.nonNull(qe.getEstimatedEPS()))
+                .filter(qe -> Objects.nonNull(qe.getReportedEPS()))
                 .sorted(Comparator.comparing(QuarterlyEarning::getFiscalDateEnding).reversed())
                 .limit(4) // We only care about the last 4 quarters
                 .collect(Collectors.toList());
 
-        BigDecimal ttmEps = BigDecimal.ZERO;
-        for (int i = 0; i < 4; i++) {
-            ttmEps = ttmEps.add(safeParser.parse(last4quarters.get(i).getReportedEPS()));
+        if (last4quarters.size() < 4) {
+            LOGGER.warn("Not enough quarterly earnings with reported EPS to calculate TTM EPS for {}. Needed 4, but found {}", ticker, last4quarters.size());
+            return null;
         }
+
+        BigDecimal ttmEps = last4quarters.stream()
+                .map(qe -> safeParser.parse(qe.getReportedEPS()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         if (ttmEps.compareTo(BigDecimal.ZERO) <= 0) {
             return null;
