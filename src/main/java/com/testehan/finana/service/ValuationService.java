@@ -10,8 +10,10 @@ import com.testehan.finana.util.SafeParser;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -342,46 +344,39 @@ public class ValuationService {
                 .map(CashFlowData::getAnnualReports)
                 .orElse(List.of());
 
-        // Sort by date descending to get most recent years first
         List<CashFlowReport> sortedAnnualReports = annualReports.stream()
                 .sorted(Comparator.comparing(CashFlowReport::getDate).reversed())
-                .collect(Collectors.toList());
+                .toList();
 
-        if (sortedAnnualReports.size() < 4) { // Need at least 4 years for 3 growth rates
-            return 0.0; // Not enough data
+        if (sortedAnnualReports.size() < 4) {
+            return 0.0;
         }
 
-        // We need reports for Year 0, Year -1, Year -2, Year -3 to calculate 3 growth rates
-        // Year 0 is most recent
         List<BigDecimal> fcfValues = sortedAnnualReports.subList(0, 4).stream()
                 .map(report -> {
                     BigDecimal operatingCashFlow = safeParser.parse(report.getOperatingCashFlow());
                     BigDecimal capitalExpenditure = safeParser.parse(report.getCapitalExpenditure());
-                    return operatingCashFlow.subtract(capitalExpenditure);
+
+                    return operatingCashFlow.subtract(capitalExpenditure.abs());
                 })
-                .collect(Collectors.toList());
+                .toList();
 
-        // fcfValues will be in reverse chronological order (most recent first)
-        // fcfValues[0] = FCF Year 0
-        // fcfValues[1] = FCF Year -1
-        // fcfValues[2] = FCF Year -2
-        // fcfValues[3] = FCF Year -3
+        List<Double> growthRates = new ArrayList<>();
 
-        List<Double> growthRates = new java.util.ArrayList<>();
+        // helper
+        for (int i = 0; i < 3; i++) {
+            BigDecimal newer = fcfValues.get(i);       // Year 0, -1, -2
+            BigDecimal older = fcfValues.get(i + 1);   // Year -1, -2, -3
 
-        // Calculate growth rate for Year -1 to Year 0
-        if (fcfValues.get(1).compareTo(BigDecimal.ZERO) != 0) {
-            growthRates.add(fcfValues.get(0).subtract(fcfValues.get(1)).divide(fcfValues.get(1), 4, BigDecimal.ROUND_HALF_UP).doubleValue());
-        }
+            if (older.compareTo(BigDecimal.ZERO) == 0) {
+                continue;
+            }
 
-        // Calculate growth rate for Year -2 to Year -1
-        if (fcfValues.get(2).compareTo(BigDecimal.ZERO) != 0) {
-            growthRates.add(fcfValues.get(1).subtract(fcfValues.get(2)).divide(fcfValues.get(2), 4, BigDecimal.ROUND_HALF_UP).doubleValue());
-        }
+            BigDecimal denominator = older.abs(); // key fix
+            BigDecimal growth = newer.subtract(older)
+                    .divide(denominator, 6, RoundingMode.HALF_UP);
 
-        // Calculate growth rate for Year -3 to Year -2
-        if (fcfValues.get(3).compareTo(BigDecimal.ZERO) != 0) {
-            growthRates.add(fcfValues.get(2).subtract(fcfValues.get(3)).divide(fcfValues.get(3), 4, BigDecimal.ROUND_HALF_UP).doubleValue());
+            growthRates.add(growth.doubleValue());
         }
 
         if (growthRates.isEmpty()) {
