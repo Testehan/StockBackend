@@ -4,6 +4,7 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
 
 @Service
 public class LlmService {
@@ -27,4 +28,13 @@ public class LlmService {
         return chatModel.call(new Prompt(new UserMessage(query.getContents()))).getResult().getOutput().getText();
     }
 
+    public Flux<String> streamLlm(Prompt prompt) {
+        return chatModel.stream(prompt)
+                .map(chatResponse -> {
+                    if (chatResponse.getResult() != null && chatResponse.getResult().getOutput() != null && chatResponse.getResult().getOutput().getText() != null) {
+                        return chatResponse.getResult().getOutput().getText();
+                    }
+                    return "";
+                });
+    }
 }

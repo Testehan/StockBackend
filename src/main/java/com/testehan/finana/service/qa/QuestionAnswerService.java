@@ -1,7 +1,7 @@
 package com.testehan.finana.service.qa;
 
-import com.testehan.finana.model.qa.QuestionAnswerResponse;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 public interface QuestionAnswerService {
-    QuestionAnswerResponse answerQuestion(String stockId, String questionId);
+    void answerQuestion(String stockId, String questionId, SseEmitter emitter);
 }
