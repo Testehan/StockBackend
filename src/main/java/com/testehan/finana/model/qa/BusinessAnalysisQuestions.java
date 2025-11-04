@@ -14,6 +14,7 @@ public class BusinessAnalysisQuestions {
             new Question("growth_drivers", "What are the primary drivers of growth going forward?"),
             new Question("growth_constraints", "What are the main constraints or bottlenecks to that growth?"),
             new Question("key_business_risks", "What are the biggest business risks that could materially impair the company?"),
-            new Question("thesis_break_conditions", "What would have to be true for the core investment thesis to break?")
+            new Question("thesis_break_conditions", "What would have to be true for the core investment thesis to break?"),
+            new Question("silver_bullet", "If the company had a ‘silver bullet,’ which competitor would it most want to use it against?")
     );
 }
