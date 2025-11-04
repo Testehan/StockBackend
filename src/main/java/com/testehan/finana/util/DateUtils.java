@@ -18,4 +18,8 @@ public class DateUtils {
         String dateQuarter = date.getYear() + "Q" + quarter;
         return dateQuarter;
     }
+
+    public LocalDate parseDate(String dateStr, java.time.format.DateTimeFormatter formatter) {
+        return LocalDate.parse(dateStr, formatter);
+    }
 }

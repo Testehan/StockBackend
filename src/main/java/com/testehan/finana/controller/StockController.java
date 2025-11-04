@@ -4,6 +4,12 @@ import com.testehan.finana.model.*;
 import com.testehan.finana.service.AlphaVantageService;
 import com.testehan.finana.service.FMPService;
 import com.testehan.finana.service.FinancialDataService;
+import com.testehan.finana.service.FinancialDataOrchestrator;
+import com.testehan.finana.service.CompanyDataService;
+import com.testehan.finana.service.FinancialStatementService;
+import com.testehan.finana.service.EarningsService;
+import com.testehan.finana.service.QuoteService;
+import com.testehan.finana.model.FinancialDataAvailability;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -17,36 +23,48 @@ import java.util.Optional;
 public class StockController {
 
     private final AlphaVantageService alphaVantageService;
-    private final FinancialDataService financialDataService;
     private final FMPService fmpService;
+    private final FinancialDataOrchestrator financialDataOrchestrator;
+    private final CompanyDataService companyDataService;
+    private final FinancialStatementService financialStatementService;
+    private final EarningsService earningsService;
+    private final QuoteService quoteService;
+    private final FinancialDataService financialDataService; // For remaining methods (ratios)
 
 
     @Autowired
-    public StockController(AlphaVantageService alphaVantageService, FinancialDataService financialDataService, FMPService fmpService) {
+    public StockController(AlphaVantageService alphaVantageService, FMPService fmpService, FinancialDataOrchestrator financialDataOrchestrator, CompanyDataService companyDataService, FinancialStatementService financialStatementService, EarningsService earningsService, QuoteService quoteService, FinancialDataService financialDataService) {
         this.alphaVantageService = alphaVantageService;
-        this.financialDataService = financialDataService;
         this.fmpService = fmpService;
+        this.financialDataOrchestrator = financialDataOrchestrator;
+        this.companyDataService = companyDataService;
+        this.financialStatementService = financialStatementService;
+        this.earningsService = earningsService;
+        this.quoteService = quoteService;
+        this.financialDataService = financialDataService; // For remaining methods (ratios)
     }
 
     @GetMapping("/overview/{symbol}")
     public Mono<CompanyOverview> getCompanyOverview(@PathVariable String symbol) {
-        financialDataService.ensureFinancialDataIsPresent(symbol.toUpperCase());
-        return getCompanyOverviewFmp(symbol);
+        financialDataOrchestrator.ensureFinancialDataIsPresent(symbol.toUpperCase());
+        return companyDataService.getCompanyOverview(symbol).map(list -> list.getFirst());
     }
 
     @GetMapping("/presentfinancialdata/{symbol}")
     public FinancialDataAvailability getFinancialDataAvailability(@PathVariable String symbol) {
-        return financialDataService.checkFinancialDataAvailability(symbol);
+        return financialDataOrchestrator.checkFinancialDataAvailability(symbol);
     }
+
+
 
     @GetMapping("/income-statement/{symbol}")
     public Mono<IncomeStatementData> getIncomeStatements(@PathVariable String symbol) {
-        return financialDataService.getIncomeStatements(symbol);
+        return financialStatementService.getIncomeStatements(symbol);
     }
 
     @GetMapping("/balance-sheet/{symbol}")
     public Mono<BalanceSheetData> getBalanceSheetStatement(@PathVariable String symbol) {
-        return financialDataService.getBalanceSheet(symbol);
+        return financialStatementService.getBalanceSheet(symbol);
     }
 
     @GetMapping("/fmp/income-statement/{symbol}/{period}")
@@ -66,32 +84,32 @@ public class StockController {
 
     @GetMapping("/fmp/company-overview/{symbol}")
     public Mono<CompanyOverview> getCompanyOverviewFmp(@PathVariable String symbol) {
-        return Mono.just(financialDataService.getCompanyOverview(symbol).block().getFirst());
+        return companyDataService.getCompanyOverview(symbol).map(list -> list.getFirst());
     }
 
     @GetMapping("/cash-flow/{symbol}")
     public Mono<CashFlowData> getCashFlow(@PathVariable String symbol) {
-        return financialDataService.getCashFlow(symbol);
+        return financialStatementService.getCashFlow(symbol);
     }
 
     @GetMapping("/revenue-segmentation/{symbol}")
     public Mono<RevenueSegmentationData> getRevenueSegmentation(@PathVariable String symbol) {
-        return financialDataService.getRevenueSegmentation(symbol);
+        return financialStatementService.getRevenueSegmentation(symbol);
     }
 
     @GetMapping("/revenue-geography/{symbol}")
     public Mono<RevenueGeographicSegmentationData> getRevenueGeography(@PathVariable String symbol) {
-        return financialDataService.getRevenueGeographicSegmentation(symbol);
+        return financialStatementService.getRevenueGeographicSegmentation(symbol);
     }
 
     @GetMapping("/earnings-history/{symbol}")
     public Mono<EarningsHistory> getEarningsHistory(@PathVariable String symbol) {
-        return financialDataService.getEarningsHistory(symbol);
+        return earningsService.getEarningsHistory(symbol);
     }
 
     @GetMapping("/earnings-estimates/{symbol}")
     public Mono<EarningsEstimate> getEarningsEstimates(@PathVariable String symbol) {
-        return financialDataService.getEarningsEstimates(symbol);
+        return earningsService.getEarningsEstimates(symbol);
     }
 
     @GetMapping("/financial-ratios/{symbol}")
@@ -103,22 +121,22 @@ public class StockController {
 
     @GetMapping("/global-quote/{symbol}")
     public Mono<GlobalQuote> getGlobalQuote(@PathVariable String symbol) {
-        return financialDataService.getLastStockQuote(symbol.toUpperCase());
+        return quoteService.getLastStockQuote(symbol.toUpperCase());
     }
 
     @GetMapping("/sp500-quote")
     public Mono<IndexQuotes> getSP500IndexQuote() {
-        return financialDataService.getIndexQuotes("^GSPC");
+        return quoteService.getIndexQuotes("^GSPC");
     }
 
     @GetMapping("/earnings-call-transcript/{symbol}/{quarter}")
     public Mono<QuarterlyEarningsTranscript> getEarningsCallTranscript(@PathVariable String symbol, @PathVariable String quarter) {
-        return financialDataService.getEarningsCallTranscript(symbol, quarter);
+        return earningsService.getEarningsCallTranscript(symbol, quarter);
     }
 
     @DeleteMapping("/delete/{symbol}")
     public Mono<ResponseEntity<Void>> deleteStockData(@PathVariable String symbol) {
-        return Mono.fromRunnable(() -> financialDataService.deleteFinancialData(symbol.toUpperCase()))
+        return Mono.fromRunnable(() -> financialDataOrchestrator.deleteFinancialData(symbol.toUpperCase()))
                 .then(Mono.just(ResponseEntity.noContent().build()));
     }
 }

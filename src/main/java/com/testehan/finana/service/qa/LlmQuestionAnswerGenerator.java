@@ -59,7 +59,9 @@ public class LlmQuestionAnswerGenerator {
             promptParameters.put("company_url", companyOverview.get().getWebsite());
             Prompt prompt = promptTemplate.create(promptParameters);
 
-            StringBuilder completeAnswer = new StringBuilder();
+            String generationDate = "Generation Date: " + LocalDateTime.now() + "\n\n\n";
+            StringBuilder completeAnswer = new StringBuilder(generationDate);
+            emitter.send(SseEmitter.event().data(generationDate));
             llmService.streamLlm(prompt)
                     .doOnNext(chunk -> {
                         try {

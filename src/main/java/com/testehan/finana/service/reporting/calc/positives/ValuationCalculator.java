@@ -4,6 +4,7 @@ import com.testehan.finana.model.*;
 import com.testehan.finana.model.llm.responses.LlmScoreExplanationResponse;
 import com.testehan.finana.repository.*;
 import com.testehan.finana.service.FinancialDataService;
+import com.testehan.finana.service.QuoteService;
 import com.testehan.finana.service.LlmService;
 import com.testehan.finana.service.reporting.events.ErrorEvent;
 import com.testehan.finana.service.reporting.events.MessageEvent;
@@ -34,7 +35,7 @@ public class ValuationCalculator {
     private Resource valuationPrompt;
 
     private final CompanyOverviewRepository companyOverviewRepository;
-    private final FinancialDataService financialDataService;
+    private final QuoteService quoteService;
     private final EarningsHistoryRepository earningsHistoryRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final SafeParser safeParser;
@@ -44,9 +45,9 @@ public class ValuationCalculator {
     private final SecFilingRepository secFilingRepository;
 
     @Autowired
-    public ValuationCalculator(CompanyOverviewRepository companyOverviewRepository, FinancialDataService financialDataService, EarningsHistoryRepository earningsHistoryRepository, ApplicationEventPublisher eventPublisher, SafeParser safeParser, LlmService llmService, FinancialRatiosRepository financialRatiosRepository, EarningsEstimatesRepository earningsEstimatesRepository, SecFilingRepository secFilingRepository) {
+    public ValuationCalculator(CompanyOverviewRepository companyOverviewRepository, QuoteService quoteService, EarningsHistoryRepository earningsHistoryRepository, ApplicationEventPublisher eventPublisher, SafeParser safeParser, LlmService llmService, FinancialRatiosRepository financialRatiosRepository, EarningsEstimatesRepository earningsEstimatesRepository, SecFilingRepository secFilingRepository) {
         this.companyOverviewRepository = companyOverviewRepository;
-        this.financialDataService = financialDataService;
+        this.quoteService = quoteService;
         this.earningsHistoryRepository = earningsHistoryRepository;
         this.eventPublisher = eventPublisher;
         this.safeParser = safeParser;
@@ -121,7 +122,7 @@ public class ValuationCalculator {
     }
 
     public BigDecimal calculateCurrentPE(String ticker) {
-        GlobalQuote lastStockQuote = financialDataService.getLastStockQuote(ticker).block();
+        GlobalQuote lastStockQuote = quoteService.getLastStockQuote(ticker).block();
         if (lastStockQuote == null) {
             LOGGER.warn("Could not retrieve latest stock price for ticker: {}", ticker);
             return null;

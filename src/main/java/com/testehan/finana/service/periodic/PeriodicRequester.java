@@ -21,7 +21,7 @@ public class PeriodicRequester {
             // Software / SaaS / Cloud
             "CRM","NOW","ORCL","WDAY","ADP","INTC","IBM","HUBS","OKTA","ZSAN",
             "ANSS","TYL","PTC","ZEN","S","MDBX","DOMO","VRNS","BLZE","NCNO",
-            "MSTR","DBX","SMAR","EGHT","RNGX","U","PATH","AIQ","SSTK","DOCU",
+            "MSTR","DBX","SMAR","EGHT","RNGX","U","PATH","SSTK","DOCU",
 
             // Semiconductors / Hardware
             "ASML","TSM","UMC","ADI","TXN","MPWR","LSCC","OLED","ONTO","ENTG",

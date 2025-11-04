@@ -3,7 +3,8 @@ package com.testehan.finana.service.reporting.calc.positives;
 import com.testehan.finana.model.*;
 import com.testehan.finana.model.llm.responses.LlmScoreExplanationResponse;
 import com.testehan.finana.repository.*;
-import com.testehan.finana.service.FinancialDataService;
+import com.testehan.finana.service.EarningsService;
+import com.testehan.finana.service.FinancialDataOrchestrator;
 import com.testehan.finana.service.LlmService;
 import com.testehan.finana.service.reporting.events.ErrorEvent;
 import com.testehan.finana.service.reporting.events.MessageEvent;
@@ -36,7 +37,8 @@ public class ReinvestmentRunwayCalculator {
     private final SecFilingRepository secFilingRepository;
     private final RevenueSegmentationDataRepository revenueSegmentationDataRepository;
     private final RevenueGeographicSegmentationRepository revenueGeographicSegmentationRepository;
-    private final FinancialDataService financialDataService;
+    private final FinancialDataOrchestrator financialDataOrchestrator;
+    private final EarningsService earningsService;
     private final LlmService llmService;
     private final ApplicationEventPublisher eventPublisher;
     private final SafeParser safeParser;
@@ -46,13 +48,14 @@ public class ReinvestmentRunwayCalculator {
     @Value("classpath:/prompts/100Bagger/reinvestment_runway_prompt.txt")
     private Resource reinvestmentRunwayPrompt;
 
-    public ReinvestmentRunwayCalculator(CompanyOverviewRepository companyOverviewRepository, IncomeStatementRepository incomeStatementRepository, SecFilingRepository secFilingRepository, RevenueSegmentationDataRepository revenueSegmentationDataRepository, RevenueGeographicSegmentationRepository revenueGeographicSegmentationRepository, FinancialDataService financialDataService, LlmService llmService, ApplicationEventPublisher eventPublisher, SafeParser safeParser, DateUtils dateUtils, CashFlowRepository cashFlowRepository) {
+    public ReinvestmentRunwayCalculator(CompanyOverviewRepository companyOverviewRepository, IncomeStatementRepository incomeStatementRepository, SecFilingRepository secFilingRepository, RevenueSegmentationDataRepository revenueSegmentationDataRepository, RevenueGeographicSegmentationRepository revenueGeographicSegmentationRepository, FinancialDataOrchestrator financialDataOrchestrator, EarningsService earningsService, LlmService llmService, ApplicationEventPublisher eventPublisher, SafeParser safeParser, DateUtils dateUtils, CashFlowRepository cashFlowRepository) {
         this.companyOverviewRepository = companyOverviewRepository;
         this.incomeStatementRepository = incomeStatementRepository;
         this.secFilingRepository = secFilingRepository;
         this.revenueSegmentationDataRepository = revenueSegmentationDataRepository;
         this.revenueGeographicSegmentationRepository = revenueGeographicSegmentationRepository;
-        this.financialDataService = financialDataService;
+        this.financialDataOrchestrator = financialDataOrchestrator;
+        this.earningsService = earningsService;
         this.llmService = llmService;
         this.eventPublisher = eventPublisher;
         this.safeParser = safeParser;
@@ -216,8 +219,8 @@ public class ReinvestmentRunwayCalculator {
 
     @NotNull
     public String getLatestEarningsTranscript(String ticker) {
-        var latestQuarter = dateUtils.getDateQuarter(financialDataService.getLatestReportedDate(ticker));
-        var latestEarningsTranscript = financialDataService.getEarningsCallTranscript(ticker, latestQuarter).block().getTranscript().stream()
+        var latestQuarter = dateUtils.getDateQuarter(financialDataOrchestrator.getLatestReportedDate(ticker));
+        var latestEarningsTranscript = earningsService.getEarningsCallTranscript(ticker, latestQuarter).block().getTranscript().stream()
                 .map(t -> t.getSpeaker() + " (" + t.getTitle() + "): " + t.getContent() + " [" + t.getSentiment() + "]")
                 .collect(Collectors.joining("\n"));
         return latestEarningsTranscript;

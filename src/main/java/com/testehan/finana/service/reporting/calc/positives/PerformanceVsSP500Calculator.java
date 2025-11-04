@@ -3,7 +3,7 @@ package com.testehan.finana.service.reporting.calc.positives;
 import com.testehan.finana.model.GlobalQuote;
 import com.testehan.finana.model.IndexData;
 import com.testehan.finana.model.ReportItem;
-import com.testehan.finana.service.FinancialDataService;
+import com.testehan.finana.service.QuoteService;
 import com.testehan.finana.service.reporting.events.ErrorEvent;
 import com.testehan.finana.util.SafeParser;
 import org.slf4j.Logger;
@@ -23,18 +23,18 @@ public class PerformanceVsSP500Calculator {
     private static final Logger LOGGER = LoggerFactory.getLogger(PerformanceVsSP500Calculator.class);
 
     public static final String S_P_500 = "^GSPC";
-    private final FinancialDataService financialDataService;
+    private final QuoteService quoteService;
     private final ApplicationEventPublisher eventPublisher;
 
     @Autowired
-    public PerformanceVsSP500Calculator(FinancialDataService financialDataService, ApplicationEventPublisher eventPublisher) {
-        this.financialDataService = financialDataService;
+    public PerformanceVsSP500Calculator(QuoteService quoteService, ApplicationEventPublisher eventPublisher) {
+        this.quoteService = quoteService;
         this.eventPublisher = eventPublisher;
     }
 
     public ReportItem calculateUpsidePerformance(String ticker, SseEmitter sseEmitter) {
-        Optional<GlobalQuote> startStockQuoteOpt = financialDataService.getFirstStockQuote(ticker);
-        Optional<GlobalQuote> endStockQuoteOpt = financialDataService.getLastStockQuote(ticker).blockOptional();
+        Optional<GlobalQuote> startStockQuoteOpt = quoteService.getFirstStockQuote(ticker);
+        Optional<GlobalQuote> endStockQuoteOpt = quoteService.getLastStockQuote(ticker).blockOptional();
 
         if (startStockQuoteOpt.isEmpty() || endStockQuoteOpt.isEmpty()) {
             var errorMessage = "Stock price data not available for ticker " +ticker;
@@ -46,8 +46,8 @@ public class PerformanceVsSP500Calculator {
         LocalDate stockStartDate = LocalDate.parse(startStockQuoteOpt.get().getDate());
         LocalDate stockEndDate = LocalDate.parse(endStockQuoteOpt.get().getDate());
 
-        Optional<IndexData> startIndexQuoteOpt = financialDataService.getIndexQuoteByDate(S_P_500, stockStartDate);
-        Optional<IndexData> endIndexQuoteOpt = financialDataService.getIndexQuoteByDate(S_P_500, stockEndDate);
+        Optional<IndexData> startIndexQuoteOpt = quoteService.getIndexQuoteByDate(S_P_500, stockStartDate);
+        Optional<IndexData> endIndexQuoteOpt = quoteService.getIndexQuoteByDate(S_P_500, stockEndDate);
 
         if (startIndexQuoteOpt.isEmpty() || endIndexQuoteOpt.isEmpty()) {
             var errorMessage = "S&P 500 price data for the corresponding period not available.";
@@ -86,8 +86,8 @@ public class PerformanceVsSP500Calculator {
     }
 
     public ReportItem calculateDownsidePerformance(String ticker, SseEmitter sseEmitter) {
-        Optional<GlobalQuote> startStockQuoteOpt = financialDataService.getFirstStockQuote(ticker);
-        Optional<GlobalQuote> endStockQuoteOpt = financialDataService.getLastStockQuote(ticker).blockOptional();
+        Optional<GlobalQuote> startStockQuoteOpt = quoteService.getFirstStockQuote(ticker);
+        Optional<GlobalQuote> endStockQuoteOpt = quoteService.getLastStockQuote(ticker).blockOptional();
 
         if (startStockQuoteOpt.isEmpty() || endStockQuoteOpt.isEmpty()) {
             var errorMessage = "Stock price data not available for ticker " +ticker;
@@ -99,8 +99,8 @@ public class PerformanceVsSP500Calculator {
         LocalDate stockStartDate = LocalDate.parse(startStockQuoteOpt.get().getDate());
         LocalDate stockEndDate = LocalDate.parse(endStockQuoteOpt.get().getDate());
 
-        Optional<IndexData> startIndexQuoteOpt = financialDataService.getIndexQuoteByDate(S_P_500, stockStartDate);
-        Optional<IndexData> endIndexQuoteOpt = financialDataService.getIndexQuoteByDate(S_P_500, stockEndDate);
+        Optional<IndexData> startIndexQuoteOpt = quoteService.getIndexQuoteByDate(S_P_500, stockStartDate);
+        Optional<IndexData> endIndexQuoteOpt = quoteService.getIndexQuoteByDate(S_P_500, stockEndDate);
 
         if (startIndexQuoteOpt.isEmpty() || endIndexQuoteOpt.isEmpty()) {
             var errorMessage = "S&P 500 price data for the corresponding period not available.";

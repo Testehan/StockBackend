@@ -6,6 +6,8 @@ import com.testehan.finana.repository.CompanyOverviewRepository;
 import com.testehan.finana.repository.FinancialRatiosRepository;
 import com.testehan.finana.repository.IncomeStatementRepository;
 import com.testehan.finana.repository.SecFilingRepository;
+import com.testehan.finana.service.EarningsService;
+import com.testehan.finana.service.FinancialDataOrchestrator;
 import com.testehan.finana.service.FinancialDataService;
 import com.testehan.finana.service.LlmService;
 import com.testehan.finana.service.reporting.events.ErrorEvent;
@@ -41,13 +43,14 @@ public class OptionalityCalculator {
     private final ApplicationEventPublisher eventPublisher;
     private final SafeParser safeParser;
     private final DateUtils dateUtils;
-    private final FinancialDataService financialDataService;
+    private final FinancialDataOrchestrator financialDataOrchestrator;
+    private final EarningsService earningsService;
 
 
     @Value("classpath:/prompts/optionality_prompt.txt")
     private Resource optionalityPrompt;
 
-    public OptionalityCalculator(CompanyOverviewRepository companyOverviewRepository, IncomeStatementRepository incomeStatementRepository, SecFilingRepository secFilingRepository, FinancialRatiosRepository financialRatiosRepository, LlmService llmService, ApplicationEventPublisher eventPublisher, SafeParser safeParser, DateUtils dateUtils, FinancialDataService financialDataService) {
+    public OptionalityCalculator(CompanyOverviewRepository companyOverviewRepository, IncomeStatementRepository incomeStatementRepository, SecFilingRepository secFilingRepository, FinancialRatiosRepository financialRatiosRepository, LlmService llmService, ApplicationEventPublisher eventPublisher, SafeParser safeParser, DateUtils dateUtils, FinancialDataOrchestrator financialDataOrchestrator, EarningsService earningsService) {
         this.companyOverviewRepository = companyOverviewRepository;
         this.incomeStatementRepository = incomeStatementRepository;
         this.secFilingRepository = secFilingRepository;
@@ -56,7 +59,8 @@ public class OptionalityCalculator {
         this.eventPublisher = eventPublisher;
         this.safeParser = safeParser;
         this.dateUtils = dateUtils;
-        this.financialDataService = financialDataService;
+        this.financialDataOrchestrator = financialDataOrchestrator;
+        this.earningsService = earningsService;
     }
 
     public ReportItem calculate(String ticker, SseEmitter sseEmitter) {
@@ -179,8 +183,8 @@ public class OptionalityCalculator {
 
     @NotNull
     public String getLatestEarningsTranscript(String ticker) {
-        var latestQuarter = dateUtils.getDateQuarter(financialDataService.getLatestReportedDate(ticker));
-        var latestEarningsTranscript = financialDataService.getEarningsCallTranscript(ticker, latestQuarter).block().getTranscript().stream()
+        var latestQuarter = dateUtils.getDateQuarter(financialDataOrchestrator.getLatestReportedDate(ticker));
+        var latestEarningsTranscript = earningsService.getEarningsCallTranscript(ticker, latestQuarter).block().getTranscript().stream()
                 .map(t -> t.getSpeaker() + " (" + t.getTitle() + "): " + t.getContent() + " [" + t.getSentiment() + "]")
                 .collect(Collectors.joining("\n"));
         return latestEarningsTranscript;

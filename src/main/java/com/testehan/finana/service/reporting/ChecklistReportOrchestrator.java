@@ -2,7 +2,8 @@ package com.testehan.finana.service.reporting;
 
 import com.testehan.finana.model.*;
 import com.testehan.finana.repository.GeneratedReportRepository;
-import com.testehan.finana.service.FinancialDataService;
+import com.testehan.finana.service.CompanyDataService;
+import com.testehan.finana.service.FinancialDataOrchestrator;
 import com.testehan.finana.service.reporting.events.CompletionEvent;
 import com.testehan.finana.service.reporting.events.ErrorEvent;
 import com.testehan.finana.service.reporting.events.MessageEvent;
@@ -29,20 +30,23 @@ public class ChecklistReportOrchestrator {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ChecklistReportOrchestrator.class);
 
-    private final FinancialDataService financialDataService;
+    private final FinancialDataOrchestrator financialDataOrchestrator;
+    private final CompanyDataService companyDataService;
     private final ChecklistReportPersistenceService checklistReportPersistenceService;
     private final GeneratedReportRepository generatedReportRepository;
     private final Executor checklistExecutor;
     private final ApplicationEventPublisher eventPublisher;
     private final Map<ReportType, ReportGenerator> reportGenerators;
 
-    public ChecklistReportOrchestrator(FinancialDataService financialDataService,
+    public ChecklistReportOrchestrator(FinancialDataOrchestrator financialDataOrchestrator,
+                                       CompanyDataService companyDataService,
                                        ChecklistReportPersistenceService checklistReportPersistenceService,
                                        GeneratedReportRepository generatedReportRepository,
                                        @Qualifier("checklistExecutor") Executor checklistExecutor,
                                        ApplicationEventPublisher eventPublisher,
                                        List<ReportGenerator> reportGenerators) {
-        this.financialDataService = financialDataService;
+        this.financialDataOrchestrator = financialDataOrchestrator;
+        this.companyDataService = companyDataService;
         this.checklistReportPersistenceService = checklistReportPersistenceService;
         this.generatedReportRepository = generatedReportRepository;
         this.checklistExecutor = checklistExecutor;
@@ -94,7 +98,7 @@ public class ChecklistReportOrchestrator {
 
     private void generateReport(String ticker, ReportType reportType, SseEmitter sseEmitter) throws InterruptedException, ExecutionException, IOException {
         eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Ensuring financial data is present..."));
-        financialDataService.ensureFinancialDataIsPresent(ticker);
+        financialDataOrchestrator.ensureFinancialDataIsPresent(ticker);
         eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Financial data check complete."));
 
         ReportGenerator generator = reportGenerators.get(reportType);
@@ -107,7 +111,7 @@ public class ChecklistReportOrchestrator {
     }
 
     public List<ChecklistReportSummaryDTO> getChecklistReportsSummary() {
-        List<CompanyOverview> allCompanies = financialDataService.findAllCompanyOverview();
+        List<CompanyOverview> allCompanies = companyDataService.findAllCompanyOverview();
         List<GeneratedReport> allGeneratedReports = generatedReportRepository.findAll();
 
         Map<String, GeneratedReport> reportMap = allGeneratedReports.stream()
