@@ -3,7 +3,6 @@ package com.testehan.finana.service.reporting;
 import com.testehan.finana.model.*;
 import com.testehan.finana.repository.GeneratedReportRepository;
 import com.testehan.finana.service.FinancialDataService;
-import com.testehan.finana.service.reporting.calc.ReportItemCalculator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -13,10 +12,13 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
-import java.util.*;
-import java.util.concurrent.CompletableFuture;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -29,39 +31,34 @@ public class ChecklistReportOrchestrator {
     private final ChecklistReportPersistenceService checklistReportPersistenceService;
     private final GeneratedReportRepository generatedReportRepository;
     private final Executor checklistExecutor;
-
-    private final List<ReportItemCalculator> ferolCalculators;
-    private final List<ReportItemCalculator> oneHundredBaggerCalculators;
-
+    private final Map<ReportType, ReportGenerator> reportGenerators;
 
     public ChecklistReportOrchestrator(FinancialDataService financialDataService,
                                        ChecklistSseService checklistSseService,
                                        ChecklistReportPersistenceService checklistReportPersistenceService,
                                        GeneratedReportRepository generatedReportRepository,
                                        @Qualifier("checklistExecutor") Executor checklistExecutor,
-                                       List<ReportItemCalculator> ferolCalculators,
-                                       List<ReportItemCalculator> oneHundredBaggerCalculators) {
+                                       List<ReportGenerator> reportGenerators) {
         this.financialDataService = financialDataService;
         this.checklistSseService = checklistSseService;
         this.checklistReportPersistenceService = checklistReportPersistenceService;
         this.generatedReportRepository = generatedReportRepository;
         this.checklistExecutor = checklistExecutor;
-        this.ferolCalculators = ferolCalculators;
-        this.oneHundredBaggerCalculators = oneHundredBaggerCalculators;
+        this.reportGenerators = reportGenerators.stream()
+                .collect(Collectors.toMap(ReportGenerator::getReportType, Function.identity()));
     }
-
 
     public SseEmitter getChecklistReport(String ticker, boolean recreateReport, ReportType reportType) {
         SseEmitter sseEmitter = new SseEmitter(3600000L); // Timeout set to 1 hour
 
-        switch (reportType) {
-            case FEROL, ONE_HUNDRED_BAGGER -> getOrGenerateChecklistReport(ticker, recreateReport, reportType, sseEmitter);
-            default -> {
-                checklistSseService.sendSseEvent(sseEmitter, "Invalid report type.");
-                sseEmitter.complete();
-            }
+        ReportGenerator generator = reportGenerators.get(reportType);
+        if (generator == null) {
+            checklistSseService.sendSseEvent(sseEmitter, "Invalid report type.");
+            sseEmitter.complete();
+            return sseEmitter;
         }
 
+        getOrGenerateChecklistReport(ticker, recreateReport, reportType, sseEmitter);
         return sseEmitter;
     }
 
@@ -86,16 +83,11 @@ public class ChecklistReportOrchestrator {
                     checklistSseService.sendSseEvent(sseEmitter, "Report not found in database or incomplete. You must generate a new report.");
                     sseEmitter.send(SseEmitter.event()
                             .name("COMPLETED"));
-
                     sseEmitter.complete();
-                    return;
-
                 } else {
                     checklistSseService.sendSseEvent(sseEmitter, "Initiating Checklist report generation for " + ticker + "...");
+                    generateReport(ticker, reportType, sseEmitter);
                 }
-
-                generateReport(ticker, reportType, sseEmitter);
-
             } catch (Exception e) {
                 LOGGER.error("Error generating Checklist report for {}: {}", ticker, e.getMessage(), e);
                 sseEmitter.completeWithError(e);
@@ -108,64 +100,8 @@ public class ChecklistReportOrchestrator {
         financialDataService.ensureFinancialDataIsPresent(ticker);
         checklistSseService.sendSseEvent(sseEmitter, "Financial data check complete.");
 
-        switch (reportType) {
-            case FEROL -> generateFerolReport(ticker, sseEmitter, reportType);
-            case ONE_HUNDRED_BAGGER -> generate100BaggerReport(ticker, sseEmitter, reportType);
-        }
-    }
-
-    private void generateFerolReport(String ticker, SseEmitter sseEmitter, ReportType reportType) throws InterruptedException, ExecutionException, IOException {
-        List<CompletableFuture<Collection<ReportItem>>> futures = new ArrayList<>();
-        for (ReportItemCalculator calculator : ferolCalculators) {
-            CompletableFuture<Collection<ReportItem>> future = CompletableFuture.supplyAsync(() ->
-                    calculator.calculate(ticker, reportType, sseEmitter), checklistExecutor);
-            futures.add(future);
-        }
-
-        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
-
-        List<ReportItem> checklistReportItems = new ArrayList<>();
-        for (CompletableFuture<Collection<ReportItem>> future : futures) {
-            checklistReportItems.addAll(future.get());
-        }
-
-        checklistSseService.sendSseEvent(sseEmitter, "Building and saving Checklist report...");
-        ChecklistReport checklistReport = checklistReportPersistenceService.buildAndSaveReport(ticker, checklistReportItems, ReportType.FEROL);
-        checklistSseService.sendSseEvent(sseEmitter, "Checklist report built and saved.");
-
-        sseEmitter.send(SseEmitter.event()
-                .name("COMPLETED")
-                .data(checklistReport, MediaType.APPLICATION_JSON));
-
-        sseEmitter.complete();
-        LOGGER.info("Checklist report generation complete for {}", ticker);
-    }
-
-    private void generate100BaggerReport(String ticker, SseEmitter sseEmitter, ReportType reportType) throws InterruptedException, ExecutionException, IOException {
-        List<CompletableFuture<Collection<ReportItem>>> futures = new ArrayList<>();
-        for (ReportItemCalculator calculator : oneHundredBaggerCalculators) {
-            CompletableFuture<Collection<ReportItem>> future = CompletableFuture.supplyAsync(() ->
-                    calculator.calculate(ticker, reportType, sseEmitter), checklistExecutor);
-            futures.add(future);
-        }
-
-        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
-
-        List<ReportItem> checklistReportItems = new ArrayList<>();
-        for (CompletableFuture<Collection<ReportItem>> future : futures) {
-            checklistReportItems.addAll(future.get());
-        }
-
-        checklistSseService.sendSseEvent(sseEmitter, "Building and saving Checklist report...");
-        ChecklistReport checklistReport = checklistReportPersistenceService.buildAndSaveReport(ticker, checklistReportItems, ReportType.ONE_HUNDRED_BAGGER);
-        checklistSseService.sendSseEvent(sseEmitter, "Checklist report built and saved.");
-
-        sseEmitter.send(SseEmitter.event()
-                .name("COMPLETED")
-                .data(checklistReport, MediaType.APPLICATION_JSON));
-
-        sseEmitter.complete();
-        LOGGER.info("Checklist report generation complete for {}", ticker);
+        ReportGenerator generator = reportGenerators.get(reportType);
+        generator.generate(ticker, reportType, sseEmitter);
     }
 
     public ChecklistReport saveChecklistReport(String ticker, List<ReportItem> checklistReportItems, ReportType reportType) {
@@ -219,6 +155,7 @@ public class ChecklistReportOrchestrator {
         };
     }
 }
+
 
         
 
