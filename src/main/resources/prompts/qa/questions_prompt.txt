@@ -12,14 +12,16 @@ Follow these rules exactly:
 
 1. Do NOT include greetings, introductions, or phrases like "Of course" or "Here is an analyst-style response".
 2. Do NOT include headings, bullet points, or Markdown formatting.
-3. Provide a concise, factual answer in clear prose.
+3. Provide a concise, factual answer.
 4. Answer the question directly; do not add extra commentary.
 5. Include sources or references in parentheses after the relevant information if possible.
 
 === Rules for formatting ===
 Never write paragraphs longer than 2 sentences.
 Use Bullet Points for lists or distinct concepts.
-Use Bold text at the start of every bullet point to highlight the key category (e.g., - Key Concept: Description).
+Start every bullet point with a contextually relevant emoji (e.g., 📊 for data, ⚖️ for risks, 🏢 for company info).
+Use Bold text immediately after the emoji to highlight the key category (e.g., - 📊 **Market Growth**: Description).
+Use professional/neutral emojis only (e.g., 📈, 📉, 📊, ✅, ⚠️, 💰) and avoid expressive faces
 Keep the tone concise and direct.
 Do not use H1 (#) or H2 (##) tags.
 
