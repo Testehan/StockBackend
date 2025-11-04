@@ -3,9 +3,10 @@ package com.testehan.finana.service.reporting.calc.negatives;
 import com.testehan.finana.model.ReportItem;
 import com.testehan.finana.model.RevenueGeographicSegmentationReport;
 import com.testehan.finana.repository.RevenueGeographicSegmentationRepository;
-import com.testehan.finana.service.reporting.ChecklistSseService;
+import com.testehan.finana.service.reporting.events.ErrorEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -19,11 +20,11 @@ public class CurrencyRiskCalculator {
     private static final Logger LOGGER = LoggerFactory.getLogger(CurrencyRiskCalculator.class);
 
     private final RevenueGeographicSegmentationRepository revenueGeographicSegmentationRepository;
-    private final ChecklistSseService ferolSseService;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public CurrencyRiskCalculator(RevenueGeographicSegmentationRepository revenueGeographicSegmentationRepository, ChecklistSseService ferolSseService) {
+    public CurrencyRiskCalculator(RevenueGeographicSegmentationRepository revenueGeographicSegmentationRepository, ApplicationEventPublisher eventPublisher) {
         this.revenueGeographicSegmentationRepository = revenueGeographicSegmentationRepository;
-        this.ferolSseService = ferolSseService;
+        this.eventPublisher = eventPublisher;
     }
 
     public ReportItem calculate(String ticker, SseEmitter sseEmitter) {
@@ -45,7 +46,7 @@ public class CurrencyRiskCalculator {
         } else {
             String errorMessage = "Operation 'calculateCurrencyRisk' failed.";
             LOGGER.error(errorMessage + " No geographic revenue data found for {}",ticker);
-            ferolSseService.sendSseErrorEvent(sseEmitter, errorMessage);
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
         }
 
         return new ReportItem("currencyRisk", -10, "Something went wrong and score could not be calculated ");

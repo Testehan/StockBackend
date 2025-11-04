@@ -9,7 +9,8 @@ import com.testehan.finana.model.llm.responses.LlmScoreExplanationResponse;
 import com.testehan.finana.repository.BalanceSheetRepository;
 import com.testehan.finana.repository.IncomeStatementRepository;
 import com.testehan.finana.service.LlmService;
-import com.testehan.finana.service.reporting.ChecklistSseService;
+import com.testehan.finana.service.reporting.events.ErrorEvent;
+import com.testehan.finana.service.reporting.events.MessageEvent;
 import com.testehan.finana.util.SafeParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,6 +18,7 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -36,17 +38,17 @@ public class FinancialResilienceCalculator {
     private final IncomeStatementRepository incomeStatementRepository;
     private final BalanceSheetRepository balanceSheetRepository;
     private final LlmService llmService;
-    private final ChecklistSseService ferolSseService;
+    private final ApplicationEventPublisher eventPublisher;
     private final SafeParser safeParser;
 
     @Value("classpath:/prompts/financial_resilience_prompt.txt")
     private Resource financialResiliencePrompt;
 
-    public FinancialResilienceCalculator(IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository, LlmService llmService, ChecklistSseService ferolSseService, SafeParser safeParser) {
+    public FinancialResilienceCalculator(IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository, LlmService llmService, ApplicationEventPublisher eventPublisher, SafeParser safeParser) {
         this.incomeStatementRepository = incomeStatementRepository;
         this.balanceSheetRepository = balanceSheetRepository;
         this.llmService = llmService;
-        this.ferolSseService = ferolSseService;
+        this.eventPublisher = eventPublisher;
         this.safeParser = safeParser;
     }
 
@@ -101,17 +103,17 @@ public class FinancialResilienceCalculator {
         Prompt prompt = promptTemplate.create(promptParameters);
 
         try {
-            ferolSseService.sendSseEvent(sseEmitter, "Sending data to LLM for resilience analysis...");
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Sending data to LLM for resilience analysis..."));
             LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
             String llmResponse = llmService.callLlm(prompt);
-            ferolSseService.sendSseEvent(sseEmitter, "Received LLM response for resilience analysis.");
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Received LLM response for resilience analysis."));
             LlmScoreExplanationResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
 
             return new ReportItem("financialResilience", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
         } catch (Exception e) {
             String errorMessage = "Operation 'calculateFinancialResilience' failed.";
             LOGGER.error(errorMessage, e);
-            ferolSseService.sendSseErrorEvent(sseEmitter, errorMessage);
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage, e)));
             return new ReportItem("financialResilience", -10, "Operation 'calculateFinancialResilience' failed.");
         }
     }

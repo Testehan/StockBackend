@@ -3,10 +3,11 @@ package com.testehan.finana.service.reporting.calc.negatives;
 import com.testehan.finana.model.ReportItem;
 import com.testehan.finana.model.IncomeReport;
 import com.testehan.finana.repository.IncomeStatementRepository;
-import com.testehan.finana.service.reporting.ChecklistSseService;
+import com.testehan.finana.service.reporting.events.ErrorEvent;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -24,11 +25,11 @@ public class DilutionRiskCalculator {
     private static final BigDecimal THREE_PERCENT = new BigDecimal("3.0");
 
     private final IncomeStatementRepository incomeStatementRepository;
-    private final ChecklistSseService ferolSseService;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public DilutionRiskCalculator(IncomeStatementRepository incomeStatementRepository, ChecklistSseService ferolSseService) {
+    public DilutionRiskCalculator(IncomeStatementRepository incomeStatementRepository, ApplicationEventPublisher eventPublisher) {
         this.incomeStatementRepository = incomeStatementRepository;
-        this.ferolSseService = ferolSseService;
+        this.eventPublisher = eventPublisher;
     }
 
     public ReportItem calculate(String ticker, SseEmitter sseEmitter) {
@@ -99,7 +100,7 @@ public class DilutionRiskCalculator {
     private ReportItem getErrorReportItem(String ticker, SseEmitter sseEmitter, String logMessage) {
         String errorMessage = "Operation 'calculateDilution' failed.";
         LOGGER.error(errorMessage + logMessage, ticker);
-        ferolSseService.sendSseErrorEvent(sseEmitter, errorMessage);
+        eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
         return new ReportItem("extremeDilution", -10, "Something went wrong and score could not be calculated ");
     }
 }

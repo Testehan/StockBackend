@@ -1,11 +1,12 @@
 package com.testehan.finana.service.reporting.calc.positives;
 
-import com.testehan.finana.model.ReportItem;
 import com.testehan.finana.model.IncomeReport;
+import com.testehan.finana.model.ReportItem;
 import com.testehan.finana.repository.IncomeStatementRepository;
-import com.testehan.finana.service.reporting.ChecklistSseService;
+import com.testehan.finana.service.reporting.events.ErrorEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -20,11 +21,11 @@ public class AcquisitionsCalculator {
     private static final Logger LOGGER = LoggerFactory.getLogger(AcquisitionsCalculator.class);
 
     private final IncomeStatementRepository incomeStatementRepository;
-    private final ChecklistSseService ferolSseService;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public AcquisitionsCalculator(IncomeStatementRepository incomeStatementRepository, ChecklistSseService ferolSseService) {
+    public AcquisitionsCalculator(IncomeStatementRepository incomeStatementRepository, ApplicationEventPublisher eventPublisher) {
         this.incomeStatementRepository = incomeStatementRepository;
-        this.ferolSseService = ferolSseService;
+        this.eventPublisher = eventPublisher;
     }
 
     public ReportItem calculate(String ticker, SseEmitter sseEmitter) {
@@ -37,7 +38,7 @@ public class AcquisitionsCalculator {
             if (reports == null || reports.isEmpty()) {
                 String errorMessage = "No income annual reports found for symbol " + ticker;
                 LOGGER.error(errorMessage);
-                ferolSseService.sendSseErrorEvent(sseEmitter, errorMessage);
+                eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
             }
 
             // 1. Sort reports by date (Descending) to ensure we get the most recent ones first
@@ -82,7 +83,7 @@ public class AcquisitionsCalculator {
             if (totalWeight == 0) {
                 String errorMessage = "Data invalid for calculation of s&m % out of gross profit ";
                 LOGGER.error(errorMessage);
-                ferolSseService.sendSseErrorEvent(sseEmitter, errorMessage);
+                eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
             }
 
             // Final Calculation
@@ -96,7 +97,7 @@ public class AcquisitionsCalculator {
         } else {
             String errorMessage = "Operation 'calculateAcquisitions' failed.";
             LOGGER.error(errorMessage + " No income data found for {}",ticker);
-            ferolSseService.sendSseErrorEvent(sseEmitter, errorMessage);
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
         }
 
         return new ReportItem("customerAcquisition", -10, "Something went wrong and score could not be calculated ");

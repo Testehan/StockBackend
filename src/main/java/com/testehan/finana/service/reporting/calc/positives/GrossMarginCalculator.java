@@ -4,9 +4,10 @@ import com.testehan.finana.model.ReportItem;
 import com.testehan.finana.model.FinancialRatiosData;
 import com.testehan.finana.model.FinancialRatiosReport;
 import com.testehan.finana.repository.FinancialRatiosRepository;
-import com.testehan.finana.service.reporting.ChecklistSseService;
+import com.testehan.finana.service.reporting.events.MessageEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -21,20 +22,20 @@ public class GrossMarginCalculator {
     private static final Logger LOGGER = LoggerFactory.getLogger(GrossMarginCalculator.class);
 
     private final FinancialRatiosRepository financialRatiosRepository;
-    private final ChecklistSseService ferolSseService;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public GrossMarginCalculator(FinancialRatiosRepository financialRatiosRepository, ChecklistSseService ferolSseService) {
+    public GrossMarginCalculator(FinancialRatiosRepository financialRatiosRepository, ApplicationEventPublisher eventPublisher) {
         this.financialRatiosRepository = financialRatiosRepository;
-        this.ferolSseService = ferolSseService;
+        this.eventPublisher = eventPublisher;
     }
 
     public ReportItem calculate(String ticker, SseEmitter sseEmitter) {
-        ferolSseService.sendSseEvent(sseEmitter, "Calculating Gross Margin...");
+        eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Calculating Gross Margin..."));
         Optional<FinancialRatiosData> financialRatiosData = financialRatiosRepository.findBySymbol(ticker);
 
         if (financialRatiosData.isEmpty() || financialRatiosData.get().getQuarterlyReports().isEmpty()) {
             LOGGER.warn("No financial ratios data found for ticker: {}", ticker);
-            ferolSseService.sendSseEvent(sseEmitter, "Gross Margin calculation skipped: No data found.");
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Gross Margin calculation skipped: No data found."));
             return new ReportItem("grossMargin", 0, "No quarterly financial ratios data available.");
         }
 
@@ -45,7 +46,7 @@ public class GrossMarginCalculator {
 
         if (quarterlyReports.size() < 4) {
             LOGGER.warn("Less than 4 quarterly reports found for gross margin calculation for ticker: {}", ticker);
-            ferolSseService.sendSseEvent(sseEmitter, "Gross Margin calculation using " + quarterlyReports.size() + " quarters.");
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Gross Margin calculation using " + quarterlyReports.size() + " quarters."));
         }
 
         BigDecimal sumGrossProfitMargin = BigDecimal.ZERO;
@@ -58,12 +59,12 @@ public class GrossMarginCalculator {
         }
 
         if (count == 0) {
-            ferolSseService.sendSseEvent(sseEmitter, "Gross Margin calculation skipped: No gross profit margin data found in available reports.");
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Gross Margin calculation skipped: No gross profit margin data found in available reports."));
             return new ReportItem("grossMargin", 0, "No gross profit margin data available in the last " + quarterlyReports.size() + " quarterly reports.");
         }
 
         BigDecimal averageGrossProfitMargin = sumGrossProfitMargin.divide(BigDecimal.valueOf(count), 2, BigDecimal.ROUND_HALF_UP);
-        ferolSseService.sendSseEvent(sseEmitter, "Average Gross Margin calculated: " + averageGrossProfitMargin.toPlainString() + "%");
+        eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Average Gross Margin calculated: " + averageGrossProfitMargin.toPlainString() + "%"));
 
         int score;
         String explanation;

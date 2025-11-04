@@ -6,13 +6,15 @@ import com.testehan.finana.model.ReportType;
 import com.testehan.finana.model.llm.responses.LlmScoreExplanationResponse;
 import com.testehan.finana.repository.CompanyOverviewRepository;
 import com.testehan.finana.service.LlmService;
-import com.testehan.finana.service.reporting.ChecklistSseService;
+import com.testehan.finana.service.reporting.events.ErrorEvent;
+import com.testehan.finana.service.reporting.events.MessageEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -34,19 +36,20 @@ public class InsiderOwnershipCalculator {
 
     private final CompanyOverviewRepository companyOverviewRepository;
     private final LlmService llmService;
-    private final ChecklistSseService checklistSseService;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public InsiderOwnershipCalculator(CompanyOverviewRepository companyOverviewRepository, LlmService llmService, ChecklistSseService checklistSseService) {
+    public InsiderOwnershipCalculator(CompanyOverviewRepository companyOverviewRepository, LlmService llmService, ApplicationEventPublisher eventPublisher) {
         this.companyOverviewRepository = companyOverviewRepository;
         this.llmService = llmService;
-        this.checklistSseService = checklistSseService;
+        this.eventPublisher = eventPublisher;
     }
 
     public ReportItem calculate(String ticker, SseEmitter sseEmitter, ReportType reportType) {
         Optional<CompanyOverview> companyOverview = companyOverviewRepository.findBySymbol(ticker);
         if (companyOverview.isEmpty()){
-            LOGGER.warn("No Company overview found for ticker: {}", ticker);
-            checklistSseService.sendSseErrorEvent(sseEmitter, "No Company overview found for ticker " + ticker);
+            String errorMessage = "No Company overview found for ticker " + ticker;
+            LOGGER.warn(errorMessage);
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
             return new ReportItem("insideOwnership", -10, "Something went wrong and score could not be calculated ");
         }
 
@@ -60,17 +63,17 @@ public class InsiderOwnershipCalculator {
         Prompt prompt = promptTemplate.create(promptParameters);
 
         try {
-            checklistSseService.sendSseEvent(sseEmitter, "Sending data to LLM for insider ownership analysis...");
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Sending data to LLM for insider ownership analysis..."));
             LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
             String llmResponse = llmService.callLlm(prompt);
-            checklistSseService.sendSseEvent(sseEmitter, "Received LLM response with insider ownership analysis.");
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Received LLM response with insider ownership analysis."));
             LlmScoreExplanationResponse convertedLlmResponse = llmResponseOutputConverter.convert(llmResponse);
 
             return new ReportItem("insideOwnership", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
         } catch (Exception e) {
             String errorMessage = "Operation 'calculateinsideOwnership' failed.";
             LOGGER.error(errorMessage, e);
-            checklistSseService.sendSseErrorEvent(sseEmitter, errorMessage);
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage, e)));
             return new ReportItem("insideOwnership", -10, "Operation 'calculateinsideOwnership' failed.");
         }
     }

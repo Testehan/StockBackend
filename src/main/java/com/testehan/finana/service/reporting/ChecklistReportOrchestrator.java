@@ -3,10 +3,13 @@ package com.testehan.finana.service.reporting;
 import com.testehan.finana.model.*;
 import com.testehan.finana.repository.GeneratedReportRepository;
 import com.testehan.finana.service.FinancialDataService;
+import com.testehan.finana.service.reporting.events.CompletionEvent;
+import com.testehan.finana.service.reporting.events.ErrorEvent;
+import com.testehan.finana.service.reporting.events.MessageEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.http.MediaType;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -14,8 +17,8 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
@@ -27,23 +30,23 @@ public class ChecklistReportOrchestrator {
     private static final Logger LOGGER = LoggerFactory.getLogger(ChecklistReportOrchestrator.class);
 
     private final FinancialDataService financialDataService;
-    private final ChecklistSseService checklistSseService;
     private final ChecklistReportPersistenceService checklistReportPersistenceService;
     private final GeneratedReportRepository generatedReportRepository;
     private final Executor checklistExecutor;
+    private final ApplicationEventPublisher eventPublisher;
     private final Map<ReportType, ReportGenerator> reportGenerators;
 
     public ChecklistReportOrchestrator(FinancialDataService financialDataService,
-                                       ChecklistSseService checklistSseService,
                                        ChecklistReportPersistenceService checklistReportPersistenceService,
                                        GeneratedReportRepository generatedReportRepository,
                                        @Qualifier("checklistExecutor") Executor checklistExecutor,
+                                       ApplicationEventPublisher eventPublisher,
                                        List<ReportGenerator> reportGenerators) {
         this.financialDataService = financialDataService;
-        this.checklistSseService = checklistSseService;
         this.checklistReportPersistenceService = checklistReportPersistenceService;
         this.generatedReportRepository = generatedReportRepository;
         this.checklistExecutor = checklistExecutor;
+        this.eventPublisher = eventPublisher;
         this.reportGenerators = reportGenerators.stream()
                 .collect(Collectors.toMap(ReportGenerator::getReportType, Function.identity()));
     }
@@ -53,7 +56,7 @@ public class ChecklistReportOrchestrator {
 
         ReportGenerator generator = reportGenerators.get(reportType);
         if (generator == null) {
-            checklistSseService.sendSseEvent(sseEmitter, "Invalid report type.");
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Invalid report type."));
             sseEmitter.complete();
             return sseEmitter;
         }
@@ -66,39 +69,33 @@ public class ChecklistReportOrchestrator {
         checklistExecutor.execute(() -> {
             try {
                 if (!recreateReport) {
-                    checklistSseService.sendSseEvent(sseEmitter, "Attempting to load report from database...");
+                    eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Attempting to load report from database..."));
                     Optional<GeneratedReport> existingGeneratedReport = generatedReportRepository.findBySymbol(ticker);
                     if (existingGeneratedReport.isPresent()) {
                         ChecklistReport checklistReport = getReportFromGeneratedReport(existingGeneratedReport.get(), reportType);
                         if (Objects.nonNull(checklistReport)) {
-                            checklistSseService.sendSseEvent(sseEmitter, "Report loaded from database.");
-                            sseEmitter.send(SseEmitter.event()
-                                    .name("COMPLETED")
-                                    .data(checklistReport, MediaType.APPLICATION_JSON));
-                            sseEmitter.complete();
+                            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Report loaded from database."));
+                            eventPublisher.publishEvent(new CompletionEvent(this, ticker, sseEmitter, checklistReport));
                             LOGGER.info("Checklist report for {} loaded from DB and sent.", ticker);
                             return; // Exit as report is sent
                         }
                     }
-                    checklistSseService.sendSseEvent(sseEmitter, "Report not found in database or incomplete. You must generate a new report.");
-                    sseEmitter.send(SseEmitter.event()
-                            .name("COMPLETED"));
+                    eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Report not found in database or incomplete. You must generate a new report."));
                     sseEmitter.complete();
                 } else {
-                    checklistSseService.sendSseEvent(sseEmitter, "Initiating Checklist report generation for " + ticker + "...");
+                    eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Initiating Checklist report generation for " + ticker + "..."));
                     generateReport(ticker, reportType, sseEmitter);
                 }
             } catch (Exception e) {
-                LOGGER.error("Error generating Checklist report for {}: {}", ticker, e.getMessage(), e);
-                sseEmitter.completeWithError(e);
+                eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, e));
             }
         });
     }
 
     private void generateReport(String ticker, ReportType reportType, SseEmitter sseEmitter) throws InterruptedException, ExecutionException, IOException {
-        checklistSseService.sendSseEvent(sseEmitter, "Ensuring financial data is present...");
+        eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Ensuring financial data is present..."));
         financialDataService.ensureFinancialDataIsPresent(ticker);
-        checklistSseService.sendSseEvent(sseEmitter, "Financial data check complete.");
+        eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Financial data check complete."));
 
         ReportGenerator generator = reportGenerators.get(reportType);
         generator.generate(ticker, reportType, sseEmitter);

@@ -4,7 +4,8 @@ import com.testehan.finana.model.*;
 import com.testehan.finana.model.llm.responses.LlmScoreExplanationResponse;
 import com.testehan.finana.repository.*;
 import com.testehan.finana.service.LlmService;
-import com.testehan.finana.service.reporting.ChecklistSseService;
+import com.testehan.finana.service.reporting.events.ErrorEvent;
+import com.testehan.finana.service.reporting.events.MessageEvent;
 import com.testehan.finana.util.SafeParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,6 +13,7 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -32,13 +34,13 @@ public class ReinvestmentCalculator {
     private final SecFilingRepository secFilingRepository;
     private final BalanceSheetRepository balanceSheetRepository;
     private final LlmService llmService;
-    private final ChecklistSseService checklistSseService;
+    private final ApplicationEventPublisher eventPublisher;
     private final SafeParser safeParser;
 
     @Value("classpath:/prompts/100Bagger/reinvestments_prompt.txt")
     private Resource reinvestmentsPrompt;
 
-    public ReinvestmentCalculator(CompanyOverviewRepository companyOverviewRepository, IncomeStatementRepository incomeStatementRepository, CashFlowRepository cashFlowRepository, FinancialRatiosRepository financialRatiosRepository, SecFilingRepository secFilingRepository, BalanceSheetRepository balanceSheetRepository, LlmService llmService, ChecklistSseService checklistSseService, SafeParser safeParser) {
+    public ReinvestmentCalculator(CompanyOverviewRepository companyOverviewRepository, IncomeStatementRepository incomeStatementRepository, CashFlowRepository cashFlowRepository, FinancialRatiosRepository financialRatiosRepository, SecFilingRepository secFilingRepository, BalanceSheetRepository balanceSheetRepository, LlmService llmService, ApplicationEventPublisher eventPublisher, SafeParser safeParser) {
         this.companyOverviewRepository = companyOverviewRepository;
         this.incomeStatementRepository = incomeStatementRepository;
         this.cashFlowRepository = cashFlowRepository;
@@ -46,15 +48,16 @@ public class ReinvestmentCalculator {
         this.secFilingRepository = secFilingRepository;
         this.balanceSheetRepository = balanceSheetRepository;
         this.llmService = llmService;
-        this.checklistSseService = checklistSseService;
+        this.eventPublisher = eventPublisher;
         this.safeParser = safeParser;
     }
 
     public ReportItem calculate(String ticker, SseEmitter sseEmitter) {
         Optional<CompanyOverview> companyOverview = companyOverviewRepository.findBySymbol(ticker);
         if (companyOverview.isEmpty()) {
-            LOGGER.warn("No Company overview found for ticker: {}", ticker);
-            checklistSseService.sendSseErrorEvent(sseEmitter, "No Company overview found for ticker " + ticker);
+            var errorMessage = "No Company overview found for ticker: " + ticker;
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
+            LOGGER.error(errorMessage);
             return new ReportItem("reinvestmentCapacity", 0, "Something went wrong and score could not be calculated ");
         }
 
@@ -68,20 +71,23 @@ public class ReinvestmentCalculator {
                             managementDiscussion.append(latestTenKFiling.getManagementDiscussion());
                         });
             } else {
-                LOGGER.warn("No 10k found for ticker: {}", ticker);
-                checklistSseService.sendSseErrorEvent(sseEmitter, "No 10k available to get data.");
+                var errorMessage = "No 10k found for ticker: " + ticker;
+                eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
+                LOGGER.error(errorMessage);
             }
         }, () -> {
-            LOGGER.warn("No 10k found for ticker: {}", ticker);
-            checklistSseService.sendSseErrorEvent(sseEmitter, "No 10k available to get data.");
+            var errorMessage = "No 10k found for ticker: " + ticker;
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
+            LOGGER.error(errorMessage);
         });
 
         // Get annual ROIC for 5-year median
         Optional<FinancialRatiosData> financialRatiosData = financialRatiosRepository.findBySymbol(ticker);
 
         if (financialRatiosData.isEmpty() || financialRatiosData.get().getAnnualReports().isEmpty() || financialRatiosData.get().getQuarterlyReports().isEmpty()) {
-            LOGGER.warn("No financial ratios data found for ticker: {}", ticker);
-            checklistSseService.sendSseEvent(sseEmitter, "ROIC calculation skipped: No data found.");
+            var errorMessage = "No financial ratios data found for ticker " + ticker;
+            LOGGER.warn(errorMessage);
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException("ROIC calculation skipped: No data found.")));
             return new ReportItem("reinvestmentCapacity", 0, "No annual or quarterly financial ratios data available.");
         }
 
@@ -107,17 +113,17 @@ public class ReinvestmentCalculator {
         Prompt prompt = promptTemplate.create(promptParameters);
 
         try {
-            checklistSseService.sendSseEvent(sseEmitter, "Sending data to LLM for reinvestments analysis...");
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Sending data to LLM for reinvestments analysis..."));
             LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
             String llmResponse = llmService.callLlm(prompt);
-            checklistSseService.sendSseEvent(sseEmitter, "Received LLM response for reinvestments analysis.");
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Received LLM response for reinvestments analysis."));
             LlmScoreExplanationResponse convertedLlmResponse = llmResponseOutputConverter.convert(llmResponse);
 
             return new ReportItem("reinvestmentCapacity", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
         } catch (Exception e) {
             String errorMessage = "Operation 'calculateReinvestment' failed.";
-            LOGGER.error(errorMessage, e);
-            checklistSseService.sendSseErrorEvent(sseEmitter, errorMessage);
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
+            LOGGER.error(errorMessage);
             return new ReportItem("reinvestmentCapacity", -10, "Operation 'calculateReinvestment' failed.");
         }
     }
@@ -128,7 +134,7 @@ public class ReinvestmentCalculator {
 
         if (financialRatiosData.isEmpty() || financialRatiosData.get().getAnnualReports().isEmpty() || financialRatiosData.get().getQuarterlyReports().isEmpty()) {
             LOGGER.warn("No financial ratios data found for ticker: {}", ticker);
-            checklistSseService.sendSseEvent(sseEmitter, "ROIC calculation skipped: No data found.");
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException("ROIC calculation skipped: No data found.")));
             return new ReportItem("reinvestmentCapacity", 0, "No annual or quarterly financial ratios data available.");
         }
 
@@ -206,8 +212,9 @@ public class ReinvestmentCalculator {
         Optional<CashFlowData> cashFlowDataOpt = cashFlowRepository.findBySymbol(ticker);
 
         if (incomeStatementDataOpt.isEmpty() || cashFlowDataOpt.isEmpty()) {
-            LOGGER.warn("Missing financial reports for ticker: {}", ticker);
-            checklistSseService.sendSseErrorEvent(sseEmitter, "Missing cash flow or income reports for " + ticker);
+            var errorMessage = "Missing financial reports for ticker: " + ticker;
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
+            LOGGER.error(errorMessage);
             return 0.0;
         }
 
@@ -268,8 +275,9 @@ public class ReinvestmentCalculator {
         Optional<BalanceSheetData> balanceSheetDataOpt = balanceSheetRepository.findBySymbol(ticker);
 
         if (balanceSheetDataOpt.isEmpty()) {
-            LOGGER.warn("Missing balance sheet reports for ticker: {}", ticker);
-            checklistSseService.sendSseErrorEvent(sseEmitter, "Missing balance sheet reports for " + ticker);
+            var errorMessage = "Missing balance sheet reports for ticker: " + ticker;
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
+            LOGGER.error(errorMessage);
             return 0.0;
         }
 

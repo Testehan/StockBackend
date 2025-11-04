@@ -6,9 +6,11 @@ import com.testehan.finana.model.CompanyOverview;
 import com.testehan.finana.model.ReportItem;
 import com.testehan.finana.repository.CashFlowRepository;
 import com.testehan.finana.repository.CompanyOverviewRepository;
-import com.testehan.finana.service.reporting.ChecklistSseService;
+import com.testehan.finana.service.reporting.events.ErrorEvent;
+import com.testehan.finana.service.reporting.events.MessageEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -26,12 +28,12 @@ public class ShareholderFriendlyActivityCalculator {
 
     private final CompanyOverviewRepository companyOverviewRepository;
     private final CashFlowRepository cashFlowRepository;
-    private final ChecklistSseService ferolSseService;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public ShareholderFriendlyActivityCalculator(CompanyOverviewRepository companyOverviewRepository, CashFlowRepository cashFlowRepository, ChecklistSseService ferolSseService) {
+    public ShareholderFriendlyActivityCalculator(CompanyOverviewRepository companyOverviewRepository, CashFlowRepository cashFlowRepository, ApplicationEventPublisher eventPublisher) {
         this.companyOverviewRepository = companyOverviewRepository;
         this.cashFlowRepository = cashFlowRepository;
-        this.ferolSseService = ferolSseService;
+        this.eventPublisher = eventPublisher;
     }
 
     public ReportItem calculate(String ticker, SseEmitter sseEmitter) {
@@ -39,8 +41,9 @@ public class ShareholderFriendlyActivityCalculator {
         Optional<CompanyOverview> companyOverviewOptional = companyOverviewRepository.findBySymbol(ticker);
 
         if (cashflowDataOptional.isEmpty() || cashflowDataOptional.get().getAnnualReports().isEmpty()) {
-            LOGGER.warn("No cashflow data found for ticker: {}", ticker);
-            ferolSseService.sendSseEvent(sseEmitter, "Shareholder friendly activity analysis is skipped: No data found.");
+            String errorMessage = "Shareholder friendly activity analysis is skipped: No cashflow data found for ticker: " + ticker;
+            LOGGER.warn(errorMessage);
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, errorMessage));
             return new ReportItem("shareholderFriendlyActivity", 0, "No annual cashflow data available.");
         }
 
@@ -51,7 +54,8 @@ public class ShareholderFriendlyActivityCalculator {
                 .collect(Collectors.toList());
 
         if (last5yearsCashflowStatements.isEmpty() || companyOverviewOptional.isEmpty()) {
-            ferolSseService.sendSseEvent(sseEmitter, "Shareholder friendly activity analysis is skipped: No data found.");
+            String errorMessage = "Shareholder friendly activity analysis is skipped: No data found for ticker: " + ticker;
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, errorMessage));
             return new ReportItem("shareholderFriendlyActivity", 0, "No annual cashflow data available.");
         }
 
@@ -128,7 +132,7 @@ public class ShareholderFriendlyActivityCalculator {
             if (growthFactor.compareTo(BigDecimal.valueOf(1.5)) > 0  // >50% increase
                     )   // && latestYearRepurchaseSum.compareTo(minThreshold.divide(BigDecimal.valueOf(2))) > 0
             {
-                explanation.append("> 50% increase in sum used for repurchases in the last few years. ");
+                explanation.append("> 50% increase in sum used for repurchases in the last 5 years. ");
                 return 1;
             }
         }

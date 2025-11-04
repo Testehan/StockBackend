@@ -4,7 +4,8 @@ import com.testehan.finana.model.*;
 import com.testehan.finana.model.llm.responses.LlmScoreExplanationResponse;
 import com.testehan.finana.repository.*;
 import com.testehan.finana.service.LlmService;
-import com.testehan.finana.service.reporting.ChecklistSseService;
+import com.testehan.finana.service.reporting.events.ErrorEvent;
+import com.testehan.finana.service.reporting.events.MessageEvent;
 import com.testehan.finana.util.SafeParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,6 +13,7 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -32,7 +34,7 @@ public class OrganicGrowthRunawayCalculator {
     private final FinancialRatiosRepository financialRatiosRepository;
 
     private final LlmService llmService;
-    private final ChecklistSseService ferolSseService;
+    private final ApplicationEventPublisher eventPublisher;
     private final OptionalityCalculator optionalityCalculator;
     private final SafeParser safeParser;
 
@@ -40,13 +42,13 @@ public class OrganicGrowthRunawayCalculator {
     @Value("classpath:/prompts/organic_growth_runaway_prompt.txt")
     private Resource organicGrowthPrompt;
 
-    public OrganicGrowthRunawayCalculator(CompanyOverviewRepository companyOverviewRepository, SecFilingRepository secFilingRepository, IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository, FinancialRatiosRepository financialRatiosRepository, LlmService llmService, ChecklistSseService ferolSseService, OptionalityCalculator optionalityCalculator, SafeParser safeParser) {
+    public OrganicGrowthRunawayCalculator(CompanyOverviewRepository companyOverviewRepository, SecFilingRepository secFilingRepository, IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository, FinancialRatiosRepository financialRatiosRepository, LlmService llmService, ApplicationEventPublisher eventPublisher, OptionalityCalculator optionalityCalculator, SafeParser safeParser) {
         this.companyOverviewRepository = companyOverviewRepository;
         this.secFilingRepository = secFilingRepository;
         this.incomeStatementRepository = incomeStatementRepository;
         this.financialRatiosRepository = financialRatiosRepository;
         this.llmService = llmService;
-        this.ferolSseService = ferolSseService;
+        this.eventPublisher = eventPublisher;
         this.optionalityCalculator = optionalityCalculator;
         this.safeParser = safeParser;
     }
@@ -67,11 +69,11 @@ public class OrganicGrowthRunawayCalculator {
                         });
             } else {
                 LOGGER.warn("No 10k found for ticker: {}", ticker);
-                ferolSseService.sendSseEvent(sseEmitter, "No 10k available to get management discussion.");
+                eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "No 10k available to get management discussion."));
             }
         }, () -> {
             LOGGER.warn("No 10k found for ticker: {}", ticker);
-            ferolSseService.sendSseEvent(sseEmitter, "No 10k available to get management discussion.");
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "No 10k available to get management discussion."));
         });
 
         var latestEarningsTranscript = optionalityCalculator.getLatestEarningsTranscript(ticker);
@@ -88,17 +90,17 @@ public class OrganicGrowthRunawayCalculator {
         Prompt prompt = promptTemplate.create(promptParameters);
 
         try {
-            ferolSseService.sendSseEvent(sseEmitter, "Sending data to LLM for organic growth runaway analysis...");
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Sending data to LLM for organic growth runaway analysis..."));
             LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
             String llmResponse = llmService.callLlm(prompt);
-            ferolSseService.sendSseEvent(sseEmitter, "Received LLM response for organic growth runaway analysis.");
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Received LLM response for organic growth runaway analysis."));
             LlmScoreExplanationResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
 
             return new ReportItem("organicGrowthRunway", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
         } catch (Exception e) {
             String errorMessage = "Operation 'calculateOrganicGrowthRunaway' failed.";
             LOGGER.error(errorMessage, e);
-            ferolSseService.sendSseErrorEvent(sseEmitter, errorMessage);
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage, e)));
             return new ReportItem("organicGrowthRunway", -10, "Operation 'calculateOrganicGrowthRunaway' failed.");
         }
     }

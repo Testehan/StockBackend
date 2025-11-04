@@ -7,7 +7,8 @@ import com.testehan.finana.repository.EarningsEstimatesRepository;
 import com.testehan.finana.repository.IncomeStatementRepository;
 import com.testehan.finana.repository.SecFilingRepository;
 import com.testehan.finana.service.LlmService;
-import com.testehan.finana.service.reporting.ChecklistSseService;
+import com.testehan.finana.service.reporting.events.ErrorEvent;
+import com.testehan.finana.service.reporting.events.MessageEvent;
 import com.testehan.finana.util.SafeParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,6 +16,7 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -34,20 +36,20 @@ public class OperatingLeverageCalculator {
     private final EarningsEstimatesRepository earningsEstimatesRepository;
     private final SecFilingRepository secFilingRepository;
     private final LlmService llmService;
-    private final ChecklistSseService ferolSseService;
+    private final ApplicationEventPublisher eventPublisher;
 
     private final SafeParser safeParser;
 
     @Value("classpath:/prompts/operating_leverage_prompt.txt")
     private Resource operatingLeveragePrompt;
 
-    public OperatingLeverageCalculator(CompanyOverviewRepository companyOverviewRepository, IncomeStatementRepository incomeStatementRepository, EarningsEstimatesRepository earningsEstimatesRepository, SecFilingRepository secFilingRepository, LlmService llmService, ChecklistSseService ferolSseService, SafeParser safeParser) {
+    public OperatingLeverageCalculator(CompanyOverviewRepository companyOverviewRepository, IncomeStatementRepository incomeStatementRepository, EarningsEstimatesRepository earningsEstimatesRepository, SecFilingRepository secFilingRepository, LlmService llmService, ApplicationEventPublisher eventPublisher, SafeParser safeParser) {
         this.companyOverviewRepository = companyOverviewRepository;
         this.incomeStatementRepository = incomeStatementRepository;
         this.earningsEstimatesRepository = earningsEstimatesRepository;
         this.secFilingRepository = secFilingRepository;
         this.llmService = llmService;
-        this.ferolSseService = ferolSseService;
+        this.eventPublisher = eventPublisher;
         this.safeParser = safeParser;
     }
 
@@ -70,12 +72,14 @@ public class OperatingLeverageCalculator {
                             stringBuilder.append(latestTenKFiling.getBusinessDescription());
                         });
             } else {
-                LOGGER.warn("No 10k found for ticker: {}", ticker);
-                ferolSseService.sendSseEvent(sseEmitter, "No 10k available to get business description.");
+                var errorMessage = "No 10k found for ticker: " + ticker;
+                LOGGER.warn(errorMessage);
+                eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
             }
         }, () -> {
-            LOGGER.warn("No 10k found for ticker: {}", ticker);
-            ferolSseService.sendSseEvent(sseEmitter, "No 10k available to get business description.");
+            var errorMessage = "No 10k found for ticker: " + ticker;
+            LOGGER.warn(errorMessage);
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
         });
 
         PromptTemplate promptTemplate = new PromptTemplate(operatingLeveragePrompt);
@@ -91,17 +95,17 @@ public class OperatingLeverageCalculator {
         Prompt prompt = promptTemplate.create(promptParameters);
 
         try {
-            ferolSseService.sendSseEvent(sseEmitter, "Sending data to LLM for operating leverage analysis...");
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Sending data to LLM for operating leverage analysis..."));
             LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
             String llmResponse = llmService.callLlm(prompt);
-            ferolSseService.sendSseEvent(sseEmitter, "Received LLM response for operating leverage analysis.");
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Received LLM response for operating leverage analysis."));
             LlmScoreExplanationResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
 
             return new ReportItem("operatingLeverage", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
         } catch (Exception e) {
             String errorMessage = "Operation 'calculateOperatingLeverage' failed.";
             LOGGER.error(errorMessage, e);
-            ferolSseService.sendSseErrorEvent(sseEmitter, errorMessage);
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
             return new ReportItem("operatingLeverage", -10, "Operation 'calculateOperatingLeverage' failed.");
         }
     }

@@ -1,11 +1,6 @@
 package com.testehan.finana.service.reporting.calc.positives;
 
-import com.testehan.finana.model.CompanyOverview;
-import com.testehan.finana.model.ReportItem;
-import com.testehan.finana.model.FinancialRatiosData;
-import com.testehan.finana.model.IncomeReport;
-import com.testehan.finana.model.IncomeStatementData;
-import com.testehan.finana.model.SecFiling;
+import com.testehan.finana.model.*;
 import com.testehan.finana.model.llm.responses.LlmScoreExplanationResponse;
 import com.testehan.finana.repository.CompanyOverviewRepository;
 import com.testehan.finana.repository.FinancialRatiosRepository;
@@ -13,7 +8,8 @@ import com.testehan.finana.repository.IncomeStatementRepository;
 import com.testehan.finana.repository.SecFilingRepository;
 import com.testehan.finana.service.FinancialDataService;
 import com.testehan.finana.service.LlmService;
-import com.testehan.finana.service.reporting.ChecklistSseService;
+import com.testehan.finana.service.reporting.events.ErrorEvent;
+import com.testehan.finana.service.reporting.events.MessageEvent;
 import com.testehan.finana.util.DateUtils;
 import com.testehan.finana.util.SafeParser;
 import org.jetbrains.annotations.NotNull;
@@ -23,18 +19,13 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -47,7 +38,7 @@ public class OptionalityCalculator {
     private final FinancialRatiosRepository financialRatiosRepository;
 
     private final LlmService llmService;
-    private final ChecklistSseService ferolSseService;
+    private final ApplicationEventPublisher eventPublisher;
     private final SafeParser safeParser;
     private final DateUtils dateUtils;
     private final FinancialDataService financialDataService;
@@ -56,13 +47,13 @@ public class OptionalityCalculator {
     @Value("classpath:/prompts/optionality_prompt.txt")
     private Resource optionalityPrompt;
 
-    public OptionalityCalculator(CompanyOverviewRepository companyOverviewRepository, IncomeStatementRepository incomeStatementRepository, SecFilingRepository secFilingRepository, FinancialRatiosRepository financialRatiosRepository, LlmService llmService, ChecklistSseService ferolSseService, SafeParser safeParser, DateUtils dateUtils, FinancialDataService financialDataService) {
+    public OptionalityCalculator(CompanyOverviewRepository companyOverviewRepository, IncomeStatementRepository incomeStatementRepository, SecFilingRepository secFilingRepository, FinancialRatiosRepository financialRatiosRepository, LlmService llmService, ApplicationEventPublisher eventPublisher, SafeParser safeParser, DateUtils dateUtils, FinancialDataService financialDataService) {
         this.companyOverviewRepository = companyOverviewRepository;
         this.incomeStatementRepository = incomeStatementRepository;
         this.secFilingRepository = secFilingRepository;
         this.financialRatiosRepository = financialRatiosRepository;
         this.llmService = llmService;
-        this.ferolSseService = ferolSseService;
+        this.eventPublisher = eventPublisher;
         this.safeParser = safeParser;
         this.dateUtils = dateUtils;
         this.financialDataService = financialDataService;
@@ -88,19 +79,21 @@ public class OptionalityCalculator {
                             stringBuilder.append(latestTenKFiling.getManagementDiscussion());
                         });
             } else {
-                LOGGER.warn("No 10k found for ticker: {}", ticker);
-                ferolSseService.sendSseEvent(sseEmitter, "No 10k available to get management discussion.");
+                var errorMessage = "No 10k found for ticker: " + ticker;
+                LOGGER.warn(errorMessage);
+                eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
             }
         }, () -> {
-            LOGGER.warn("No 10k found for ticker: {}", ticker);
-            ferolSseService.sendSseEvent(sseEmitter, "No 10k available to get management discussion.");
+            var errorMessage = "No 10k found for ticker: " + ticker;
+            LOGGER.warn(errorMessage);
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
         });
 
         final String[] avgRdIntensity = {"N/A"};
         incomeStatementData.ifPresent(isData -> {
             List<IncomeReport> annualReports = isData.getAnnualReports();
             if (annualReports != null && annualReports.size() >= 3) {
-                ferolSseService.sendSseEvent(sseEmitter, "Calculating R&D intensity from last 3 annual reports...");
+                eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Calculating R&D intensity from last 3 annual reports..."));
                 List<BigDecimal> rdIntensities = new ArrayList<>();
                 annualReports.stream()
                         .sorted(Comparator.comparing(IncomeReport::getDate).reversed())
@@ -120,7 +113,7 @@ public class OptionalityCalculator {
                 }
 
             } else {
-                ferolSseService.sendSseEvent(sseEmitter, "Not enough annual reports, calculating R&D intensity from last 6 quarterly reports...");
+                eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Not enough annual reports, calculating R&D intensity from last 6 quarterly reports..."));
                 List<IncomeReport> quarterlyReports = isData.getQuarterlyReports();
                 if (quarterlyReports != null && !quarterlyReports.isEmpty()) {
                     List<BigDecimal> rdIntensities = new ArrayList<>();
@@ -142,7 +135,7 @@ public class OptionalityCalculator {
                     }
                 }
             }
-            ferolSseService.sendSseEvent(sseEmitter, "R&D intensity calculated: " + avgRdIntensity[0]);
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "R&D intensity calculated: " + avgRdIntensity[0]));
         });
 
         var latestEarningsTranscript = getLatestEarningsTranscript(ticker);
@@ -169,17 +162,17 @@ public class OptionalityCalculator {
         Prompt prompt = promptTemplate.create(promptParameters);
 
         try {
-            ferolSseService.sendSseEvent(sseEmitter, "Sending data to LLM for optionality analysis...");
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Sending data to LLM for optionality analysis..."));
             LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
             String llmResponse = llmService.callLlm(prompt);
-            ferolSseService.sendSseEvent(sseEmitter, "Received LLM response for optionality analysis.");
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Received LLM response for optionality analysis."));
             LlmScoreExplanationResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
 
             return new ReportItem("optionality", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
         } catch (Exception e) {
             String errorMessage = "Operation 'calculateOptionality' failed.";
             LOGGER.error(errorMessage, e);
-            ferolSseService.sendSseErrorEvent(sseEmitter, errorMessage);
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
             return new ReportItem("optionality", -10, "Operation 'calculateOptionality' failed.");
         }
     }

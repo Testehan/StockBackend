@@ -8,13 +8,15 @@ import com.testehan.finana.model.llm.responses.FerolMoatAnalysisLlmResponse;
 import com.testehan.finana.repository.CompanyOverviewRepository;
 import com.testehan.finana.repository.SecFilingRepository;
 import com.testehan.finana.service.LlmService;
-import com.testehan.finana.service.reporting.ChecklistSseService;
+import com.testehan.finana.service.reporting.events.ErrorEvent;
+import com.testehan.finana.service.reporting.events.MessageEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -32,7 +34,7 @@ public class MoatCalculator {
     private final CompanyOverviewRepository companyOverviewRepository;
     private final SecFilingRepository secFilingRepository;
     private final LlmService llmService;
-    private final ChecklistSseService checklistSseService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Value("classpath:/prompts/moat_prompt.txt")
     private Resource moatPrompt;
@@ -40,11 +42,11 @@ public class MoatCalculator {
     @Value("classpath:/prompts/100Bagger/moat_prompt.txt")
     private Resource moat100BaggerPrompt;
 
-    public MoatCalculator(CompanyOverviewRepository companyOverviewRepository, SecFilingRepository secFilingRepository, LlmService llmService, ChecklistSseService checklistSseService) {
+    public MoatCalculator(CompanyOverviewRepository companyOverviewRepository, SecFilingRepository secFilingRepository, LlmService llmService, ApplicationEventPublisher eventPublisher) {
         this.companyOverviewRepository = companyOverviewRepository;
         this.secFilingRepository = secFilingRepository;
         this.llmService = llmService;
-        this.checklistSseService = checklistSseService;
+        this.eventPublisher = eventPublisher;
     }
 
     public FerolMoatAnalysisLlmResponse calculate(String ticker, SseEmitter sseEmitter) {
@@ -66,11 +68,11 @@ public class MoatCalculator {
                         });
             } else {
                 LOGGER.warn("No 10k found for ticker: {}", ticker);
-                checklistSseService.sendSseEvent(sseEmitter, "No 10k available to get business description.");
+                eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "No 10k available to get business description."));
             }
         }, () -> {
             LOGGER.warn("No 10k found for ticker: {}", ticker);
-            checklistSseService.sendSseEvent(sseEmitter, "No 10k available to get business description.");
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "No 10k available to get business description."));
         });
 
 
@@ -84,16 +86,16 @@ public class MoatCalculator {
         Prompt prompt = promptTemplate.create(promptParameters);
 
         try {
-            checklistSseService.sendSseEvent(sseEmitter, "Sending data to LLM for moat analysis...");
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Sending data to LLM for moat analysis..."));
             LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
             String llmResponse = llmService.callLlm(prompt);
-            checklistSseService.sendSseEvent(sseEmitter, "Received LLM response for moat analysis.");
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Received LLM response for moat analysis."));
             return ferolLlmResponseOutputConverter.convert(llmResponse);
 
         } catch (Exception e) {
             String errorMessage = "Operation 'calculateMoats' failed.";
             LOGGER.error(errorMessage, e);
-            checklistSseService.sendSseErrorEvent(sseEmitter, errorMessage);
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage, e)));
             return new FerolMoatAnalysisLlmResponse(-10, "Operation 'calculateMoats' failed.");
         }
     }
@@ -117,11 +119,11 @@ public class MoatCalculator {
                         });
             } else {
                 LOGGER.warn("No 10k found for ticker: {}", ticker);
-                checklistSseService.sendSseEvent(sseEmitter, "No 10k available to get business description.");
+                eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "No 10k available to get business description."));
             }
         }, () -> {
             LOGGER.warn("No 10k found for ticker: {}", ticker);
-            checklistSseService.sendSseEvent(sseEmitter, "No 10k available to get business description.");
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "No 10k available to get business description."));
         });
 
 
@@ -135,10 +137,10 @@ public class MoatCalculator {
         Prompt prompt = promptTemplate.create(promptParameters);
 
         try {
-            checklistSseService.sendSseEvent(sseEmitter, "Sending data to LLM for moat analysis...");
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Sending data to LLM for moat analysis..."));
             LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
             String llmResponse = llmService.callLlm(prompt);
-            checklistSseService.sendSseEvent(sseEmitter, "Received LLM response for moat analysis.");
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Received LLM response for moat analysis."));
             LlmScoreExplanationResponse convertedLlmResponse = llmResponseOutputConverter.convert(llmResponse);
 
             return new ReportItem("competitiveAdvantageMoat", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
@@ -146,7 +148,7 @@ public class MoatCalculator {
         } catch (Exception e) {
             String errorMessage = "Operation 'calculateMoats' failed.";
             LOGGER.error(errorMessage, e);
-            checklistSseService.sendSseErrorEvent(sseEmitter, errorMessage);
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage, e)));
             return new ReportItem("competitiveAdvantageMoat",-10, "Operation 'calculateMoats' failed.");
         }
     }

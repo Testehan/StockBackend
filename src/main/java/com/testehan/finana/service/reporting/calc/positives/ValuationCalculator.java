@@ -5,7 +5,8 @@ import com.testehan.finana.model.llm.responses.LlmScoreExplanationResponse;
 import com.testehan.finana.repository.*;
 import com.testehan.finana.service.FinancialDataService;
 import com.testehan.finana.service.LlmService;
-import com.testehan.finana.service.reporting.ChecklistSseService;
+import com.testehan.finana.service.reporting.events.ErrorEvent;
+import com.testehan.finana.service.reporting.events.MessageEvent;
 import com.testehan.finana.util.SafeParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,6 +15,7 @@ import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -34,7 +36,7 @@ public class ValuationCalculator {
     private final CompanyOverviewRepository companyOverviewRepository;
     private final FinancialDataService financialDataService;
     private final EarningsHistoryRepository earningsHistoryRepository;
-    private final ChecklistSseService checklistSseService;
+    private final ApplicationEventPublisher eventPublisher;
     private final SafeParser safeParser;
     private final LlmService llmService;
     private final FinancialRatiosRepository financialRatiosRepository;
@@ -42,11 +44,11 @@ public class ValuationCalculator {
     private final SecFilingRepository secFilingRepository;
 
     @Autowired
-    public ValuationCalculator(CompanyOverviewRepository companyOverviewRepository, FinancialDataService financialDataService, EarningsHistoryRepository earningsHistoryRepository, ChecklistSseService checklistSseService, SafeParser safeParser, LlmService llmService, FinancialRatiosRepository financialRatiosRepository, EarningsEstimatesRepository earningsEstimatesRepository, SecFilingRepository secFilingRepository) {
+    public ValuationCalculator(CompanyOverviewRepository companyOverviewRepository, FinancialDataService financialDataService, EarningsHistoryRepository earningsHistoryRepository, ApplicationEventPublisher eventPublisher, SafeParser safeParser, LlmService llmService, FinancialRatiosRepository financialRatiosRepository, EarningsEstimatesRepository earningsEstimatesRepository, SecFilingRepository secFilingRepository) {
         this.companyOverviewRepository = companyOverviewRepository;
         this.financialDataService = financialDataService;
         this.earningsHistoryRepository = earningsHistoryRepository;
-        this.checklistSseService = checklistSseService;
+        this.eventPublisher = eventPublisher;
         this.safeParser = safeParser;
         this.llmService = llmService;
         this.financialRatiosRepository = financialRatiosRepository;
@@ -70,12 +72,14 @@ public class ValuationCalculator {
                             managementDiscussion.append(latestTenKFiling.getManagementDiscussion());
                         });
             } else {
-                LOGGER.warn("No 10k found for ticker: {}", ticker);
-                checklistSseService.sendSseEvent(sseEmitter, "No 10k available to get business description.");
+                var errorMessage = "No 10k found for ticker: " + ticker;
+                eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
+                LOGGER.error(errorMessage);
             }
         }, () -> {
-            LOGGER.warn("No 10k found for ticker: {}", ticker);
-            checklistSseService.sendSseEvent(sseEmitter, "No 10k available to get business description.");
+            var errorMessage = "No 10k found for ticker: " + ticker;
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
+            LOGGER.error(errorMessage);
         });
 
         var currentPe = calculateCurrentPE(ticker);
@@ -100,17 +104,17 @@ public class ValuationCalculator {
         Prompt prompt = promptTemplate.create(promptParameters);
 
         try {
-            checklistSseService.sendSseEvent(sseEmitter, "Sending data to LLM for valuation analysis...");
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Sending data to LLM for valuation analysis..."));
             LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
             String llmResponse = llmService.callLlm(prompt);
-            checklistSseService.sendSseEvent(sseEmitter, "Received LLM response for valuation analysis.");
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Received LLM response for valuation analysis."));
             LlmScoreExplanationResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
 
             return new ReportItem("valuationContext", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
         } catch (Exception e) {
             String errorMessage = "Operation 'calculateValuation' failed.";
-            LOGGER.error(errorMessage, e);
-            checklistSseService.sendSseErrorEvent(sseEmitter, errorMessage);
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
+            LOGGER.error(errorMessage);
             return new ReportItem("valuationContext", -10, "Operation 'calculateValuation' failed.");
         }
 

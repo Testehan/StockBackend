@@ -4,9 +4,10 @@ import com.testehan.finana.model.ReportItem;
 import com.testehan.finana.model.FinancialRatiosData;
 import com.testehan.finana.model.FinancialRatiosReport;
 import com.testehan.finana.repository.FinancialRatiosRepository;
-import com.testehan.finana.service.reporting.ChecklistSseService;
+import com.testehan.finana.service.reporting.events.MessageEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -22,20 +23,20 @@ public class RoicCalculator {
     private static final Logger LOGGER = LoggerFactory.getLogger(RoicCalculator.class);
 
     private final FinancialRatiosRepository financialRatiosRepository;
-    private final ChecklistSseService checklistSseService;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public RoicCalculator(FinancialRatiosRepository financialRatiosRepository, ChecklistSseService checklistSseService) {
+    public RoicCalculator(FinancialRatiosRepository financialRatiosRepository, ApplicationEventPublisher eventPublisher) {
         this.financialRatiosRepository = financialRatiosRepository;
-        this.checklistSseService = checklistSseService;
+        this.eventPublisher = eventPublisher;
     }
 
     public ReportItem calculate(String ticker, SseEmitter sseEmitter) {
-        checklistSseService.sendSseEvent(sseEmitter, "Calculating Return on Invested Capital (ROIC)...");
+        eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Calculating Return on Invested Capital (ROIC)..."));
         Optional<FinancialRatiosData> financialRatiosData = financialRatiosRepository.findBySymbol(ticker);
 
         if (financialRatiosData.isEmpty() || financialRatiosData.get().getAnnualReports().isEmpty()) {
             LOGGER.warn("No annual financial ratios data found for ticker: {}", ticker);
-            checklistSseService.sendSseEvent(sseEmitter, "ROIC calculation skipped: No annual data found.");
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "ROIC calculation skipped: No annual data found."));
             return new ReportItem("roic", 0, "No annual financial ratios data available.");
         }
 
@@ -46,12 +47,12 @@ public class RoicCalculator {
                 .toList();
 
         if (annualReports.isEmpty()) {
-            checklistSseService.sendSseEvent(sseEmitter, "ROIC calculation skipped: No annual ROIC data found.");
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "ROIC calculation skipped: No annual ROIC data found."));
             return new ReportItem("roic", 0, "No annual ROIC data available.");
         }
 
         BigDecimal latestAnnualRoic = annualReports.get(0).getRoic();
-        checklistSseService.sendSseEvent(sseEmitter, "Latest Annual ROIC: " + latestAnnualRoic.multiply(BigDecimal.valueOf(100)).setScale(2, BigDecimal.ROUND_HALF_UP).toPlainString() + "%");
+        eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Latest Annual ROIC: " + latestAnnualRoic.multiply(BigDecimal.valueOf(100)).setScale(2, BigDecimal.ROUND_HALF_UP).toPlainString() + "%"));
 
 
         List<BigDecimal> annualRoicValues = annualReports.stream()
@@ -60,7 +61,7 @@ public class RoicCalculator {
                 .collect(Collectors.toList());
 
         if (annualRoicValues.isEmpty()) {
-            checklistSseService.sendSseEvent(sseEmitter, "ROIC calculation skipped: No annual ROIC data found for median.");
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "ROIC calculation skipped: No annual ROIC data found for median."));
             return new ReportItem("roic", 0, "No annual ROIC data available for median calculation.");
         }
 
@@ -73,7 +74,7 @@ public class RoicCalculator {
         } else {
             medianRoic = (annualRoicValues.get(middle - 1).add(annualRoicValues.get(middle))).divide(BigDecimal.valueOf(2));
         }
-        checklistSseService.sendSseEvent(sseEmitter, "5-Year Median ROIC: " + medianRoic.multiply(BigDecimal.valueOf(100)).setScale(2, BigDecimal.ROUND_HALF_UP).toPlainString() + "%");
+        eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "5-Year Median ROIC: " + medianRoic.multiply(BigDecimal.valueOf(100)).setScale(2, BigDecimal.ROUND_HALF_UP).toPlainString() + "%"));
 
         int score = 0;
         String explanation;
@@ -98,7 +99,7 @@ public class RoicCalculator {
             score++;
             explanation += " Additionally, ROIC is rising compared to the 5-year median, suggesting an improving trend.";
         }
-        checklistSseService.sendSseEvent(sseEmitter, "ROIC calculation complete. Score: " + score);
+        eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "ROIC calculation complete. Score: " + score));
 
         return new ReportItem("roic", score, explanation);
     }

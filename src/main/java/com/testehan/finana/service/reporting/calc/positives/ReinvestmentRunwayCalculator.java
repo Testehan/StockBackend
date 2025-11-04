@@ -5,7 +5,8 @@ import com.testehan.finana.model.llm.responses.LlmScoreExplanationResponse;
 import com.testehan.finana.repository.*;
 import com.testehan.finana.service.FinancialDataService;
 import com.testehan.finana.service.LlmService;
-import com.testehan.finana.service.reporting.ChecklistSseService;
+import com.testehan.finana.service.reporting.events.ErrorEvent;
+import com.testehan.finana.service.reporting.events.MessageEvent;
 import com.testehan.finana.util.DateUtils;
 import com.testehan.finana.util.SafeParser;
 import org.jetbrains.annotations.NotNull;
@@ -15,6 +16,7 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -36,7 +38,7 @@ public class ReinvestmentRunwayCalculator {
     private final RevenueGeographicSegmentationRepository revenueGeographicSegmentationRepository;
     private final FinancialDataService financialDataService;
     private final LlmService llmService;
-    private final ChecklistSseService checklistSseService;
+    private final ApplicationEventPublisher eventPublisher;
     private final SafeParser safeParser;
     private final DateUtils dateUtils;
     private final CashFlowRepository cashFlowRepository;
@@ -44,7 +46,7 @@ public class ReinvestmentRunwayCalculator {
     @Value("classpath:/prompts/100Bagger/reinvestment_runway_prompt.txt")
     private Resource reinvestmentRunwayPrompt;
 
-    public ReinvestmentRunwayCalculator(CompanyOverviewRepository companyOverviewRepository, IncomeStatementRepository incomeStatementRepository, SecFilingRepository secFilingRepository, RevenueSegmentationDataRepository revenueSegmentationDataRepository, RevenueGeographicSegmentationRepository revenueGeographicSegmentationRepository, FinancialDataService financialDataService, LlmService llmService, ChecklistSseService checklistSseService, SafeParser safeParser, DateUtils dateUtils, CashFlowRepository cashFlowRepository) {
+    public ReinvestmentRunwayCalculator(CompanyOverviewRepository companyOverviewRepository, IncomeStatementRepository incomeStatementRepository, SecFilingRepository secFilingRepository, RevenueSegmentationDataRepository revenueSegmentationDataRepository, RevenueGeographicSegmentationRepository revenueGeographicSegmentationRepository, FinancialDataService financialDataService, LlmService llmService, ApplicationEventPublisher eventPublisher, SafeParser safeParser, DateUtils dateUtils, CashFlowRepository cashFlowRepository) {
         this.companyOverviewRepository = companyOverviewRepository;
         this.incomeStatementRepository = incomeStatementRepository;
         this.secFilingRepository = secFilingRepository;
@@ -52,7 +54,7 @@ public class ReinvestmentRunwayCalculator {
         this.revenueGeographicSegmentationRepository = revenueGeographicSegmentationRepository;
         this.financialDataService = financialDataService;
         this.llmService = llmService;
-        this.checklistSseService = checklistSseService;
+        this.eventPublisher = eventPublisher;
         this.safeParser = safeParser;
         this.dateUtils = dateUtils;
         this.cashFlowRepository = cashFlowRepository;
@@ -61,15 +63,17 @@ public class ReinvestmentRunwayCalculator {
     public ReportItem calculate(String ticker, SseEmitter sseEmitter) {
         Optional<CompanyOverview> companyOverview = companyOverviewRepository.findBySymbol(ticker);
         if (companyOverview.isEmpty()) {
-            LOGGER.warn("No Company overview found for ticker: {}", ticker);
-            checklistSseService.sendSseErrorEvent(sseEmitter, "No Company overview found for ticker " + ticker);
+            var errorMessage = "No Company overview found for ticker: " + ticker;
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
+            LOGGER.error(errorMessage);
             return new ReportItem("reinvestmentRunway", 0, "Something went wrong and score could not be calculated ");
         }
 
         Optional<IncomeStatementData> incomeStatementDataOptional = incomeStatementRepository.findBySymbol(ticker);
         if (incomeStatementDataOptional.isEmpty()) {
-            LOGGER.warn("No income statement data found for ticker: {}", ticker);
-            checklistSseService.sendSseErrorEvent(sseEmitter, "No income statement data found for ticker " + ticker);
+            var errorMessage = "No income statement data found for ticker: " + ticker;
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
+            LOGGER.error(errorMessage);
             return new ReportItem("reinvestmentRunway", 0, "Something went wrong and score could not be calculated ");
         }
 
@@ -85,12 +89,14 @@ public class ReinvestmentRunwayCalculator {
                             businessDescription.append(latestTenKFiling.getBusinessDescription());
                         });
             } else {
-                LOGGER.warn("No 10k found for ticker: {}", ticker);
-                checklistSseService.sendSseErrorEvent(sseEmitter, "No 10k available to get data.");
+                var errorMessage = "No 10k found for ticker:: " + ticker;
+                eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
+                LOGGER.error(errorMessage);
             }
         }, () -> {
-            LOGGER.warn("No 10k found for ticker: {}", ticker);
-            checklistSseService.sendSseErrorEvent(sseEmitter, "No 10k available to get data.");
+            var errorMessage = "No 10k found for ticker:: " + ticker;
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
+            LOGGER.error(errorMessage);
         });
 
         var latestEarningsTranscript = getLatestEarningsTranscript(ticker);
@@ -119,17 +125,17 @@ public class ReinvestmentRunwayCalculator {
         Prompt prompt = promptTemplate.create(promptParameters);
 
         try {
-            checklistSseService.sendSseEvent(sseEmitter, "Sending data to LLM for reinvestment runway analysis...");
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Sending data to LLM for reinvestment runway analysis..."));
             LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
             String llmResponse = llmService.callLlm(prompt);
-            checklistSseService.sendSseEvent(sseEmitter, "Received LLM response for reinvestment runway analysis.");
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Received LLM response for reinvestment runway analysis."));
             LlmScoreExplanationResponse convertedLlmResponse = llmResponseOutputConverter.convert(llmResponse);
 
             return new ReportItem("reinvestmentRunway", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
         } catch (Exception e) {
             String errorMessage = "Operation 'calculateReinvestmentRunway' failed.";
-            LOGGER.error(errorMessage, e);
-            checklistSseService.sendSseErrorEvent(sseEmitter, errorMessage);
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
+            LOGGER.error(errorMessage);
             return new ReportItem("reinvestmentRunway", -10, "Operation 'calculateReinvestmentRunway' failed.");
         }
     }
@@ -138,8 +144,9 @@ public class ReinvestmentRunwayCalculator {
         List<RevenueGeographicSegmentationReport> lastFiveYearsRevenueGeographic = new ArrayList<>();
         Optional<RevenueGeographicSegmentationData> revenueGeographicSegmentationDataOptional = revenueGeographicSegmentationRepository.findBySymbol(ticker);
         if (revenueGeographicSegmentationDataOptional.isEmpty()) {
-            LOGGER.warn("No revenue geographic segmentation data found for ticker: {}", ticker);
-            checklistSseService.sendSseErrorEvent(sseEmitter, "No revenue geographic segmentation data found for ticker " + ticker);
+            var errorMessage = "No revenue geographic segmentation data found for ticker: " + ticker;
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
+            LOGGER.error(errorMessage);
         } else {
             var revenueSegmentationData = revenueGeographicSegmentationDataOptional.get();
 
@@ -165,8 +172,9 @@ public class ReinvestmentRunwayCalculator {
         List<RevenueSegmentationReport> lastFiveYearsReports = new ArrayList<>();
         Optional<RevenueSegmentationData> revenueSegmentationOptional = revenueSegmentationDataRepository.findBySymbol(ticker);
         if (revenueSegmentationOptional.isEmpty()) {
-            LOGGER.warn("No revenue segmentation data found for ticker: {}", ticker);
-            checklistSseService.sendSseErrorEvent(sseEmitter, "No revenue segmentation data found for ticker " + ticker);
+            var errorMessage = "No revenue segmentation data found for ticker: " + ticker;
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
+            LOGGER.error(errorMessage);
         } else {
             var revenueSegmentationData = revenueSegmentationOptional.get();
 

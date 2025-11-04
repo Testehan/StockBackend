@@ -13,13 +13,15 @@ import com.testehan.finana.repository.CompanyOverviewRepository;
 import com.testehan.finana.repository.RevenueSegmentationDataRepository;
 import com.testehan.finana.repository.SecFilingRepository;
 import com.testehan.finana.service.LlmService;
-import com.testehan.finana.service.reporting.ChecklistSseService;
+import com.testehan.finana.service.reporting.events.ErrorEvent;
+import com.testehan.finana.service.reporting.events.MessageEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -41,25 +43,26 @@ public class RecurringRevenueCalculator {
     private final RevenueSegmentationDataRepository revenueSegmentationDataRepository;
     private final BalanceSheetRepository balanceSheetRepository;
     private final LlmService llmService;
-    private final ChecklistSseService checklistSseService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Value("classpath:/prompts/recurring_revenue_prompt.txt")
     private Resource recurringRevenuePrompt;
 
-    public RecurringRevenueCalculator(CompanyOverviewRepository companyOverviewRepository, SecFilingRepository secFilingRepository, RevenueSegmentationDataRepository revenueSegmentationDataRepository, BalanceSheetRepository balanceSheetRepository, LlmService llmService, ChecklistSseService checklistSseService) {
+    public RecurringRevenueCalculator(CompanyOverviewRepository companyOverviewRepository, SecFilingRepository secFilingRepository, RevenueSegmentationDataRepository revenueSegmentationDataRepository, BalanceSheetRepository balanceSheetRepository, LlmService llmService, ApplicationEventPublisher eventPublisher) {
         this.companyOverviewRepository = companyOverviewRepository;
         this.secFilingRepository = secFilingRepository;
         this.revenueSegmentationDataRepository = revenueSegmentationDataRepository;
         this.balanceSheetRepository = balanceSheetRepository;
         this.llmService = llmService;
-        this.checklistSseService = checklistSseService;
+        this.eventPublisher = eventPublisher;
     }
 
     public ReportItem calculate(String ticker, SseEmitter sseEmitter) {
         Optional<CompanyOverview> companyOverview = companyOverviewRepository.findBySymbol(ticker);
         if (companyOverview.isEmpty()){
-            LOGGER.warn("No Company overview found for ticker: {}", ticker);
-            checklistSseService.sendSseErrorEvent(sseEmitter, "No Company overview found for ticker " + ticker);
+            String errorMessage = "No Company overview found for ticker " + ticker;
+            LOGGER.warn(errorMessage);
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
             return new ReportItem("recurringRevenue", 0, "Something went wrong and score could not be calculated ");
         }
         Optional<SecFiling> secFilingData = secFilingRepository.findBySymbol(ticker);
@@ -75,11 +78,11 @@ public class RecurringRevenueCalculator {
                         });
             } else {
                 LOGGER.warn("No 10k found for ticker: {}", ticker);
-                checklistSseService.sendSseErrorEvent(sseEmitter, "No 10k available to get data.");
+                eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException("No 10k available to get data.")));
             }
         }, () -> {
             LOGGER.warn("No 10k found for ticker: {}", ticker);
-            checklistSseService.sendSseErrorEvent(sseEmitter, "No 10k available to get data.");
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException("No 10k available to get data.")));
         });
 
         PromptTemplate promptTemplate = new PromptTemplate(recurringRevenuePrompt);
@@ -87,8 +90,9 @@ public class RecurringRevenueCalculator {
 
         Optional<RevenueSegmentationData> revenueSegmentationOptional = revenueSegmentationDataRepository.findBySymbol(ticker);
         if (revenueSegmentationOptional.isEmpty()) {
-            LOGGER.warn("No revenue segmentation data found for ticker: {}", ticker);
-            checklistSseService.sendSseErrorEvent(sseEmitter, "No revenue segmentation data found for ticker " + ticker);
+            String errorMessage = "No revenue segmentation data found for ticker " + ticker;
+            LOGGER.warn(errorMessage);
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
         } else {
             var revenueSegmentationData = revenueSegmentationOptional.get();
 
@@ -110,8 +114,9 @@ public class RecurringRevenueCalculator {
 
         Optional<BalanceSheetData> balancesheetDataOptional = balanceSheetRepository.findBySymbol(ticker);
         if (balancesheetDataOptional.isEmpty()) {
-            LOGGER.warn("No balance sheet data found for ticker: {}", ticker);
-            checklistSseService.sendSseErrorEvent(sseEmitter, "No balance sheet data found for ticker " + ticker);
+            String errorMessage = "No balance sheet data found for ticker " + ticker;
+            LOGGER.warn(errorMessage);
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
         } else {
             var balancesheetData = balancesheetDataOptional.get();
             List<String> lastFiveQuarters = balancesheetData.getQuarterlyReports().stream()
@@ -142,17 +147,17 @@ public class RecurringRevenueCalculator {
         Prompt prompt = promptTemplate.create(promptParameters);
 
         try {
-            checklistSseService.sendSseEvent(sseEmitter, "Sending data to LLM for recurring revenue analysis...");
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Sending data to LLM for recurring revenue analysis..."));
             LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
             String llmResponse = llmService.callLlm(prompt);
-            checklistSseService.sendSseEvent(sseEmitter, "Received LLM response for recurring revenue analysis.");
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Received LLM response for recurring revenue analysis."));
             LlmScoreExplanationResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
 
             return new ReportItem("recurringRevenue", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
         } catch (Exception e) {
             String errorMessage = "Operation 'calculateRecurringRevenue' failed.";
             LOGGER.error(errorMessage, e);
-            checklistSseService.sendSseErrorEvent(sseEmitter, errorMessage);
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage, e)));
             return new ReportItem("recurringRevenue", -10, "Operation 'calculateRecurringRevenue' failed.");
         }
     }

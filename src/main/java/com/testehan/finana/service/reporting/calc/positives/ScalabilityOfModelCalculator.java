@@ -4,13 +4,15 @@ import com.testehan.finana.model.*;
 import com.testehan.finana.model.llm.responses.LlmScoreExplanationResponse;
 import com.testehan.finana.repository.*;
 import com.testehan.finana.service.LlmService;
-import com.testehan.finana.service.reporting.ChecklistSseService;
+import com.testehan.finana.service.reporting.events.ErrorEvent;
+import com.testehan.finana.service.reporting.events.MessageEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -28,17 +30,17 @@ public class ScalabilityOfModelCalculator {
 
     private final CompanyOverviewRepository companyOverviewRepository;
     private final SecFilingRepository secFilingRepository;
-    private final ChecklistSseService checklistSseService;
+    private final ApplicationEventPublisher eventPublisher;
     private final LlmService llmService;
     private final FinancialRatiosRepository financialRatiosRepository;
     private final CashFlowRepository cashFlowRepository;
     private final IncomeStatementRepository incomeStatementRepository;
     private final BalanceSheetRepository balanceSheetRepository;
 
-    public ScalabilityOfModelCalculator(CompanyOverviewRepository companyOverviewRepository, SecFilingRepository secFilingRepository, ChecklistSseService checklistSseService, LlmService llmService, FinancialRatiosRepository financialRatiosRepository, CashFlowRepository cashFlowRepository, IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository) {
+    public ScalabilityOfModelCalculator(CompanyOverviewRepository companyOverviewRepository, SecFilingRepository secFilingRepository, ApplicationEventPublisher eventPublisher, LlmService llmService, FinancialRatiosRepository financialRatiosRepository, CashFlowRepository cashFlowRepository, IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository) {
         this.companyOverviewRepository = companyOverviewRepository;
         this.secFilingRepository = secFilingRepository;
-        this.checklistSseService = checklistSseService;
+        this.eventPublisher = eventPublisher;
         this.llmService = llmService;
         this.financialRatiosRepository = financialRatiosRepository;
         this.cashFlowRepository = cashFlowRepository;
@@ -49,8 +51,9 @@ public class ScalabilityOfModelCalculator {
     public ReportItem calculate(String ticker, SseEmitter sseEmitter) {
         Optional<CompanyOverview> companyOverview = companyOverviewRepository.findBySymbol(ticker);
         if (companyOverview.isEmpty()) {
-            LOGGER.warn("No Company overview found for ticker: {}", ticker);
-            checklistSseService.sendSseErrorEvent(sseEmitter, "No Company overview found for ticker " + ticker);
+            String errorMessage = "No Company overview found for ticker " + ticker;
+            LOGGER.warn(errorMessage);
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
             return new ReportItem("scalabilityOfModel", -10, "Something went wrong and score could not be calculated ");
         }
 
@@ -66,11 +69,11 @@ public class ScalabilityOfModelCalculator {
                         });
             } else {
                 LOGGER.warn("No 10k found for ticker: {}", ticker);
-                checklistSseService.sendSseEvent(sseEmitter, "No 10k available to get business description.");
+                eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "No 10k available to get business description."));
             }
         }, () -> {
             LOGGER.warn("No 10k found for ticker: {}", ticker);
-            checklistSseService.sendSseEvent(sseEmitter, "No 10k available to get business description.");
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "No 10k available to get business description."));
         });
 
         PromptTemplate promptTemplate = new PromptTemplate(scalabilityOfModelPrompt);
@@ -88,10 +91,10 @@ public class ScalabilityOfModelCalculator {
         Prompt prompt = promptTemplate.create(promptParameters);
 
         try {
-            checklistSseService.sendSseEvent(sseEmitter, "Sending data to LLM for scalability of model analysis...");
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Sending data to LLM for scalability of model analysis..."));
             LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
             String llmResponse = llmService.callLlm(prompt);
-            checklistSseService.sendSseEvent(sseEmitter, "Received LLM response with scalability of model analysis.");
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Received LLM response with scalability of model analysis."));
             LlmScoreExplanationResponse convertedLlmResponse = llmResponseOutputConverter.convert(llmResponse);
 
             return new ReportItem("scalabilityOfModel",
@@ -100,7 +103,7 @@ public class ScalabilityOfModelCalculator {
         } catch (Exception e) {
             String errorMessage = "Operation 'calculateScalabilityOfModel' failed.";
             LOGGER.error(errorMessage, e);
-            checklistSseService.sendSseErrorEvent(sseEmitter, errorMessage);
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage, e)));
             return new ReportItem("scalabilityOfModel", -10, "Operation 'calculateScalabilityOfModel' failed.");
         }
     }

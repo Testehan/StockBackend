@@ -4,10 +4,12 @@ import com.testehan.finana.model.ChecklistReport;
 import com.testehan.finana.model.ReportItem;
 import com.testehan.finana.model.ReportType;
 import com.testehan.finana.service.reporting.calc.ReportItemCalculator;
+import com.testehan.finana.service.reporting.events.CompletionEvent;
+import com.testehan.finana.service.reporting.events.MessageEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.http.MediaType;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -25,17 +27,17 @@ public class OneHundredBaggerReportGenerator implements ReportGenerator {
 
     private final List<ReportItemCalculator> oneHundredBaggerCalculators;
     private final Executor checklistExecutor;
-    private final ChecklistSseService checklistSseService;
     private final ChecklistReportPersistenceService checklistReportPersistenceService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public OneHundredBaggerReportGenerator(List<ReportItemCalculator> oneHundredBaggerCalculators,
                                            @Qualifier("checklistExecutor") Executor checklistExecutor,
-                                           ChecklistSseService checklistSseService,
-                                           ChecklistReportPersistenceService checklistReportPersistenceService) {
+                                           ChecklistReportPersistenceService checklistReportPersistenceService,
+                                           ApplicationEventPublisher eventPublisher) {
         this.oneHundredBaggerCalculators = oneHundredBaggerCalculators;
         this.checklistExecutor = checklistExecutor;
-        this.checklistSseService = checklistSseService;
         this.checklistReportPersistenceService = checklistReportPersistenceService;
+        this.eventPublisher = eventPublisher;
     }
 
     @Override
@@ -54,15 +56,11 @@ public class OneHundredBaggerReportGenerator implements ReportGenerator {
             checklistReportItems.addAll(future.get());
         }
 
-        checklistSseService.sendSseEvent(sseEmitter, "Building and saving Checklist report...");
+        eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Building and saving Checklist report..."));
         ChecklistReport checklistReport = checklistReportPersistenceService.buildAndSaveReport(ticker, checklistReportItems, getReportType());
-        checklistSseService.sendSseEvent(sseEmitter, "Checklist report built and saved.");
+        eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Checklist report built and saved."));
 
-        sseEmitter.send(SseEmitter.event()
-                .name("COMPLETED")
-                .data(checklistReport, MediaType.APPLICATION_JSON));
-
-        sseEmitter.complete();
+        eventPublisher.publishEvent(new CompletionEvent(this, ticker, sseEmitter, checklistReport));
         LOGGER.info("Checklist report generation complete for {}", ticker);
     }
 

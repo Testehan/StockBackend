@@ -1,14 +1,15 @@
 package com.testehan.finana.service.reporting.calc.positives;
 
-import com.testehan.finana.model.ReportItem;
 import com.testehan.finana.model.GlobalQuote;
 import com.testehan.finana.model.IndexData;
+import com.testehan.finana.model.ReportItem;
 import com.testehan.finana.service.FinancialDataService;
-import com.testehan.finana.service.reporting.ChecklistSseService;
+import com.testehan.finana.service.reporting.events.ErrorEvent;
 import com.testehan.finana.util.SafeParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -23,12 +24,12 @@ public class PerformanceVsSP500Calculator {
 
     public static final String S_P_500 = "^GSPC";
     private final FinancialDataService financialDataService;
-    private final ChecklistSseService ferolSseService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Autowired
-    public PerformanceVsSP500Calculator(FinancialDataService financialDataService, ChecklistSseService ferolSseService) {
+    public PerformanceVsSP500Calculator(FinancialDataService financialDataService, ApplicationEventPublisher eventPublisher) {
         this.financialDataService = financialDataService;
-        this.ferolSseService = ferolSseService;
+        this.eventPublisher = eventPublisher;
     }
 
     public ReportItem calculateUpsidePerformance(String ticker, SseEmitter sseEmitter) {
@@ -36,8 +37,9 @@ public class PerformanceVsSP500Calculator {
         Optional<GlobalQuote> endStockQuoteOpt = financialDataService.getLastStockQuote(ticker).blockOptional();
 
         if (startStockQuoteOpt.isEmpty() || endStockQuoteOpt.isEmpty()) {
-            ferolSseService.sendSseErrorEvent(sseEmitter, "Stock price data not available.");
-            LOGGER.error("Stock price data not available for ticker {}",ticker);
+            var errorMessage = "Stock price data not available for ticker " +ticker;
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
+            LOGGER.error(errorMessage);
             return new ReportItem("performanceVsIndex", 0, "Stock price data not available.");
         }
 
@@ -48,8 +50,9 @@ public class PerformanceVsSP500Calculator {
         Optional<IndexData> endIndexQuoteOpt = financialDataService.getIndexQuoteByDate(S_P_500, stockEndDate);
 
         if (startIndexQuoteOpt.isEmpty() || endIndexQuoteOpt.isEmpty()) {
-            ferolSseService.sendSseErrorEvent(sseEmitter, "S&P 500 price data for the corresponding period not available.");
+            var errorMessage = "S&P 500 price data for the corresponding period not available.";
             LOGGER.error("S&P 500 price data for the corresponding period not available.");
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
             return new ReportItem("performanceVsIndex", 0, "S&P 500 price data for the corresponding period not available.");
         }
 
@@ -59,8 +62,9 @@ public class PerformanceVsSP500Calculator {
         Double indexEndPrice = endIndexQuoteOpt.get().getPrice();
 
         if (stockStartPrice == null || stockEndPrice == null || indexStartPrice == null || indexEndPrice == null || stockStartPrice == 0 || indexStartPrice == 0) {
-            ferolSseService.sendSseErrorEvent(sseEmitter, "Could not parse price data.");
-            LOGGER.error("Could not parse price data.");
+            var errorMessage = "Could not parse price data.";
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
+            LOGGER.error(errorMessage);
             return new ReportItem("performanceVsIndex", 0, "Could not parse price data.");
         }
 
@@ -86,8 +90,9 @@ public class PerformanceVsSP500Calculator {
         Optional<GlobalQuote> endStockQuoteOpt = financialDataService.getLastStockQuote(ticker).blockOptional();
 
         if (startStockQuoteOpt.isEmpty() || endStockQuoteOpt.isEmpty()) {
-            ferolSseService.sendSseErrorEvent(sseEmitter, "Stock price data not available.");
-            LOGGER.error("Stock price data not available for ticker {}",ticker);
+            var errorMessage = "Stock price data not available for ticker " +ticker;
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
+            LOGGER.error(errorMessage);
             return new ReportItem("bigMarketLoser", 0, "Stock price data not available.");
         }
 
@@ -98,8 +103,9 @@ public class PerformanceVsSP500Calculator {
         Optional<IndexData> endIndexQuoteOpt = financialDataService.getIndexQuoteByDate(S_P_500, stockEndDate);
 
         if (startIndexQuoteOpt.isEmpty() || endIndexQuoteOpt.isEmpty()) {
-            ferolSseService.sendSseErrorEvent(sseEmitter, "S&P 500 price data for the corresponding period not available.");
+            var errorMessage = "S&P 500 price data for the corresponding period not available.";
             LOGGER.error("S&P 500 price data for the corresponding period not available.");
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
             return new ReportItem("bigMarketLoser", 0, "S&P 500 price data for the corresponding period not available.");
         }
 
@@ -109,8 +115,9 @@ public class PerformanceVsSP500Calculator {
         Double indexEndPrice = endIndexQuoteOpt.get().getPrice();
 
         if (stockStartPrice == null || stockEndPrice == null || indexStartPrice == null || indexEndPrice == null || stockStartPrice == 0 || indexStartPrice == 0) {
-            ferolSseService.sendSseErrorEvent(sseEmitter, "Could not parse price data.");
-            LOGGER.error("Could not parse price data.");
+            var errorMessage = "Could not parse price data.";
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
+            LOGGER.error(errorMessage);
             return new ReportItem("bigMarketLoser", 0, "Could not parse price data.");
         }
 

@@ -2,9 +2,10 @@ package com.testehan.finana.service.reporting.calc.negatives;
 
 import com.testehan.finana.model.ReportItem;
 import com.testehan.finana.repository.CompanyOverviewRepository;
-import com.testehan.finana.service.reporting.ChecklistSseService;
+import com.testehan.finana.service.reporting.events.ErrorEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -17,11 +18,11 @@ public class HeadquarterRiskCalculator {
     private static final Logger LOGGER = LoggerFactory.getLogger(HeadquarterRiskCalculator.class);
 
     private final CompanyOverviewRepository companyOverviewRepository;
-    private final ChecklistSseService ferolSseService;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public HeadquarterRiskCalculator(CompanyOverviewRepository companyOverviewRepository, ChecklistSseService ferolSseService) {
+    public HeadquarterRiskCalculator(CompanyOverviewRepository companyOverviewRepository, ApplicationEventPublisher eventPublisher) {
         this.companyOverviewRepository = companyOverviewRepository;
-        this.ferolSseService = ferolSseService;
+        this.eventPublisher = eventPublisher;
     }
 
     public ReportItem calculate(String ticker, SseEmitter sseEmitter) {
@@ -36,7 +37,7 @@ public class HeadquarterRiskCalculator {
         } else {
             String errorMessage = "Operation 'calculateHeadquartersRisk' failed.";
             LOGGER.error(errorMessage + " No company overview data or country found for {}",ticker);
-            ferolSseService.sendSseErrorEvent(sseEmitter, errorMessage);
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
         }
 
         return new ReportItem("headquarters", -10, "Something went wrong and score could not be calculated ");

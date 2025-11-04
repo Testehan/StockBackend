@@ -9,7 +9,8 @@ import com.testehan.finana.repository.CompanyOverviewRepository;
 import com.testehan.finana.repository.IncomeStatementRepository;
 import com.testehan.finana.repository.SecFilingRepository;
 import com.testehan.finana.service.LlmService;
-import com.testehan.finana.service.reporting.ChecklistSseService;
+import com.testehan.finana.service.reporting.events.ErrorEvent;
+import com.testehan.finana.service.reporting.events.MessageEvent;
 import com.testehan.finana.util.SafeParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,6 +18,7 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -36,15 +38,15 @@ public class TamCalculator {
     private final IncomeStatementRepository incomeStatementRepository;
     private final SecFilingRepository secFilingRepository;
 
-    private final ChecklistSseService checklistSseService;
+    private final ApplicationEventPublisher eventPublisher;
     private final LlmService llmService;
     private final SafeParser safeParser;
 
-    public TamCalculator(CompanyOverviewRepository companyOverviewRepository, IncomeStatementRepository incomeStatementRepository, SecFilingRepository secFilingRepository, ChecklistSseService checklistSseService, LlmService llmService, SafeParser safeParser) {
+    public TamCalculator(CompanyOverviewRepository companyOverviewRepository, IncomeStatementRepository incomeStatementRepository, SecFilingRepository secFilingRepository, ApplicationEventPublisher eventPublisher, LlmService llmService, SafeParser safeParser) {
         this.companyOverviewRepository = companyOverviewRepository;
         this.incomeStatementRepository = incomeStatementRepository;
         this.secFilingRepository = secFilingRepository;
-        this.checklistSseService = checklistSseService;
+        this.eventPublisher = eventPublisher;
         this.llmService = llmService;
         this.safeParser = safeParser;
     }
@@ -53,8 +55,9 @@ public class TamCalculator {
 
         Optional<CompanyOverview> companyOverview = companyOverviewRepository.findBySymbol(ticker);
         if (companyOverview.isEmpty()){
-            LOGGER.warn("No Company overview found for ticker: {}", ticker);
-            checklistSseService.sendSseErrorEvent(sseEmitter, "No Company overview found for ticker " + ticker);
+            String errorMessage = "No Company overview found for ticker " + ticker;
+            LOGGER.warn(errorMessage);
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
             return new TAMScoreExplanationResponse(-10, "Something went wrong and score could not be calculated ");
         }
 
@@ -72,17 +75,18 @@ public class TamCalculator {
                         });
             } else {
                 LOGGER.warn("No 10k found for ticker: {}", ticker);
-                checklistSseService.sendSseEvent(sseEmitter, "No 10k available to get business description.");
+                eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "No 10k available to get business description."));
             }
         }, () -> {
             LOGGER.warn("No 10k found for ticker: {}", ticker);
-            checklistSseService.sendSseEvent(sseEmitter, "No 10k available to get business description.");
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "No 10k available to get business description."));
         });
 
         Optional<IncomeStatementData> incomeStatementDataOptional = incomeStatementRepository.findBySymbol(ticker);
         if (incomeStatementDataOptional.isEmpty()) {
-            LOGGER.warn("No income statement data found for ticker: {}", ticker);
-            checklistSseService.sendSseErrorEvent(sseEmitter, "No income statement data found for ticker " + ticker);
+            String errorMessage = "No income statement data found for ticker " + ticker;
+            LOGGER.warn(errorMessage);
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
             return new TAMScoreExplanationResponse(-10, "Something went wrong and score could not be calculated ");
         }
 
@@ -101,16 +105,16 @@ public class TamCalculator {
         Prompt prompt = promptTemplate.create(promptParameters);
 
         try {
-            checklistSseService.sendSseEvent(sseEmitter, "Sending data to LLM for TAM analysis...");
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Sending data to LLM for TAM analysis..."));
             LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
             String llmResponse = llmService.callLlm(prompt);
-            checklistSseService.sendSseEvent(sseEmitter, "Received LLM response with TAM analysis.");
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Received LLM response with TAM analysis."));
              return llmResponseOutputConverter.convert(llmResponse);
 
         } catch (Exception e) {
             String errorMessage = "Operation 'calculatetotalAddressableMarket' failed.";
             LOGGER.error(errorMessage, e);
-            checklistSseService.sendSseErrorEvent(sseEmitter, errorMessage);
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage, e)));
             return new TAMScoreExplanationResponse(-10, "Operation 'calculatetotalAddressableMarket' failed.");
         }
     }

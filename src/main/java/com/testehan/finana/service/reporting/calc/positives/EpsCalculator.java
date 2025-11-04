@@ -4,10 +4,11 @@ import com.testehan.finana.model.EarningsHistory;
 import com.testehan.finana.model.ReportItem;
 import com.testehan.finana.model.QuarterlyEarning;
 import com.testehan.finana.repository.EarningsHistoryRepository;
-import com.testehan.finana.service.reporting.ChecklistSseService;
+import com.testehan.finana.service.reporting.events.MessageEvent;
 import com.testehan.finana.util.SafeParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -23,24 +24,24 @@ public class EpsCalculator {
     private static final Logger LOGGER = LoggerFactory.getLogger(EpsCalculator.class);
 
     private final EarningsHistoryRepository earningsHistoryRepository;
-    private final ChecklistSseService ferolSseService;
+    private final ApplicationEventPublisher eventPublisher;
     private final SafeParser safeParser;
 
-    public EpsCalculator(EarningsHistoryRepository earningsHistoryRepository, ChecklistSseService ferolSseService, SafeParser safeParser) {
+    public EpsCalculator(EarningsHistoryRepository earningsHistoryRepository, ApplicationEventPublisher eventPublisher, SafeParser safeParser) {
         this.earningsHistoryRepository = earningsHistoryRepository;
-        this.ferolSseService = ferolSseService;
+        this.eventPublisher = eventPublisher;
         this.safeParser = safeParser;
     }
 
     public ReportItem calculate(String ticker, SseEmitter sseEmitter) {
-        ferolSseService.sendSseEvent(sseEmitter, "Calculating Earnings Per Share (EPS)...");
+        eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Calculating Earnings Per Share (EPS)..."));
 
         Optional<EarningsHistory> earningsHistoryOptional = earningsHistoryRepository.findBySymbol(ticker);
 
         if (earningsHistoryOptional.isEmpty() || Objects.isNull(earningsHistoryOptional.get().getQuarterlyEarnings())
                 || earningsHistoryOptional.get().getQuarterlyEarnings().size() < 8) {
             LOGGER.warn("No sufficient earnings history data for EPS calculation for ticker: {}", ticker);
-            ferolSseService.sendSseEvent(sseEmitter, "EPS calculation skipped: Insufficient data found.");
+            eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "EPS calculation skipped: Insufficient data found."));
             return new ReportItem("earningsPerShare", 0, "Insufficient quarterly earnings history data for EPS calculation (need at least 8 quarters).");
         }
 
@@ -63,8 +64,8 @@ public class EpsCalculator {
             previousTtmEps = previousTtmEps.add(safeParser.parse(relevantEarnings.get(i).getReportedEPS()));
         }
 
-        ferolSseService.sendSseEvent(sseEmitter, "Current TTM EPS: " + currentTtmEps.toPlainString());
-        ferolSseService.sendSseEvent(sseEmitter, "Previous TTM EPS: " + previousTtmEps.toPlainString());
+        eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Current TTM EPS: " + currentTtmEps.toPlainString()));
+        eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Previous TTM EPS: " + previousTtmEps.toPlainString()));
 
         int score;
         String explanation;
@@ -104,7 +105,7 @@ public class EpsCalculator {
                 }
             }
         }
-        ferolSseService.sendSseEvent(sseEmitter, "EPS calculation complete. Score: " + score);
+        eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "EPS calculation complete. Score: " + score));
         return new ReportItem("earningsPerShare", score, detailedExplanation.toString() + explanation);
     }
 }
