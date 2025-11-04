@@ -54,6 +54,8 @@ public class ChecklistReportOrchestrator {
     private final InsiderOwnershipCalculator insiderOwnershipCalculator;
     private final CapitalAllocationCalculator capitalAllocationCalculator;
     private final TamCalculator tamCalculator;
+    private final ScalabilityOfModelCalculator scalabilityOfModelCalculator;
+    private final GrowthCurveCalculator growthCurveCalculator;
     private final CultureCalculator cultureCalculator;
     private final MissionStatementCalculator missionStatementCalculator;
 
@@ -68,12 +70,14 @@ public class ChecklistReportOrchestrator {
 
     private final ReinvestmentCalculator reinvestmentCalculator;
     private final ReinvestmentRunwayCalculator reinvestmentRunwayCalculator;
+    private final MarketCapCalculator marketCapCalculator;
+    private final ValuationCalculator valuationCalculator;
 
     private final GeneratedReportRepository generatedReportRepository;
     private final Executor checklistExecutor;
 
 
-    public ChecklistReportOrchestrator(FinancialDataService financialDataService, ChecklistSseService checklistSseService, ChecklistReportPersistenceService checklistReportPersistenceService, FinancialResilienceCalculator financialResilienceCalculator, GrossMarginCalculator grossMarginCalculator, RoicCalculator roicCalculator, FcfCalculator fcfCalculator, EpsCalculator epsCalculator, MoatCalculator moatCalculator, OptionalityCalculator optionalityCalculator, OrganicGrowthRunawayCalculator organicGrowthRunawayCalculator, TopDogCalculator topDogCalculator, OperatingLeverageCalculator operatingLeverageCalculator, AcquisitionsCalculator acquisitionsCalculator, CyclicalityCalculator cyclicalityCalculator, RecurringRevenueCalculator recurringRevenueCalculator, PricingPowerCalculator pricingPowerCalculator, SoulInTheGameCalculator soulInTheGameCalculator, InsiderOwnershipCalculator insiderOwnershipCalculator, CapitalAllocationCalculator capitalAllocationCalculator, TamCalculator tamCalculator, CultureCalculator cultureCalculator, MissionStatementCalculator missionStatementCalculator, PerformanceVsSP500Calculator performanceVsSP500Calculator, ShareholderFriendlyActivityCalculator shareholderFriendlyActivityCalculator, BeatingEarningsExpectationsCalculator beatingEarningsExpectationsCalculator, MultipleRisksCalculator multipleRisksCalculator, DilutionRiskCalculator dilutionRiskCalculator, HeadquarterRiskCalculator headquarterRiskCalculator, CurrencyRiskCalculator currencyRiskCalculator, ReinvestmentCalculator reinvestmentCalculator, ReinvestmentRunwayCalculator reinvestmentRunwayCalculator, GeneratedReportRepository generatedReportRepository, @Qualifier("checklistExecutor") Executor checklistExecutor) {
+    public ChecklistReportOrchestrator(FinancialDataService financialDataService, ChecklistSseService checklistSseService, ChecklistReportPersistenceService checklistReportPersistenceService, FinancialResilienceCalculator financialResilienceCalculator, GrossMarginCalculator grossMarginCalculator, RoicCalculator roicCalculator, FcfCalculator fcfCalculator, EpsCalculator epsCalculator, MoatCalculator moatCalculator, OptionalityCalculator optionalityCalculator, OrganicGrowthRunawayCalculator organicGrowthRunawayCalculator, TopDogCalculator topDogCalculator, OperatingLeverageCalculator operatingLeverageCalculator, AcquisitionsCalculator acquisitionsCalculator, CyclicalityCalculator cyclicalityCalculator, RecurringRevenueCalculator recurringRevenueCalculator, PricingPowerCalculator pricingPowerCalculator, SoulInTheGameCalculator soulInTheGameCalculator, InsiderOwnershipCalculator insiderOwnershipCalculator, CapitalAllocationCalculator capitalAllocationCalculator, TamCalculator tamCalculator, ScalabilityOfModelCalculator scalabilityOfModelCalculator, GrowthCurveCalculator growthCurveCalculator, CultureCalculator cultureCalculator, MissionStatementCalculator missionStatementCalculator, PerformanceVsSP500Calculator performanceVsSP500Calculator, ShareholderFriendlyActivityCalculator shareholderFriendlyActivityCalculator, BeatingEarningsExpectationsCalculator beatingEarningsExpectationsCalculator, MultipleRisksCalculator multipleRisksCalculator, DilutionRiskCalculator dilutionRiskCalculator, HeadquarterRiskCalculator headquarterRiskCalculator, CurrencyRiskCalculator currencyRiskCalculator, ReinvestmentCalculator reinvestmentCalculator, ReinvestmentRunwayCalculator reinvestmentRunwayCalculator, MarketCapCalculator marketCapCalculator, ValuationCalculator valuationCalculator, GeneratedReportRepository generatedReportRepository, @Qualifier("checklistExecutor") Executor checklistExecutor) {
         this.financialDataService = financialDataService;
         this.checklistSseService = checklistSseService;
         this.checklistReportPersistenceService = checklistReportPersistenceService;
@@ -95,6 +99,8 @@ public class ChecklistReportOrchestrator {
         this.insiderOwnershipCalculator = insiderOwnershipCalculator;
         this.capitalAllocationCalculator = capitalAllocationCalculator;
         this.tamCalculator = tamCalculator;
+        this.scalabilityOfModelCalculator = scalabilityOfModelCalculator;
+        this.growthCurveCalculator = growthCurveCalculator;
         this.cultureCalculator = cultureCalculator;
         this.missionStatementCalculator = missionStatementCalculator;
         this.performanceVsSP500Calculator = performanceVsSP500Calculator;
@@ -106,6 +112,8 @@ public class ChecklistReportOrchestrator {
         this.currencyRiskCalculator = currencyRiskCalculator;
         this.reinvestmentCalculator = reinvestmentCalculator;
         this.reinvestmentRunwayCalculator = reinvestmentRunwayCalculator;
+        this.marketCapCalculator = marketCapCalculator;
+        this.valuationCalculator = valuationCalculator;
         this.generatedReportRepository = generatedReportRepository;
         this.checklistExecutor = checklistExecutor;
     }
@@ -141,11 +149,16 @@ public class ChecklistReportOrchestrator {
                             sseEmitter.complete();
                             LOGGER.info("Checklist report for {} loaded from DB and sent.", ticker);
                             return; // Exit as report is sent
-                        } else {
-                            generateReport(ticker, reportType, sseEmitter);
-                        }
+                        } //else {
+//                            generateReport(ticker, reportType, sseEmitter);
+//                        }
                     }
-                    checklistSseService.sendSseEvent(sseEmitter, "Report not found in database or incomplete, generating new report.");
+                    checklistSseService.sendSseEvent(sseEmitter, "Report not found in database or incomplete. You must generate a new report.");
+                    sseEmitter.send(SseEmitter.event()
+                            .name("COMPLETED"));
+
+                    sseEmitter.complete();
+                    return ;
 
                 } else {
                     checklistSseService.sendSseEvent(sseEmitter, "Initiating Checklist report generation for " + ticker + "...");
@@ -439,40 +452,40 @@ public class ChecklistReportOrchestrator {
 
     private void generate100BaggerReport(String ticker, SseEmitter sseEmitter, ReportType reportType) throws InterruptedException, ExecutionException, IOException {
 
-//        CompletableFuture<ReportItem> reinvestmentFuture = CompletableFuture.supplyAsync(() -> {
-//            checklistSseService.sendSseEvent(sseEmitter, "Reinvestment 5yrs analysis...");
-//            ReportItem item = reinvestmentCalculator.calculate(ticker, sseEmitter);
-//            checklistSseService.sendSseEvent(sseEmitter, "Reinvestment 5yrs done.");
-//            return item;
-//        }, checklistExecutor);
-//
-//        CompletableFuture<ReportItem> sustainedReturnsOnCapitalFuture = CompletableFuture.supplyAsync(() -> {
-//            checklistSseService.sendSseEvent(sseEmitter, "Sustained returns on capital ROIC analysis...");
-//            ReportItem item = reinvestmentCalculator.calculateSustainedReturnsOnCapital(ticker, sseEmitter);
-//            checklistSseService.sendSseEvent(sseEmitter, "Sustained returns on capital ROIC done.");
-//            return item;
-//        }, checklistExecutor);
+        CompletableFuture<ReportItem> reinvestmentFuture = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "Reinvestment 5yrs analysis...");
+            ReportItem item = reinvestmentCalculator.calculate(ticker, sseEmitter);
+            checklistSseService.sendSseEvent(sseEmitter, "Reinvestment 5yrs done.");
+            return item;
+        }, checklistExecutor);
 
-//        CompletableFuture<ReportItem> reinvestmentRunwayFuture = CompletableFuture.supplyAsync(() -> {
-//            checklistSseService.sendSseEvent(sseEmitter, "Sustained returns on capital ROIC analysis...");
-//            ReportItem item = reinvestmentRunwayCalculator.calculate(ticker, sseEmitter);
-//            checklistSseService.sendSseEvent(sseEmitter, "Sustained returns on capital ROIC done.");
-//            return item;
-//        }, checklistExecutor);
+        CompletableFuture<ReportItem> sustainedReturnsOnCapitalFuture = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "Sustained returns on capital ROIC analysis...");
+            ReportItem item = reinvestmentCalculator.calculateSustainedReturnsOnCapital(ticker, sseEmitter);
+            checklistSseService.sendSseEvent(sseEmitter, "Sustained returns on capital ROIC done.");
+            return item;
+        }, checklistExecutor);
 
-//        CompletableFuture<ReportItem> insiderOwnershipFuture = CompletableFuture.supplyAsync(() -> {
-//            checklistSseService.sendSseEvent(sseEmitter, "Skin in the game analysis...");
-//            ReportItem item = insiderOwnershipCalculator.calculate(ticker, sseEmitter, reportType);
-//            checklistSseService.sendSseEvent(sseEmitter, "Skin in the game done.");
-//            return item;
-//        }, checklistExecutor);
+        CompletableFuture<ReportItem> reinvestmentRunwayFuture = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "Sustained returns on capital ROIC analysis...");
+            ReportItem item = reinvestmentRunwayCalculator.calculate(ticker, sseEmitter);
+            checklistSseService.sendSseEvent(sseEmitter, "Sustained returns on capital ROIC done.");
+            return item;
+        }, checklistExecutor);
 
-//        CompletableFuture<ReportItem> capitalAllocationFuture = CompletableFuture.supplyAsync(() -> {
-//            checklistSseService.sendSseEvent(sseEmitter, "Capital allocation analysis...");
-//            ReportItem item = capitalAllocationCalculator.calculate(ticker, sseEmitter);
-//            checklistSseService.sendSseEvent(sseEmitter, "Capital allocation done.");
-//            return item;
-//        }, checklistExecutor);
+        CompletableFuture<ReportItem> insiderOwnershipFuture = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "Skin in the game analysis...");
+            ReportItem item = insiderOwnershipCalculator.calculate(ticker, sseEmitter, reportType);
+            checklistSseService.sendSseEvent(sseEmitter, "Skin in the game done.");
+            return item;
+        }, checklistExecutor);
+
+        CompletableFuture<ReportItem> capitalAllocationFuture = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "Capital allocation analysis...");
+            ReportItem item = capitalAllocationCalculator.calculate(ticker, sseEmitter);
+            checklistSseService.sendSseEvent(sseEmitter, "Capital allocation done.");
+            return item;
+        }, checklistExecutor);
 
 
         CompletableFuture<TAMScoreExplanationResponse> tamFuture = CompletableFuture.supplyAsync(() -> {
@@ -483,22 +496,55 @@ public class ChecklistReportOrchestrator {
         }, checklistExecutor);
 
 
-//
-//        CompletableFuture<ReportItem> moatsFuture = CompletableFuture.supplyAsync(() -> {
-//            checklistSseService.sendSseEvent(sseEmitter, "Thinking about moats...");
-//            ReportItem item = moatCalculator.calculate100BaggerMoat(ticker, sseEmitter);
-//            checklistSseService.sendSseEvent(sseEmitter, "Moats analysis is complete.");
-//            return item;
-//        }, checklistExecutor);
+            CompletableFuture<ReportItem>  scalabilityOfModelFuture = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "Scalability of model analysis...");
+            ReportItem item = scalabilityOfModelCalculator.calculate(ticker, sseEmitter);
+            checklistSseService.sendSseEvent(sseEmitter, "Scalability of model done.");
+            return item;
+        }, checklistExecutor);
+
+        CompletableFuture<ReportItem>  growthCurveFuture = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "Scalability of model analysis...");
+            ReportItem item = growthCurveCalculator.calculate(ticker, sseEmitter);
+            checklistSseService.sendSseEvent(sseEmitter, "Scalability of model done.");
+            return item;
+        }, checklistExecutor);
+
+        CompletableFuture<ReportItem> marketCapFuture = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "Market cap analysis...");
+            ReportItem item = marketCapCalculator.calculate(ticker);
+            checklistSseService.sendSseEvent(sseEmitter, "Market cap analysis done.");
+            return item;
+        }, checklistExecutor);
+
+        CompletableFuture<ReportItem> valuationFuture = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "Valuation analysis...");
+            ReportItem item = valuationCalculator.calculate(ticker, sseEmitter);
+            checklistSseService.sendSseEvent(sseEmitter, "Valuation analysis done.");
+            return item;
+        }, checklistExecutor);
+
+
+
+        CompletableFuture<ReportItem> moatsFuture = CompletableFuture.supplyAsync(() -> {
+            checklistSseService.sendSseEvent(sseEmitter, "Thinking about moats...");
+            ReportItem item = moatCalculator.calculate100BaggerMoat(ticker, sseEmitter);
+            checklistSseService.sendSseEvent(sseEmitter, "Moats analysis is complete.");
+            return item;
+        }, checklistExecutor);
 
         CompletableFuture.allOf(
-//                        reinvestmentFuture,
-//                        sustainedReturnsOnCapitalFuture
-//                        reinvestmentRunwayFuture
-//                        insiderOwnershipFuture,
-//                        capitalAllocationFuture
-                        tamFuture
-//                        moatsFuture
+                        reinvestmentFuture,
+                        sustainedReturnsOnCapitalFuture,
+                        reinvestmentRunwayFuture,
+                        insiderOwnershipFuture,
+                        capitalAllocationFuture,
+                        tamFuture,
+                        scalabilityOfModelFuture,
+                        growthCurveFuture,
+                        marketCapFuture,
+                        valuationFuture,
+                        moatsFuture
 
                         // negatives
 
@@ -506,17 +552,23 @@ public class ChecklistReportOrchestrator {
                 .join();
 
         List<ReportItem> checklistReportItems = new ArrayList<>();
-//        checklistReportItems.add(reinvestmentFuture.get());
-//        checklistReportItems.add(sustainedReturnsOnCapitalFuture.get());
-//        checklistReportItems.add(reinvestmentRunwayFuture.get());
-//        checklistReportItems.add(insiderOwnershipFuture.get());
-//        checklistReportItems.add(capitalAllocationFuture.get());
+        checklistReportItems.add(reinvestmentFuture.get());
+        checklistReportItems.add(sustainedReturnsOnCapitalFuture.get());
+        checklistReportItems.add(reinvestmentRunwayFuture.get());
+        checklistReportItems.add(insiderOwnershipFuture.get());
+        checklistReportItems.add(capitalAllocationFuture.get());
 
         TAMScoreExplanationResponse tamAnalysis = tamFuture.get();
         checklistReportItems.add(new ReportItem("totalAddressableMarket",tamAnalysis.getTotalAddressableMarketScore(), tamAnalysis.getTotalAddressableMarketExplanation()));
         checklistReportItems.add(new ReportItem("tamPenetrationRunway",tamAnalysis.getTamPenetrationRunwayScore(), tamAnalysis.getTamPenetrationRunwayExplanation()));
 
-//        checklistReportItems.add(moatsFuture.get());
+        checklistReportItems.add(scalabilityOfModelFuture.get());
+        checklistReportItems.add(growthCurveFuture.get());
+        checklistReportItems.add(marketCapFuture.get());
+        checklistReportItems.add(valuationFuture.get());
+
+
+        checklistReportItems.add(moatsFuture.get());
 
         checklistSseService.sendSseEvent(sseEmitter, "Building and saving Checklist report...");
         ChecklistReport checklistReport = checklistReportPersistenceService.buildAndSaveReport(ticker, checklistReportItems, ReportType.ONE_HUNDRED_BAGGER);
