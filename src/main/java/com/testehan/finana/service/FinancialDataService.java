@@ -172,7 +172,8 @@ public class FinancialDataService {
                     return data;
                 })
                 .doOnSuccess(financialRatiosRepository::save)
-                .doOnError(e -> LOGGER.error("Error with TTM financial ratios for " + ticker, e)).block();
+                .doOnError(e -> LOGGER.error("Error with TTM financial ratios for " + ticker, e))
+                .subscribe();
     }
 
 
@@ -232,7 +233,8 @@ public class FinancialDataService {
                     return data;
                 })
                 .doOnSuccess(financialRatiosRepository::save)
-                .doOnError(e -> LOGGER.error("Error with financial ratios for " + ticker, e)).block();
+                .doOnError(e -> LOGGER.error("Error with financial ratios for " + ticker, e))
+                .subscribe();
     }
 
     public boolean hasFinancialRatios(String symbol) {

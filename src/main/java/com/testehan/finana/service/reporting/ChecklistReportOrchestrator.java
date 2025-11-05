@@ -14,13 +14,11 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -96,13 +94,23 @@ public class ChecklistReportOrchestrator {
         });
     }
 
-    private void generateReport(String ticker, ReportType reportType, SseEmitter sseEmitter) throws InterruptedException, ExecutionException, IOException {
+    private void generateReport(String ticker, ReportType reportType, SseEmitter sseEmitter) {
         eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Ensuring financial data is present..."));
-        financialDataOrchestrator.ensureFinancialDataIsPresent(ticker);
-        eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Financial data check complete."));
 
-        ReportGenerator generator = reportGenerators.get(reportType);
-        generator.generate(ticker, reportType, sseEmitter);
+        financialDataOrchestrator.ensureFinancialDataIsPresent(ticker)
+                .doOnSuccess(v -> {
+                    eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Financial data check complete."));
+                    ReportGenerator generator = reportGenerators.get(reportType);
+                    try {
+                        generator.generate(ticker, reportType, sseEmitter);
+                    } catch (Exception e) {
+                        eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, e));
+                    }
+                })
+                .doOnError(error -> {
+                    eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, error));
+                })
+                .subscribe();
     }
 
     public ChecklistReport saveChecklistReport(String ticker, List<ReportItem> checklistReportItems, ReportType reportType) {

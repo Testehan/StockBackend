@@ -43,8 +43,8 @@ public class StockController {
 
     @GetMapping("/overview/{symbol}")
     public Mono<CompanyOverview> getCompanyOverview(@PathVariable String symbol) {
-        financialDataOrchestrator.ensureFinancialDataIsPresent(symbol.toUpperCase());
-        return companyDataService.getCompanyOverview(symbol).map(list -> list.getFirst());
+        return financialDataOrchestrator.ensureFinancialDataIsPresent(symbol.toUpperCase())
+                .then(companyDataService.getCompanyOverview(symbol).map(list -> list.getFirst()));
     }
 
     @GetMapping("/presentfinancialdata/{symbol}")

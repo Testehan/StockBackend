@@ -34,83 +34,77 @@ public class FinancialStatementService {
     }
 
     public Mono<IncomeStatementData> getIncomeStatements(String symbol) {
-        return Mono.defer(() -> {
-            Optional<IncomeStatementData> incomeStatementsFromDb = incomeStatementRepository.findBySymbol(symbol.toUpperCase());
-            if (incomeStatementsFromDb.isPresent()) {
-                return Mono.just(incomeStatementsFromDb.get());
-            } else {
-                IncomeStatementData incomeStatementData = new IncomeStatementData();
-                incomeStatementData.setSymbol(symbol);
-                incomeStatementData.setAnnualReports(fmpService.getIncomeStatement(symbol.toUpperCase(),"annual").block());
-                incomeStatementData.setQuarterlyReports(fmpService.getIncomeStatement(symbol.toUpperCase(),"quarter").block());
-
-                return Mono.just(incomeStatementRepository.save(incomeStatementData));
-            }
-        });
+        return Mono.justOrEmpty(incomeStatementRepository.findBySymbol(symbol.toUpperCase()))
+                .switchIfEmpty(
+                        Mono.zip(
+                                fmpService.getIncomeStatement(symbol.toUpperCase(), "annual"),
+                                fmpService.getIncomeStatement(symbol.toUpperCase(), "quarter")
+                        ).flatMap(tuple -> {
+                            IncomeStatementData incomeStatementData = new IncomeStatementData();
+                            incomeStatementData.setSymbol(symbol);
+                            incomeStatementData.setAnnualReports(tuple.getT1());
+                            incomeStatementData.setQuarterlyReports(tuple.getT2());
+                            return Mono.just(incomeStatementRepository.save(incomeStatementData));
+                        })
+                );
     }
 
     public Mono<BalanceSheetData> getBalanceSheet(String symbol) {
-        return Mono.defer(() -> {
-            Optional<BalanceSheetData> balanceSheetFromDb = balanceSheetRepository.findBySymbol(symbol.toUpperCase());
-            if (balanceSheetFromDb.isPresent()) {
-                return Mono.just(balanceSheetFromDb.get());
-            } else {
-                BalanceSheetData balanceSheetData = new BalanceSheetData();
-                balanceSheetData.setSymbol(symbol);
-                balanceSheetData.setAnnualReports(fmpService.getBalanceSheetStatement(symbol.toUpperCase(),"annual").block());
-                balanceSheetData.setQuarterlyReports(fmpService.getBalanceSheetStatement(symbol.toUpperCase(),"quarter").block());
-
-                return Mono.just(balanceSheetRepository.save(balanceSheetData));
-            }
-        });
+        return Mono.justOrEmpty(balanceSheetRepository.findBySymbol(symbol.toUpperCase()))
+                .switchIfEmpty(
+                        Mono.zip(
+                                fmpService.getBalanceSheetStatement(symbol.toUpperCase(), "annual"),
+                                fmpService.getBalanceSheetStatement(symbol.toUpperCase(), "quarter")
+                        ).flatMap(tuple -> {
+                            BalanceSheetData balanceSheetData = new BalanceSheetData();
+                            balanceSheetData.setSymbol(symbol);
+                            balanceSheetData.setAnnualReports(tuple.getT1());
+                            balanceSheetData.setQuarterlyReports(tuple.getT2());
+                            return Mono.just(balanceSheetRepository.save(balanceSheetData));
+                        })
+                );
     }
 
     public Mono<CashFlowData> getCashFlow(String symbol) {
-        return Mono.defer(() -> {
-            Optional<CashFlowData> cashFlowFromDb = cashFlowRepository.findBySymbol(symbol.toUpperCase());
-            if (cashFlowFromDb.isPresent()) {
-                return Mono.just(cashFlowFromDb.get());
-            } else {
-                CashFlowData cashFlowData = new CashFlowData();
-                cashFlowData.setSymbol(symbol);
-                cashFlowData.setAnnualReports(fmpService.getCashflowStatement(symbol.toUpperCase(),"annual").block());
-                cashFlowData.setQuarterlyReports(fmpService.getCashflowStatement(symbol.toUpperCase(),"quarter").block());
-
-                return Mono.just(cashFlowRepository.save(cashFlowData));
-            }
-        });
+        return Mono.justOrEmpty(cashFlowRepository.findBySymbol(symbol.toUpperCase()))
+                .switchIfEmpty(
+                        Mono.zip(
+                                fmpService.getCashflowStatement(symbol.toUpperCase(), "annual"),
+                                fmpService.getCashflowStatement(symbol.toUpperCase(), "quarter")
+                        ).flatMap(tuple -> {
+                            CashFlowData cashFlowData = new CashFlowData();
+                            cashFlowData.setSymbol(symbol);
+                            cashFlowData.setAnnualReports(tuple.getT1());
+                            cashFlowData.setQuarterlyReports(tuple.getT2());
+                            return Mono.just(cashFlowRepository.save(cashFlowData));
+                        })
+                );
     }
 
     public Mono<RevenueSegmentationData> getRevenueSegmentation(String symbol) {
-        return Mono.defer(() -> {
-            Optional<RevenueSegmentationData> revenueSegmentationFromDb = revenueSegmentationDataRepository.findBySymbol(symbol.toUpperCase());
-            if (revenueSegmentationFromDb.isPresent()) {
-                return Mono.just(revenueSegmentationFromDb.get());
-            } else {
-                RevenueSegmentationData revenueSegmentationData = new RevenueSegmentationData();
-                revenueSegmentationData.setSymbol(symbol);
-                revenueSegmentationData.setAnnualReports(fmpService.getRevenueSegmentation(symbol.toUpperCase(),"annual").block());
-                // below is part of the paid plan annual subscription for this API...yearly info is good enough
-//                revenueSegmentationData.setQuarterlyReports(fmpService.getRevenueSegmentation(symbol.toUpperCase(),"quarter").block());
-
-                return Mono.just(revenueSegmentationDataRepository.save(revenueSegmentationData));
-            }
-        });
+        return Mono.justOrEmpty(revenueSegmentationDataRepository.findBySymbol(symbol.toUpperCase()))
+                .switchIfEmpty(
+                        fmpService.getRevenueSegmentation(symbol.toUpperCase(), "annual")
+                                .flatMap(annualReports -> {
+                                    RevenueSegmentationData revenueSegmentationData = new RevenueSegmentationData();
+                                    revenueSegmentationData.setSymbol(symbol);
+                                    revenueSegmentationData.setAnnualReports(annualReports);
+                                    return Mono.just(revenueSegmentationDataRepository.save(revenueSegmentationData));
+                                })
+                );
     }
 
     public Mono<RevenueGeographicSegmentationData> getRevenueGeographicSegmentation(String symbol) {
-        return Mono.defer(() -> {
-            Optional<RevenueGeographicSegmentationData> revenueGeographicSegmentationFromDb = revenueGeographicSegmentationRepository.findBySymbol(symbol.toUpperCase());
-            if (revenueGeographicSegmentationFromDb.isPresent()) {
-                return Mono.just(revenueGeographicSegmentationFromDb.get());
-            } else {
-                RevenueGeographicSegmentationData revenueGeographicSegmentationData = new RevenueGeographicSegmentationData();
-                revenueGeographicSegmentationData.setSymbol(symbol);
-                revenueGeographicSegmentationData.setReports(fmpService.getRevenueGeographicSegmentation(symbol.toUpperCase(),"annual").block());
-
-                return Mono.just(revenueGeographicSegmentationRepository.save(revenueGeographicSegmentationData));
-            }
-        });
+        return Mono.justOrEmpty(revenueGeographicSegmentationRepository.findBySymbol(symbol.toUpperCase()))
+                .switchIfEmpty(
+                        fmpService.getRevenueGeographicSegmentation(symbol.toUpperCase(), "annual")
+                                .flatMap(reports -> {
+                                    RevenueGeographicSegmentationData data = new RevenueGeographicSegmentationData();
+                                    data.setSymbol(symbol);
+                                    data.setReports(reports);
+                                    return Mono.just(revenueGeographicSegmentationRepository.save(data));
+                                })
+                );
     }
 
     public void deleteIncomeStatementsBySymbol(String symbol) {

@@ -5,6 +5,8 @@ import com.testehan.finana.util.DateUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
@@ -34,31 +36,50 @@ public class FinancialDataOrchestrator {
         this.dateUtils = dateUtils;
     }
 
-    public void ensureFinancialDataIsPresent(String ticker) {
-        quoteService.getLastStockQuote(ticker).block();
-        quoteService.getIndexQuotes("^GSPC").block();
-        financialStatementService.getIncomeStatements(ticker).block();
-        financialStatementService.getBalanceSheet(ticker).block();
-        financialStatementService.getCashFlow(ticker).block();
-        earningsService.getEarningsEstimates(ticker).block();
-        earningsService.getEarningsHistory(ticker).block();
-        companyDataService.getCompanyOverview(ticker).block().get(0);
-        financialStatementService.getRevenueSegmentation(ticker).block();
-        financialStatementService.getRevenueGeographicSegmentation(ticker).block();
-        secFilingService.fetchAndSaveSecFilings(ticker);
-        secFilingService.getAndSaveSecFilings(ticker);
+    public Mono<Void> ensureFinancialDataIsPresent(String ticker) {
+        // First batch: Parallel independent calls for essential data
+        Mono<Void> essentialDataMono = Flux.merge(
+                quoteService.getLastStockQuote(ticker).then(),
+                quoteService.getIndexQuotes("^GSPC").then(),
+                financialStatementService.getIncomeStatements(ticker).then(),
+                financialStatementService.getBalanceSheet(ticker).then(),
+                financialStatementService.getCashFlow(ticker).then(),
+                earningsService.getEarningsEstimates(ticker).then(),
+                earningsService.getEarningsHistory(ticker).then(),
+                companyDataService.getCompanyOverview(ticker).then(),
+                financialStatementService.getRevenueSegmentation(ticker).then(),
+                financialStatementService.getRevenueGeographicSegmentation(ticker).then()
+        ).then();
 
+        // Second batch: SEC filings
+        Mono<Void> secFilingsMono = secFilingService.fetchAndSaveSecFilings(ticker)
+                .then(secFilingService.getAndSaveSecFilings(ticker));
+
+        // Third batch: Financial ratios updates (already async, fire-and-forget)
         financialDataService.getFinancialRatios(ticker);
         financialDataService.updateFinancialRatiosFromFmp(ticker);
         financialDataService.updateTtmFinancialRatios(ticker);
+        Mono<Void> ratiosMono = Mono.empty();
 
-        var incomeData = financialStatementService.getIncomeStatements(ticker).block();
-        var latestReportDate = incomeData.getQuarterlyReports().stream().max(Comparator.comparing(report -> dateUtils.parseDate(report.getDate(), formatter))).get().getDate();
+        // Fourth batch: Dependent call - needs income statement data first
+        Mono<Void> transcriptMono = financialStatementService.getIncomeStatements(ticker)
+                .flatMap(incomeData -> {
+                    var latestReportDate = incomeData.getQuarterlyReports().stream()
+                            .max(Comparator.comparing(report -> dateUtils.parseDate(report.getDate(), formatter)))
+                            .map(report -> report.getDate())
+                            .orElse(null);
 
-        if (latestReportDate != null) {
-            String dateQuarter = dateUtils.getDateQuarter(latestReportDate);
-            earningsService.getEarningsCallTranscript(ticker, dateQuarter).block();
-        }
+                    if (latestReportDate != null) {
+                        String dateQuarter = dateUtils.getDateQuarter(latestReportDate);
+                        return earningsService.getEarningsCallTranscript(ticker, dateQuarter).then();
+                    }
+                    return Mono.empty();
+                });
+
+        // Combine all batches - essential data first, then others in parallel
+        return essentialDataMono
+                .then(Mono.zip(secFilingsMono, ratiosMono, transcriptMono))
+                .then();
     }
 
     public void deleteFinancialData(String symbol) {

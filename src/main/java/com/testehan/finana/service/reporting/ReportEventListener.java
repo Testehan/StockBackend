@@ -45,7 +45,14 @@ public class ReportEventListener {
     @EventListener
     public void handleErrorEvent(ErrorEvent event) {
         SseEmitter emitter = event.getSseEmitter();
-        LOGGER.error("Error during report generation for ticker {}: {}", event.getTicker(), event.getThrowable().getMessage(), event.getThrowable());
-        emitter.completeWithError(event.getThrowable());
+        try {
+            emitter.send(SseEmitter.event()
+                    .name("ERROR")
+                    .data(event.getThrowable().getMessage(), MediaType.APPLICATION_JSON));
+            LOGGER.error("Error during report generation for ticker {}: {}", event.getTicker(), event.getThrowable().getMessage(), event.getThrowable());
+        } catch (IOException e) {
+            LOGGER.warn("Failed to send SSE completion event for ticker {}: {}", event.getTicker(), e.getMessage());
+            emitter.completeWithError(e);
+        }
     }
 }
