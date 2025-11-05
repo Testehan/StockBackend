@@ -40,10 +40,12 @@ public class CashFlowMetricCalculator implements RatioCalculator {
         }
     }
 
-    public void calculateFcfMargin(FinancialRatiosReport ratios, ParsedFinancialData data) {
+    private void calculateFcfMargin(FinancialRatiosReport ratios, ParsedFinancialData data) {
         if (ratios.getFreeCashFlow() != null && data.totalRevenue != null &&
                 data.totalRevenue.compareTo(BigDecimal.ZERO) > 0) {
             ratios.setFreeCashflowMargin(ratios.getFreeCashFlow().divide(data.totalRevenue, 4, RoundingMode.HALF_UP));
+        } else {
+            ratios.setFreeCashflowMargin(null);
         }
     }
 

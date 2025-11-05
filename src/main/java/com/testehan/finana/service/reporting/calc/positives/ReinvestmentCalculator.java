@@ -7,6 +7,7 @@ import com.testehan.finana.service.LlmService;
 import com.testehan.finana.service.reporting.events.ErrorEvent;
 import com.testehan.finana.service.reporting.events.MessageEvent;
 import com.testehan.finana.util.SafeParser;
+import org.springframework.web.client.RestClientException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.prompt.Prompt;
@@ -120,10 +121,9 @@ public class ReinvestmentCalculator {
             LlmScoreExplanationResponse convertedLlmResponse = llmResponseOutputConverter.convert(llmResponse);
 
             return new ReportItem("reinvestmentCapacity", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
-        } catch (Exception e) {
-            String errorMessage = "Operation 'calculateReinvestment' failed.";
-            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));
-            LOGGER.error(errorMessage);
+        } catch (RestClientException | IllegalArgumentException | IllegalStateException | NullPointerException e) {
+            LOGGER.error("Operation 'calculateReinvestment' failed for ticker: {}", ticker, e);
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException("Operation 'calculateReinvestment' failed.")));
             return new ReportItem("reinvestmentCapacity", -10, "Operation 'calculateReinvestment' failed.");
         }
     }
