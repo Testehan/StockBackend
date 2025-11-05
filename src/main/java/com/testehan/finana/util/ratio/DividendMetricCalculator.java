@@ -50,7 +50,16 @@ public class DividendMetricCalculator implements RatioCalculator {
     }
 
     private void calculateDividendYield(FinancialRatiosReport ratios, ParsedFinancialData data) {
-        ratios.setDividendYield(null);
+        if (data.stockPrice != null && data.stockPrice.compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal dividendPerShare = ratios.getDividendPerShare();
+            if (dividendPerShare != null && dividendPerShare.compareTo(BigDecimal.ZERO) > 0) {
+                ratios.setDividendYield(dividendPerShare.divide(data.stockPrice, 4, RoundingMode.HALF_UP));
+            } else {
+                ratios.setDividendYield(null);
+            }
+        } else {
+            ratios.setDividendYield(null);
+        }
     }
 
     private void calculateDividendPayoutRatio(FinancialRatiosReport ratios, ParsedFinancialData data) {
@@ -72,7 +81,26 @@ public class DividendMetricCalculator implements RatioCalculator {
     }
 
     private void calculateBuybackYield(FinancialRatiosReport ratios, ParsedFinancialData data) {
-        ratios.setBuybackYield(null);
+        BigDecimal buybackAmount = data.commonStockRepurchased;
+
+        if (buybackAmount != null && buybackAmount.compareTo(BigDecimal.ZERO) != 0) {
+            BigDecimal shares = getBasicShares(data);
+            if (shares != null && shares.compareTo(BigDecimal.ZERO) > 0) {
+                BigDecimal buybackPerShare = buybackAmount.abs().divide(shares, 4, RoundingMode.HALF_UP);
+
+                if (data.stockPrice != null && data.stockPrice.compareTo(BigDecimal.ZERO) > 0) {
+                    ratios.setBuybackYield(buybackPerShare.divide(data.stockPrice, 4, RoundingMode.HALF_UP));
+                } else if (data.marketCap != null && data.marketCap.compareTo(BigDecimal.ZERO) > 0) {
+                    ratios.setBuybackYield(buybackAmount.abs().divide(data.marketCap, 4, RoundingMode.HALF_UP));
+                } else {
+                    ratios.setBuybackYield(null);
+                }
+            } else {
+                ratios.setBuybackYield(null);
+            }
+        } else {
+            ratios.setBuybackYield(null);
+        }
     }
 
     private BigDecimal getBasicShares(ParsedFinancialData data) {

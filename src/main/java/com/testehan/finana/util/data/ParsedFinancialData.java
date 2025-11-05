@@ -14,10 +14,9 @@ import java.math.BigDecimal;
  */
 public class ParsedFinancialData {
 
-    private final SafeParser safeParser;
-
     // Market Cap
     public final BigDecimal marketCap;
+    public final BigDecimal stockPrice;
 
     // Income Statement
     public final BigDecimal totalRevenue;
@@ -76,6 +75,7 @@ public class ParsedFinancialData {
     public final BigDecimal dividendPayoutCommonStock;
     public final BigDecimal dividendPayoutPreferredStock;
     public final BigDecimal stockBasedCompensation;
+    public final BigDecimal commonStockRepurchased;
 
     // Shares
     public final BigDecimal sharesOutstanding;
@@ -89,9 +89,8 @@ public class ParsedFinancialData {
     public final BigDecimal tangibleEquity;
 
     private ParsedFinancialData(Builder builder) {
-        this.safeParser = builder.safeParser;
-        
         this.marketCap = builder.marketCap;
+        this.stockPrice = builder.stockPrice;
         this.totalRevenue = builder.totalRevenue;
         this.grossProfit = builder.grossProfit;
         this.costOfRevenue = builder.costOfRevenue;
@@ -136,6 +135,7 @@ public class ParsedFinancialData {
         this.dividendPayoutCommonStock = builder.dividendPayoutCommonStock;
         this.dividendPayoutPreferredStock = builder.dividendPayoutPreferredStock;
         this.stockBasedCompensation = builder.stockBasedCompensation;
+        this.commonStockRepurchased = builder.commonStockRepurchased;
         this.sharesOutstanding = builder.sharesOutstanding;
         this.sharesOutstandingBasic = builder.sharesOutstandingBasic;
         
@@ -162,8 +162,16 @@ public class ParsedFinancialData {
     public static ParsedFinancialData parse(CompanyOverview companyOverview,
                                            IncomeReport incomeReport,
                                            BalanceSheetReport balanceSheetReport,
+                                           CashFlowReport cashFlowReport,
+                                           BigDecimal stockPrice) {
+        return new Builder(companyOverview, incomeReport, balanceSheetReport, cashFlowReport, stockPrice).build();
+    }
+
+    public static ParsedFinancialData parse(CompanyOverview companyOverview,
+                                           IncomeReport incomeReport,
+                                           BalanceSheetReport balanceSheetReport,
                                            CashFlowReport cashFlowReport) {
-        return new Builder(companyOverview, incomeReport, balanceSheetReport, cashFlowReport).build();
+        return new Builder(companyOverview, incomeReport, balanceSheetReport, cashFlowReport, null).build();
     }
 
     private static class Builder {
@@ -171,6 +179,7 @@ public class ParsedFinancialData {
 
         // Market Cap
         private BigDecimal marketCap;
+        private BigDecimal stockPrice;
 
         // Income Statement
         private BigDecimal totalRevenue;
@@ -229,6 +238,7 @@ public class ParsedFinancialData {
         private BigDecimal dividendPayoutCommonStock;
         private BigDecimal dividendPayoutPreferredStock;
         private BigDecimal stockBasedCompensation;
+        private BigDecimal commonStockRepurchased;
 
         // Shares
         private BigDecimal sharesOutstanding;
@@ -237,9 +247,11 @@ public class ParsedFinancialData {
         Builder(CompanyOverview companyOverview,
                 IncomeReport income,
                 BalanceSheetReport balance,
-                CashFlowReport cashFlow) {
+                CashFlowReport cashFlow,
+                BigDecimal stockPrice) {
             
             this.marketCap = safeParser.parse(companyOverview.getMarketCap());
+            this.stockPrice = stockPrice;
 
             // Income Statement
             this.totalRevenue = safeParser.parse(income.getRevenue());
@@ -297,6 +309,7 @@ public class ParsedFinancialData {
             this.dividendPayoutCommonStock = safeParser.parse(cashFlow.getCommonDividendsPaid());
             this.dividendPayoutPreferredStock = safeParser.parse(cashFlow.getPreferredDividendsPaid());
             this.stockBasedCompensation = safeParser.parse(cashFlow.getStockBasedCompensation());
+            this.commonStockRepurchased = safeParser.parse(cashFlow.getCommonStockRepurchased());
 
             // Shares Outstanding
             this.sharesOutstanding = safeParser.parse(income.getWeightedAverageShsOutDil());

@@ -6,6 +6,7 @@ import com.testehan.finana.util.ratio.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @Component
@@ -43,17 +44,19 @@ public class FinancialRatiosCalculator {
      * @param incomeReport Income statement data
      * @param balanceSheetReport Balance sheet data
      * @param cashFlowReport Cash flow statement data
+     * @param stockPrice Current stock price (used for dividend yield and buyback yield calculations)
      * @return FinancialRatiosReport populated with all calculated ratios
      */
     public FinancialRatiosReport calculateRatios(CompanyOverview companyOverview,
                                                   IncomeReport incomeReport,
                                                   BalanceSheetReport balanceSheetReport,
-                                                  CashFlowReport cashFlowReport) {
+                                                  CashFlowReport cashFlowReport,
+                                                  BigDecimal stockPrice) {
         FinancialRatiosReport ratios = new FinancialRatiosReport();
         ratios.setDate(incomeReport.getDate());
 
         ParsedFinancialData data = ParsedFinancialData.parse(
-            companyOverview, incomeReport, balanceSheetReport, cashFlowReport
+            companyOverview, incomeReport, balanceSheetReport, cashFlowReport, stockPrice
         );
 
         for (RatioCalculator calculator : calculators) {

@@ -1,16 +1,20 @@
 package com.testehan.finana.service;
 
 import com.testehan.finana.model.*;
-import com.testehan.finana.repository.*;
+import com.testehan.finana.repository.FinancialRatiosRepository;
+import com.testehan.finana.repository.GeneratedReportRepository;
 import com.testehan.finana.util.FinancialRatiosCalculator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import reactor.core.publisher.Mono;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -29,14 +33,16 @@ public class FinancialDataService {
     private final FinancialStatementService financialStatementService;
 
     private final FinancialRatiosCalculator financialRatiosCalculator;
+    private final QuoteService quoteService;
 
-    public FinancialDataService(FMPService fmpService, CompanyDataService companyDataService, FinancialStatementService financialStatementService, FinancialRatiosRepository financialRatiosRepository, GeneratedReportRepository generatedReportRepository, FinancialRatiosCalculator financialRatiosCalculator) {
+    public FinancialDataService(FMPService fmpService, CompanyDataService companyDataService, FinancialStatementService financialStatementService, FinancialRatiosRepository financialRatiosRepository, GeneratedReportRepository generatedReportRepository, FinancialRatiosCalculator financialRatiosCalculator, QuoteService quoteService) {
         this.fmpService = fmpService;
         this.companyDataService = companyDataService;
         this.financialStatementService = financialStatementService;
         this.financialRatiosRepository = financialRatiosRepository;
         this.generatedReportRepository = generatedReportRepository;
         this.financialRatiosCalculator = financialRatiosCalculator;
+        this.quoteService = quoteService;
     }
 
 
@@ -80,11 +86,11 @@ public class FinancialDataService {
     }
 
     private void processAndAddReports(String symbol,
-                                      CompanyOverview companyOverview,
-                                      List<IncomeReport> incomeReports,
-                                      List<BalanceSheetReport> balanceSheetReports,
-                                      List<CashFlowReport> cashFlowReports,
-                                      List<FinancialRatiosReport> targetList)
+                                       CompanyOverview companyOverview,
+                                       List<IncomeReport> incomeReports,
+                                       List<BalanceSheetReport> balanceSheetReports,
+                                       List<CashFlowReport> cashFlowReports,
+                                       List<FinancialRatiosReport> targetList)
     {
 
         Map<String, BalanceSheetReport> balanceSheetMap = balanceSheetReports.stream()
@@ -104,9 +110,25 @@ public class FinancialDataService {
                 continue; // Skip if we don't have all required reports
             }
 
-            FinancialRatiosReport ratios = financialRatiosCalculator.calculateRatios(companyOverview, incomeReport, balanceSheet, cashFlow);
+            // Get stock price for the report date
+            BigDecimal stockPrice = getStockPriceForDate(symbol, fiscalDateEnding);
+
+            FinancialRatiosReport ratios = financialRatiosCalculator.calculateRatios(
+                    companyOverview, incomeReport, balanceSheet, cashFlow, stockPrice);
             targetList.add(ratios);
 
+        }
+    }
+
+    private BigDecimal getStockPriceForDate(String symbol, String fiscalDateEnding) {
+        try {
+            LocalDate date = LocalDate.parse(fiscalDateEnding, DateTimeFormatter.ISO_DATE);
+            return quoteService.getStockQuoteByDate(symbol, date)
+                    .map(quote -> new BigDecimal(quote.getAdjClose()))
+                    .orElse(null);
+        } catch (Exception e) {
+            LOGGER.debug("Could not get stock price for {} on date {}: {}", symbol, fiscalDateEnding, e.getMessage());
+            return null;
         }
     }
 
