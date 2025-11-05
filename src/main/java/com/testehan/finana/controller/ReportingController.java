@@ -8,7 +8,6 @@ import com.testehan.finana.model.UserStock;
 import com.testehan.finana.model.UserStockStatus;
 import com.testehan.finana.repository.UserStockRepository;
 import com.testehan.finana.service.reporting.ChecklistReportOrchestrator;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -26,7 +25,6 @@ public class ReportingController {
     private final ChecklistReportOrchestrator checklistReportOrchestrator;
     private final UserStockRepository userStockRepository;
 
-    @Autowired
     public ReportingController(ChecklistReportOrchestrator checklistReportOrchestrator, UserStockRepository userStockRepository) {
         this.checklistReportOrchestrator = checklistReportOrchestrator;
         this.userStockRepository = userStockRepository;

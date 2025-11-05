@@ -14,7 +14,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.converter.BeanOutputConverter;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.io.Resource;
@@ -44,7 +43,6 @@ public class ValuationCalculator {
     private final EarningsEstimatesRepository earningsEstimatesRepository;
     private final SecFilingRepository secFilingRepository;
 
-    @Autowired
     public ValuationCalculator(CompanyOverviewRepository companyOverviewRepository, QuoteService quoteService, EarningsHistoryRepository earningsHistoryRepository, ApplicationEventPublisher eventPublisher, SafeParser safeParser, LlmService llmService, FinancialRatiosRepository financialRatiosRepository, EarningsEstimatesRepository earningsEstimatesRepository, SecFilingRepository secFilingRepository) {
         this.companyOverviewRepository = companyOverviewRepository;
         this.quoteService = quoteService;

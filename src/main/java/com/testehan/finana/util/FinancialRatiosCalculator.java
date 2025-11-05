@@ -3,7 +3,6 @@ package com.testehan.finana.util;
 import com.testehan.finana.model.*;
 import com.testehan.finana.util.data.ParsedFinancialData;
 import com.testehan.finana.util.ratio.*;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -14,7 +13,6 @@ public class FinancialRatiosCalculator {
 
     private final List<RatioCalculator> calculators;
 
-    @Autowired
     public FinancialRatiosCalculator(
             ProfitabilityRatioCalculator profitabilityCalculator,
             LiquidityRatioCalculator liquidityCalculator,

@@ -3,7 +3,6 @@ package com.testehan.finana.controller;
 import com.testehan.finana.model.UserStock;
 import com.testehan.finana.model.UserStockStatus;
 import com.testehan.finana.repository.UserStockRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -16,7 +15,6 @@ public class UserStockController {
 
     private final UserStockRepository userStockRepository;
 
-    @Autowired
     public UserStockController(UserStockRepository userStockRepository) {
         this.userStockRepository = userStockRepository;
     }

@@ -10,7 +10,6 @@ import com.testehan.finana.service.FinancialStatementService;
 import com.testehan.finana.service.EarningsService;
 import com.testehan.finana.service.QuoteService;
 import com.testehan.finana.model.FinancialDataAvailability;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
@@ -31,8 +30,6 @@ public class StockController {
     private final QuoteService quoteService;
     private final FinancialDataService financialDataService; // For remaining methods (ratios)
 
-
-    @Autowired
     public StockController(AlphaVantageService alphaVantageService, FMPService fmpService, FinancialDataOrchestrator financialDataOrchestrator, CompanyDataService companyDataService, FinancialStatementService financialStatementService, EarningsService earningsService, QuoteService quoteService, FinancialDataService financialDataService) {
         this.alphaVantageService = alphaVantageService;
         this.fmpService = fmpService;

@@ -7,7 +7,6 @@ import com.testehan.finana.repository.QuestionAnswerRepository;
 import com.testehan.finana.service.LlmService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -26,7 +25,6 @@ public class QuestionAnswerServiceImpl implements QuestionAnswerService {
     private final LlmQuestionAnswerGenerator llmQuestionAnswerGenerator;
     private final String llmModel;
 
-    @Autowired
     public QuestionAnswerServiceImpl(QuestionAnswerRepository questionAnswerRepository,
                                      LlmService llmService,
                                      LlmQuestionAnswerGenerator llmQuestionAnswerGenerator,

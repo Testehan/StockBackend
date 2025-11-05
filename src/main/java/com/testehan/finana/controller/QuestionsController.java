@@ -3,7 +3,6 @@ package com.testehan.finana.controller;
 import com.testehan.finana.model.qa.BusinessAnalysisQuestions;
 import com.testehan.finana.model.qa.Question;
 import com.testehan.finana.service.qa.QuestionAnswerService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -21,7 +20,6 @@ public class QuestionsController {
     private final QuestionAnswerService questionAnswerService;
     private final ExecutorService executorService;
 
-    @Autowired
     public QuestionsController(QuestionAnswerService questionAnswerService, @Qualifier("checklistExecutor") ExecutorService executorService) {
         this.questionAnswerService = questionAnswerService;
         this.executorService = executorService;

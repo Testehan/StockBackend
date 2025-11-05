@@ -8,7 +8,6 @@ import com.testehan.finana.service.reporting.events.ErrorEvent;
 import com.testehan.finana.util.SafeParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -26,7 +25,6 @@ public class PerformanceVsSP500Calculator {
     private final QuoteService quoteService;
     private final ApplicationEventPublisher eventPublisher;
 
-    @Autowired
     public PerformanceVsSP500Calculator(QuoteService quoteService, ApplicationEventPublisher eventPublisher) {
         this.quoteService = quoteService;
         this.eventPublisher = eventPublisher;
