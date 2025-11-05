@@ -21,6 +21,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -102,7 +103,7 @@ public class ReinvestmentRunwayCalculator {
             LOGGER.error(errorMessage);
         });
 
-        var latestEarningsTranscript = getLatestEarningsTranscript(ticker);
+        var latestEarningsTranscript = getLatestEarningsTranscript(ticker).block();
         BigDecimal revenueCAGR3y = calculateRevenueCAGR3y(ticker);
         BigDecimal[] ttmRevenue = getTtmRevenue(ticker, incomeStatementDataOptional);
         List<RevenueSegmentationReport> lastFiveYearsRevSegmentation = getRevenueSegmentationLast5Years(ticker, sseEmitter);
@@ -218,12 +219,12 @@ public class ReinvestmentRunwayCalculator {
     }
 
     @NotNull
-    public String getLatestEarningsTranscript(String ticker) {
+    private Mono<String> getLatestEarningsTranscript(String ticker) {
         var latestQuarter = dateUtils.getDateQuarter(financialDataOrchestrator.getLatestReportedDate(ticker));
-        var latestEarningsTranscript = earningsService.getEarningsCallTranscript(ticker, latestQuarter).block().getTranscript().stream()
-                .map(t -> t.getSpeaker() + " (" + t.getTitle() + "): " + t.getContent() + " [" + t.getSentiment() + "]")
-                .collect(Collectors.joining("\n"));
-        return latestEarningsTranscript;
+        return earningsService.getEarningsCallTranscript(ticker, latestQuarter)
+                .map(transcript -> transcript.getTranscript().stream()
+                        .map(t -> t.getSpeaker() + " (" + t.getTitle() + "): " + t.getContent() + " [" + t.getSentiment() + "]")
+                        .collect(Collectors.joining("\n")));
     }
 
     private BigDecimal calculateRevenueCAGR3y(String ticker) {

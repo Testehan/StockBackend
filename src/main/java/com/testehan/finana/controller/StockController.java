@@ -110,10 +110,10 @@ public class StockController {
     }
 
     @GetMapping("/financial-ratios/{symbol}")
-    public ResponseEntity<FinancialRatiosData> getFinancialRatios(@PathVariable String symbol) {
-        Optional<FinancialRatiosData> financialRatiosData = financialDataService.getFinancialRatios(symbol);
-        return financialRatiosData.map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.notFound().build());
+    public Mono<ResponseEntity<FinancialRatiosData>> getFinancialRatios(@PathVariable String symbol) {
+        return financialDataService.getFinancialRatios(symbol)
+                .map(opt -> opt.map(ResponseEntity::ok)
+                        .orElseGet(() -> ResponseEntity.notFound().build()));
     }
 
     @GetMapping("/global-quote/{symbol}")

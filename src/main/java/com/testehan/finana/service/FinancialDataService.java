@@ -7,6 +7,7 @@ import com.testehan.finana.util.FinancialRatiosCalculator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -47,27 +48,35 @@ public class FinancialDataService {
 
 
 
-    public Optional<FinancialRatiosData> getFinancialRatios(String symbol) {
-        Optional<FinancialRatiosData> existingRatiosData = financialRatiosRepository.findBySymbol(symbol);
-
-        if (existingRatiosData.isEmpty()) {
-            FinancialRatiosData newRatiosData = calculateAndSaveRatios(symbol);
-            return Optional.ofNullable(newRatiosData); // Return newly calculated data
-        }
-        return existingRatiosData;
+    public Mono<Optional<FinancialRatiosData>> getFinancialRatios(String symbol) {
+        return Mono.fromCallable(() -> financialRatiosRepository.findBySymbol(symbol))
+                .flatMap(existingRatiosData -> {
+                    if (existingRatiosData.isEmpty()) {
+                        return calculateAndSaveRatios(symbol)
+                                .map(Optional::ofNullable);
+                    }
+                    return Mono.just(existingRatiosData);
+                });
     }
 
-    private FinancialRatiosData calculateAndSaveRatios(String symbol) {
-        CompanyOverview companyOverview = companyDataService.getCompanyOverview(symbol).block().getFirst();
-        Optional<IncomeStatementData> incomeStatementDataOptional = financialStatementService.getIncomeStatements(symbol).blockOptional();
-        Optional<BalanceSheetData> balanceSheetDataOptional = financialStatementService.getBalanceSheet(symbol).blockOptional();
-        Optional<CashFlowData> cashFlowDataOptional = financialStatementService.getCashFlow(symbol).blockOptional();
+    private Mono<FinancialRatiosData> calculateAndSaveRatios(String symbol) {
+        return Mono.zip(
+                companyDataService.getCompanyOverview(symbol),
+                financialStatementService.getIncomeStatements(symbol),
+                financialStatementService.getBalanceSheet(symbol),
+                financialStatementService.getCashFlow(symbol)
+        ).flatMap(tuple -> {
+            List<CompanyOverview> companyOverviews = tuple.getT1();
+            IncomeStatementData incomeStatementData = tuple.getT2();
+            BalanceSheetData balanceSheetData = tuple.getT3();
+            CashFlowData cashFlowData = tuple.getT4();
 
-        if (incomeStatementDataOptional.isPresent() && balanceSheetDataOptional.isPresent()
-                && cashFlowDataOptional.isPresent()) {
-            IncomeStatementData incomeStatementData = incomeStatementDataOptional.get();
-            BalanceSheetData balanceSheetData = balanceSheetDataOptional.get();
-            CashFlowData cashFlowData = cashFlowDataOptional.get();
+            if (companyOverviews.isEmpty() || incomeStatementData == null 
+                    || balanceSheetData == null || cashFlowData == null) {
+                return Mono.empty();
+            }
+
+            CompanyOverview companyOverview = companyOverviews.getFirst();
 
             FinancialRatiosData financialRatiosData = financialRatiosRepository.findBySymbol(symbol)
                     .orElse(new FinancialRatiosData());
@@ -76,13 +85,12 @@ public class FinancialDataService {
             financialRatiosData.setQuarterlyReports(new ArrayList<>());
 
             // Process Annual Reports
-            processAndAddReports(symbol, companyOverview, incomeStatementData.getAnnualReports(), balanceSheetData.getAnnualReports(), cashFlowData.getAnnualReports(), financialRatiosData.getAnnualReports()); // Update this
+            processAndAddReports(symbol, companyOverview, incomeStatementData.getAnnualReports(), balanceSheetData.getAnnualReports(), cashFlowData.getAnnualReports(), financialRatiosData.getAnnualReports());
             // Process Quarterly Reports
-            processAndAddReports(symbol, companyOverview, incomeStatementData.getQuarterlyReports(), balanceSheetData.getQuarterlyReports(), cashFlowData.getQuarterlyReports(), financialRatiosData.getQuarterlyReports()); // Update this
+            processAndAddReports(symbol, companyOverview, incomeStatementData.getQuarterlyReports(), balanceSheetData.getQuarterlyReports(), cashFlowData.getQuarterlyReports(), financialRatiosData.getQuarterlyReports());
 
-            return financialRatiosRepository.save(financialRatiosData);
-        }
-        return null; // Or throw an exception if data is not found
+            return Mono.just(financialRatiosRepository.save(financialRatiosData));
+        });
     }
 
     private void processAndAddReports(String symbol,

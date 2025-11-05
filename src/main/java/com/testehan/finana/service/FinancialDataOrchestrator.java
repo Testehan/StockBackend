@@ -56,7 +56,9 @@ public class FinancialDataOrchestrator {
                 .then(secFilingService.getAndSaveSecFilings(ticker));
 
         // Third batch: Financial ratios updates (already async, fire-and-forget)
-        financialDataService.getFinancialRatios(ticker);
+        financialDataService.getFinancialRatios(ticker)
+                .doOnError(e -> LOGGER.error("Error getting financial ratios for " + ticker, e))
+                .subscribe();
         financialDataService.updateFinancialRatiosFromFmp(ticker);
         financialDataService.updateTtmFinancialRatios(ticker);
         Mono<Void> ratiosMono = Mono.empty();
