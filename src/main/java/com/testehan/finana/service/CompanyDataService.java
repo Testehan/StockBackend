@@ -2,6 +2,7 @@ package com.testehan.finana.service;
 
 import com.testehan.finana.model.CompanyOverview;
 import com.testehan.finana.repository.CompanyOverviewRepository;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
@@ -21,15 +22,27 @@ public class CompanyDataService {
     }
 
     public Mono<List<CompanyOverview>> getCompanyOverview(String symbol) {
-        return Mono.defer(() -> {
-            Optional<CompanyOverview> overviewFromDb = companyOverviewRepository.findBySymbol(symbol.toUpperCase());
-            if (overviewFromDb.isPresent() && isRecent(overviewFromDb.get().getLastUpdated(), 10080)) {
-                return Mono.just(List.of(overviewFromDb.get()));
-            } else {
-                return fmpService.getCompanyOverview(symbol.toUpperCase(), overviewFromDb)
-                        .flatMap(overview -> Mono.just(List.of(companyOverviewRepository.save(overview))));
-            }
-        });
+        return Mono.fromCallable(() -> companyOverviewRepository.findBySymbol(symbol.toUpperCase()))
+                .flatMap(opt -> {
+                    if (opt.isPresent() && isRecent(opt.get().getLastUpdated(), 10080)) {
+                        return Mono.just(List.of(opt.get()));
+                    }
+                    return Mono.empty();
+                })
+                .switchIfEmpty(Mono.defer(() ->
+                    Mono.fromCallable(() -> companyOverviewRepository.findBySymbol(symbol.toUpperCase()))
+                            .flatMap(existingOpt -> 
+                                fmpService.getCompanyOverview(symbol.toUpperCase(), existingOpt)
+                                        .flatMap(overview -> 
+                                            Mono.fromCallable(() -> companyOverviewRepository.save(overview))
+                                                .map(saved -> List.of(saved))
+                                        )
+                            )
+                ))
+                .onErrorResume(DuplicateKeyException.class, e ->
+                    Mono.fromCallable(() -> companyOverviewRepository.findBySymbol(symbol.toUpperCase()))
+                            .flatMap(opt -> opt.map(overview -> Mono.just(List.of(overview))).orElseGet(Mono::empty))
+                );
     }
 
     private boolean isRecent(LocalDateTime lastUpdated, int minutes) {

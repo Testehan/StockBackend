@@ -1,11 +1,11 @@
 package com.testehan.finana.service;
 
 import com.testehan.finana.model.FinancialDataAvailability;
+import com.testehan.finana.model.IncomeStatementData;
 import com.testehan.finana.util.DateUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.format.DateTimeFormatter;
@@ -37,51 +37,59 @@ public class FinancialDataOrchestrator {
     }
 
     public Mono<Void> ensureFinancialDataIsPresent(String ticker) {
-        // First batch: Parallel independent calls for essential data
-        Mono<Void> essentialDataMono = Flux.merge(
-                quoteService.getLastStockQuote(ticker).then(),
-                quoteService.getIndexQuotes("^GSPC").then(),
-                financialStatementService.getIncomeStatements(ticker).then(),
-                financialStatementService.getBalanceSheet(ticker).then(),
-                financialStatementService.getCashFlow(ticker).then(),
-                earningsService.getEarningsEstimates(ticker).then(),
-                earningsService.getEarningsHistory(ticker).then(),
-                companyDataService.getCompanyOverview(ticker).then(),
-                financialStatementService.getRevenueSegmentation(ticker).then(),
-                financialStatementService.getRevenueGeographicSegmentation(ticker).then()
-        ).then();
+        // TRACK A: Independent data (Start these immediately)
+        Mono<Void> independentTrack = Mono.when(
+                quoteService.getLastStockQuote(ticker),
+                quoteService.getIndexQuotes("^GSPC"),
+                earningsService.getEarningsEstimates(ticker),
+                earningsService.getEarningsHistory(ticker),
+                companyDataService.getCompanyOverview(ticker),
+                secFilingService.fetchAndSaveSecFilings(ticker),
+                secFilingService.getAndSaveSecFilings(ticker)
+        );
 
-        // Second batch: SEC filings
-        Mono<Void> secFilingsMono = secFilingService.fetchAndSaveSecFilings(ticker)
-                .then(secFilingService.getAndSaveSecFilings(ticker));
+        // TRACK B: The Dependency Chain
+        // 1. First, fetch and save the core financials
+        Mono<IncomeStatementData> incomeStatementShared = financialStatementService
+                .getIncomeStatements(ticker)
+                .cache();
 
-        // Third batch: Financial ratios updates (already async, fire-and-forget)
-        financialDataService.getFinancialRatios(ticker)
-                .doOnError(e -> LOGGER.error("Error getting financial ratios for " + ticker, e))
-                .subscribe();
-        financialDataService.updateFinancialRatiosFromFmp(ticker);
-        financialDataService.updateTtmFinancialRatios(ticker);
-        Mono<Void> ratiosMono = Mono.empty();
+        Mono<Void> coreFinancials = Mono.when(
+                incomeStatementShared,
+                financialStatementService.getBalanceSheet(ticker),
+                financialStatementService.getCashFlow(ticker),
+                financialStatementService.getRevenueSegmentation(ticker),
+                financialStatementService.getRevenueGeographicSegmentation(ticker)
+        );
 
-        // Fourth batch: Dependent call - needs income statement data first
-        Mono<Void> transcriptMono = financialStatementService.getIncomeStatements(ticker)
-                .flatMap(incomeData -> {
-                    var latestReportDate = incomeData.getQuarterlyReports().stream()
-                            .max(Comparator.comparing(report -> dateUtils.parseDate(report.getDate(), formatter)))
-                            .map(report -> report.getDate())
-                            .orElse(null);
+        // 2. Once core financials are saved, run Ratios and Transcripts
+        Mono<Void> dependentData = coreFinancials.then(Mono.defer(() -> {
+            // This block only starts after coreFinancials completes (writes to DB are done)
 
-                    if (latestReportDate != null) {
-                        String dateQuarter = dateUtils.getDateQuarter(latestReportDate);
-                        return earningsService.getEarningsCallTranscript(ticker, dateQuarter).then();
-                    }
-                    return Mono.empty();
-                });
+            Mono<Void> transcriptMono = incomeStatementShared.flatMap(incomeData -> incomeData.getQuarterlyReports().stream()
+                    .max(Comparator.comparing(report -> dateUtils.parseDate(report.getDate(), formatter)))
+                    .map(report -> earningsService.getEarningsCallTranscript(ticker, dateUtils.getDateQuarter(report.getDate())).then())
+                    .orElse(Mono.empty()));
 
-        // Combine all batches - essential data first, then others in parallel
-        return essentialDataMono
-                .then(Mono.zip(secFilingsMono, ratiosMono, transcriptMono))
-                .then();
+            Mono<Void> ratiosMono = coreFinancials.then(Mono.defer(() ->
+                    financialDataService.getFinancialRatios(ticker)
+                            .doOnNext(data -> {
+                                // These are void/blocking methods, we run them after ratios are ensured
+                                financialDataService.updateFinancialRatiosFromFmp(ticker);
+                                financialDataService.updateTtmFinancialRatios(ticker);
+                            })
+                            .then()
+                            .onErrorResume(e -> {
+                                LOGGER.error("Ratio calculation failed for " + ticker, e);
+                                return Mono.empty();
+                            })
+            ));
+
+            return Mono.when(transcriptMono, ratiosMono);
+        }));
+
+        // FINAL JOIN: Run Track A and Track B in parallel
+        return Mono.when(independentTrack, dependentData);
     }
 
     public void deleteFinancialData(String symbol) {

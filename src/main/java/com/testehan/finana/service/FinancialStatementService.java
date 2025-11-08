@@ -10,6 +10,7 @@ import com.testehan.finana.repository.CashFlowRepository;
 import com.testehan.finana.repository.IncomeStatementRepository;
 import com.testehan.finana.repository.RevenueGeographicSegmentationRepository;
 import com.testehan.finana.repository.RevenueSegmentationDataRepository;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
@@ -34,76 +35,101 @@ public class FinancialStatementService {
     }
 
     public Mono<IncomeStatementData> getIncomeStatements(String symbol) {
-        return Mono.justOrEmpty(incomeStatementRepository.findBySymbol(symbol.toUpperCase()))
-                .switchIfEmpty(
-                        Mono.zip(
-                                fmpService.getIncomeStatement(symbol.toUpperCase(), "annual"),
-                                fmpService.getIncomeStatement(symbol.toUpperCase(), "quarter")
-                        ).flatMap(tuple -> {
-                            IncomeStatementData incomeStatementData = new IncomeStatementData();
-                            incomeStatementData.setSymbol(symbol);
-                            incomeStatementData.setAnnualReports(tuple.getT1());
-                            incomeStatementData.setQuarterlyReports(tuple.getT2());
-                            return Mono.just(incomeStatementRepository.save(incomeStatementData));
-                        })
+        return Mono.fromCallable(() -> incomeStatementRepository.findBySymbol(symbol.toUpperCase()))
+                .flatMap(opt -> opt.map(Mono::just).orElseGet(Mono::empty))
+                .switchIfEmpty(Mono.defer(() -> 
+                    Mono.zip(
+                            fmpService.getIncomeStatement(symbol.toUpperCase(), "annual"),
+                            fmpService.getIncomeStatement(symbol.toUpperCase(), "quarter")
+                    ).flatMap(tuple -> {
+                        IncomeStatementData incomeStatementData = new IncomeStatementData();
+                        incomeStatementData.setSymbol(symbol);
+                        incomeStatementData.setAnnualReports(tuple.getT1());
+                        incomeStatementData.setQuarterlyReports(tuple.getT2());
+                        return Mono.fromCallable(() -> incomeStatementRepository.save(incomeStatementData));
+                    })
+                ))
+                .onErrorResume(DuplicateKeyException.class, e -> 
+                    Mono.fromCallable(() -> incomeStatementRepository.findBySymbol(symbol.toUpperCase()))
+                            .flatMap(opt -> opt.map(Mono::just).orElseGet(Mono::empty))
                 );
     }
 
     public Mono<BalanceSheetData> getBalanceSheet(String symbol) {
-        return Mono.justOrEmpty(balanceSheetRepository.findBySymbol(symbol.toUpperCase()))
-                .switchIfEmpty(
-                        Mono.zip(
-                                fmpService.getBalanceSheetStatement(symbol.toUpperCase(), "annual"),
-                                fmpService.getBalanceSheetStatement(symbol.toUpperCase(), "quarter")
-                        ).flatMap(tuple -> {
-                            BalanceSheetData balanceSheetData = new BalanceSheetData();
-                            balanceSheetData.setSymbol(symbol);
-                            balanceSheetData.setAnnualReports(tuple.getT1());
-                            balanceSheetData.setQuarterlyReports(tuple.getT2());
-                            return Mono.just(balanceSheetRepository.save(balanceSheetData));
-                        })
+        return Mono.fromCallable(() -> balanceSheetRepository.findBySymbol(symbol.toUpperCase()))
+                .flatMap(opt -> opt.map(Mono::just).orElseGet(Mono::empty))
+                .switchIfEmpty(Mono.defer(() -> 
+                    Mono.zip(
+                            fmpService.getBalanceSheetStatement(symbol.toUpperCase(), "annual"),
+                            fmpService.getBalanceSheetStatement(symbol.toUpperCase(), "quarter")
+                    ).flatMap(tuple -> {
+                        BalanceSheetData balanceSheetData = new BalanceSheetData();
+                        balanceSheetData.setSymbol(symbol);
+                        balanceSheetData.setAnnualReports(tuple.getT1());
+                        balanceSheetData.setQuarterlyReports(tuple.getT2());
+                        return Mono.fromCallable(() -> balanceSheetRepository.save(balanceSheetData));
+                    })
+                ))
+                .onErrorResume(DuplicateKeyException.class, e -> 
+                    Mono.fromCallable(() -> balanceSheetRepository.findBySymbol(symbol.toUpperCase()))
+                            .flatMap(opt -> opt.map(Mono::just).orElseGet(Mono::empty))
                 );
     }
 
     public Mono<CashFlowData> getCashFlow(String symbol) {
-        return Mono.justOrEmpty(cashFlowRepository.findBySymbol(symbol.toUpperCase()))
-                .switchIfEmpty(
-                        Mono.zip(
-                                fmpService.getCashflowStatement(symbol.toUpperCase(), "annual"),
-                                fmpService.getCashflowStatement(symbol.toUpperCase(), "quarter")
-                        ).flatMap(tuple -> {
-                            CashFlowData cashFlowData = new CashFlowData();
-                            cashFlowData.setSymbol(symbol);
-                            cashFlowData.setAnnualReports(tuple.getT1());
-                            cashFlowData.setQuarterlyReports(tuple.getT2());
-                            return Mono.just(cashFlowRepository.save(cashFlowData));
-                        })
+        return Mono.fromCallable(() -> cashFlowRepository.findBySymbol(symbol.toUpperCase()))
+                .flatMap(opt -> opt.map(Mono::just).orElseGet(Mono::empty))
+                .switchIfEmpty(Mono.defer(() -> 
+                    Mono.zip(
+                            fmpService.getCashflowStatement(symbol.toUpperCase(), "annual"),
+                            fmpService.getCashflowStatement(symbol.toUpperCase(), "quarter")
+                    ).flatMap(tuple -> {
+                        CashFlowData cashFlowData = new CashFlowData();
+                        cashFlowData.setSymbol(symbol);
+                        cashFlowData.setAnnualReports(tuple.getT1());
+                        cashFlowData.setQuarterlyReports(tuple.getT2());
+                        return Mono.fromCallable(() -> cashFlowRepository.save(cashFlowData));
+                    })
+                ))
+                .onErrorResume(DuplicateKeyException.class, e -> 
+                    Mono.fromCallable(() -> cashFlowRepository.findBySymbol(symbol.toUpperCase()))
+                            .flatMap(opt -> opt.map(Mono::just).orElseGet(Mono::empty))
                 );
     }
 
     public Mono<RevenueSegmentationData> getRevenueSegmentation(String symbol) {
-        return Mono.justOrEmpty(revenueSegmentationDataRepository.findBySymbol(symbol.toUpperCase()))
-                .switchIfEmpty(
-                        fmpService.getRevenueSegmentation(symbol.toUpperCase(), "annual")
-                                .flatMap(annualReports -> {
-                                    RevenueSegmentationData revenueSegmentationData = new RevenueSegmentationData();
-                                    revenueSegmentationData.setSymbol(symbol);
-                                    revenueSegmentationData.setAnnualReports(annualReports);
-                                    return Mono.just(revenueSegmentationDataRepository.save(revenueSegmentationData));
-                                })
+        return Mono.fromCallable(() -> revenueSegmentationDataRepository.findBySymbol(symbol.toUpperCase()))
+                .flatMap(opt -> opt.map(Mono::just).orElseGet(Mono::empty))
+                .switchIfEmpty(Mono.defer(() -> 
+                    fmpService.getRevenueSegmentation(symbol.toUpperCase(), "annual")
+                            .flatMap(annualReports -> {
+                                RevenueSegmentationData revenueSegmentationData = new RevenueSegmentationData();
+                                revenueSegmentationData.setSymbol(symbol);
+                                revenueSegmentationData.setAnnualReports(annualReports);
+                                return Mono.fromCallable(() -> revenueSegmentationDataRepository.save(revenueSegmentationData));
+                            })
+                ))
+                .onErrorResume(DuplicateKeyException.class, e -> 
+                    Mono.fromCallable(() -> revenueSegmentationDataRepository.findBySymbol(symbol.toUpperCase()))
+                            .flatMap(opt -> opt.map(Mono::just).orElseGet(Mono::empty))
                 );
     }
 
     public Mono<RevenueGeographicSegmentationData> getRevenueGeographicSegmentation(String symbol) {
-        return Mono.justOrEmpty(revenueGeographicSegmentationRepository.findBySymbol(symbol.toUpperCase()))
-                .switchIfEmpty(
-                        fmpService.getRevenueGeographicSegmentation(symbol.toUpperCase(), "annual")
-                                .flatMap(reports -> {
-                                    RevenueGeographicSegmentationData data = new RevenueGeographicSegmentationData();
-                                    data.setSymbol(symbol);
-                                    data.setReports(reports);
-                                    return Mono.just(revenueGeographicSegmentationRepository.save(data));
-                                })
+        return Mono.fromCallable(() -> revenueGeographicSegmentationRepository.findBySymbol(symbol.toUpperCase()))
+                .flatMap(opt -> opt.map(Mono::just).orElseGet(Mono::empty))
+                .switchIfEmpty(Mono.defer(() -> 
+                    fmpService.getRevenueGeographicSegmentation(symbol.toUpperCase(), "annual")
+                            .flatMap(reports -> {
+                                RevenueGeographicSegmentationData data = new RevenueGeographicSegmentationData();
+                                data.setSymbol(symbol);
+                                data.setReports(reports);
+                                return Mono.fromCallable(() -> revenueGeographicSegmentationRepository.save(data));
+                            })
+                ))
+                .onErrorResume(DuplicateKeyException.class, e -> 
+                    Mono.fromCallable(() -> revenueGeographicSegmentationRepository.findBySymbol(symbol.toUpperCase()))
+                            .flatMap(opt -> opt.map(Mono::just).orElseGet(Mono::empty))
                 );
     }
 
