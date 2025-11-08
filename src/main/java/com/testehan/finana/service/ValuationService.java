@@ -86,8 +86,15 @@ public class ValuationService {
 
     public GrowthValuation getGrowthCompanyValuationData(String ticker) {
         GrowthValuation growthValuation = new GrowthValuation();
+        GrowthValuationData growthValuationData = initializeGrowthValuationData(ticker);
+        GrowthUserInput growthUserInput = initializeGrowthUserInput(ticker, growthValuationData);
+        
+        growthValuation.setGrowthValuationData(growthValuationData);
+        growthValuation.setGrowthUserInput(growthUserInput);
+        return growthValuation;
+    }
 
-        GrowthUserInput growthUserInput = new GrowthUserInput();
+    private GrowthValuationData initializeGrowthValuationData(String ticker) {
         GrowthValuationData growthValuationData = new GrowthValuationData();
         ticker = ticker.toUpperCase();
         growthValuationData.setTicker(ticker);
@@ -116,7 +123,7 @@ public class ValuationService {
                 .map(IncomeStatementData::getAnnualReports)
                 .orElse(java.util.Collections.emptyList())
                 .stream()
-                .sorted(Comparator.comparing(IncomeReport::getDate)) // Sort ascending for easier year processing
+                .sorted(Comparator.comparing(IncomeReport::getDate))
                 .collect(Collectors.toList());
 
         List<BalanceSheetReport> annualBalanceSheetReports = balanceSheetRepository.findBySymbol(ticker)
@@ -133,6 +140,7 @@ public class ValuationService {
                 .sorted(Comparator.comparing(CashFlowReport::getDate))
                 .collect(Collectors.toList());
 
+        // Process Income Statements
         List<IncomeStatementYear> incomeStatementYears = new ArrayList<>();
         for (IncomeReport report : annualIncomeReports) {
             IncomeStatementYear year = new IncomeStatementYear();
@@ -145,6 +153,7 @@ public class ValuationService {
         }
         growthValuationData.setIncomeStatements(incomeStatementYears);
 
+        // Process Balance Sheets
         List<BalanceSheetYear> balanceSheetYears = new ArrayList<>();
         for (BalanceSheetReport report : annualBalanceSheetReports) {
             BalanceSheetYear year = new BalanceSheetYear();
@@ -158,6 +167,7 @@ public class ValuationService {
         }
         growthValuationData.setBalanceSheets(balanceSheetYears);
 
+        // Process Cash Flows
         List<CashFlowYear> cashFlowYears = new ArrayList<>();
         for (CashFlowReport report : annualCashFlowReports) {
             CashFlowYear year = new CashFlowYear();
@@ -171,28 +181,18 @@ public class ValuationService {
         growthValuationData.setCashFlows(cashFlowYears);
 
         // Tax Attributes (Placeholder - actual data source needed)
-        growthValuationData.setNetOperatingLossCarryforward(0.0); // TODO
-        growthValuationData.setNolExpirationYears(0); // TODO
-        // Calculate marginalTaxRate from latest income statement if available
-        annualIncomeReports.stream().max(Comparator.comparing(IncomeReport::getDate)).ifPresent(latestReport -> {
-            double pretaxIncome = safeParser.parse(latestReport.getIncomeBeforeTax()).doubleValue();
-            double incomeTaxExpense = safeParser.parse(latestReport.getIncomeTaxExpense()).doubleValue();
-            if (pretaxIncome != 0) {
-                growthUserInput.setMarginalTaxRate(incomeTaxExpense / pretaxIncome);
-            } else {
-                growthUserInput.setMarginalTaxRate(0.21); // Default to US corporate tax rate
-            }
-        });
+        growthValuationData.setNetOperatingLossCarryforward(0.0);
+        growthValuationData.setNolExpirationYears(0);
 
-        // Capital Structure (from latest balance sheet and income statement)
+        // Capital Structure and Share Counts (from latest reports)
         annualBalanceSheetReports.stream().max(Comparator.comparing(BalanceSheetReport::getDate)).ifPresent(latestReport -> {
-            double latestTotalDebt = safeParser.parse(latestReport.getShortTermDebt()).doubleValue() + safeParser.parse(latestReport.getLongTermDebt()).doubleValue();
+            double latestTotalDebt = safeParser.parse(latestReport.getShortTermDebt()).doubleValue() 
+                    + safeParser.parse(latestReport.getLongTermDebt()).doubleValue();
             growthValuationData.setTotalDebt(latestTotalDebt);
             growthValuationData.setCashBalance(safeParser.parse(latestReport.getCashAndCashEquivalents()).doubleValue());
 
             // Calculate Average Interest Rate
             if (annualBalanceSheetReports.size() >= 2 && annualIncomeReports.size() >= 1) {
-                // annualBalanceSheetReports is already sorted ascending by date
                 int latestReportIndex = annualBalanceSheetReports.indexOf(latestReport);
                 BalanceSheetReport previousReport = null;
                 if (latestReportIndex > 0) {
@@ -203,40 +203,139 @@ public class ValuationService {
                         .max(Comparator.comparing(IncomeReport::getDate))
                         .orElse(null);
 
-                double interestExpense = 0.0;
-                if (latestIncomeReport != null) {
-                    interestExpense = Math.abs(safeParser.parse(latestIncomeReport.getInterestExpense()).doubleValue());
-                }
-
                 if (previousReport != null && latestIncomeReport != null) {
-                    double previousTotalDebt = safeParser.parse(previousReport.getShortTermDebt()).doubleValue() + safeParser.parse(previousReport.getLongTermDebt()).doubleValue();
+                    double previousTotalDebt = safeParser.parse(previousReport.getShortTermDebt()).doubleValue() 
+                            + safeParser.parse(previousReport.getLongTermDebt()).doubleValue();
                     double averageDebt = (latestTotalDebt + previousTotalDebt) / 2.0;
+                    double interestExpense = Math.abs(safeParser.parse(latestIncomeReport.getInterestExpense()).doubleValue());
 
                     if (averageDebt != 0) {
-                        if (interestExpense == 0.0) {
-                            growthValuationData.setAverageInterestRate(0.0);
-                        } else {
-                            growthValuationData.setAverageInterestRate(interestExpense / averageDebt);
-                        }
+                        growthValuationData.setAverageInterestRate(interestExpense / averageDebt);
                     }
                 }
             }
         });
 
-
-        // Share Counts (from latest income statement)
+        // Share Counts
         annualIncomeReports.stream().max(Comparator.comparing(IncomeReport::getDate)).ifPresent(latestReport -> {
             growthValuationData.setCommonSharesOutstanding(safeParser.parse(latestReport.getWeightedAverageShsOut()).doubleValue());
         });
 
-        // Calculate Market Capitalization if sharesOutstanding and currentSharePrice are available
+        // Calculate Market Capitalization
         if (growthValuationData.getCommonSharesOutstanding() != 0 && growthValuationData.getCurrentSharePrice() != 0) {
-            growthValuationData.setMarketCapitalization(growthValuationData.getCommonSharesOutstanding() * growthValuationData.getCurrentSharePrice());
+            growthValuationData.setMarketCapitalization(
+                growthValuationData.getCommonSharesOutstanding() * growthValuationData.getCurrentSharePrice()
+            );
         }
 
-        growthValuation.setGrowthValuationData(growthValuationData);
-        growthValuation.setGrowthUserInput(growthUserInput);
-        return growthValuation;
+        return growthValuationData;
+    }
+
+    private GrowthUserInput initializeGrowthUserInput(String ticker, GrowthValuationData growthValuationData) {
+        GrowthUserInput growthUserInput = new GrowthUserInput();
+
+        // Fetch annual income reports sorted by date descending for calculations
+        List<IncomeReport> annualIncomeReports = incomeStatementRepository.findBySymbol(ticker)
+                .map(IncomeStatementData::getAnnualReports)
+                .orElse(java.util.Collections.emptyList())
+                .stream()
+                .sorted(Comparator.comparing(IncomeReport::getDate).reversed())
+                .collect(Collectors.toList());
+
+        // Calculate marginalTaxRate from latest income statement if available
+        if (!annualIncomeReports.isEmpty()) {
+            IncomeReport latestReport = annualIncomeReports.get(0);
+            double pretaxIncome = safeParser.parse(latestReport.getIncomeBeforeTax()).doubleValue();
+            double incomeTaxExpense = safeParser.parse(latestReport.getIncomeTaxExpense()).doubleValue();
+            if (pretaxIncome != 0) {
+                growthUserInput.setMarginalTaxRate(incomeTaxExpense / pretaxIncome);
+            } else {
+                growthUserInput.setMarginalTaxRate(0.21); // Default to US corporate tax rate
+            }
+        }
+
+        // Calculate initialRevenueGrowthRate as 3-year CAGR if data is available
+        if (annualIncomeReports.size() >= 3) {
+            BigDecimal revenueYear0 = safeParser.parse(annualIncomeReports.get(0).getRevenue());
+            BigDecimal revenueYear3 = safeParser.parse(annualIncomeReports.get(2).getRevenue());
+
+            if (revenueYear3.compareTo(BigDecimal.ZERO) != 0) {
+                double revenueGrowthCagr3Year = Math.pow(
+                    revenueYear0.divide(revenueYear3, 4, RoundingMode.HALF_UP).doubleValue(),
+                    1.0 / 3.0
+                ) - 1.0;
+                growthUserInput.setInitialRevenueGrowthRate(revenueGrowthCagr3Year * 100); // Convert to percentage
+            } else {
+                growthUserInput.setInitialRevenueGrowthRate(0.0); // Default if year 3 revenue is zero
+            }
+        } else {
+            growthUserInput.setInitialRevenueGrowthRate(0.0); // Default if insufficient data
+        }
+
+        // Calculate targetOperatingMargin as 3-year average operating margin if data is available
+        if (annualIncomeReports.size() >= 3) {
+            double averageOperatingMargin = annualIncomeReports.stream()
+                    .limit(3)
+                    .mapToDouble(report -> {
+                        BigDecimal revenue = safeParser.parse(report.getRevenue());
+                        BigDecimal operatingIncome = safeParser.parse(report.getOperatingIncome());
+                        return revenue.compareTo(BigDecimal.ZERO) != 0
+                                ? operatingIncome.divide(revenue, 4, RoundingMode.HALF_UP).doubleValue()
+                                : 0.0;
+                    })
+                    .average()
+                    .orElse(0.0);
+            growthUserInput.setTargetOperatingMargin(averageOperatingMargin * 100); // Convert to percentage
+        } else {
+            growthUserInput.setTargetOperatingMargin(0.0); // Default if insufficient data
+        }
+
+        // Calculate reinvestmentAsPctOfRevenue as 3-year average if data is available
+        // Net Reinvestment = Max(0, (|CapEx| - Depreciation) + ChangeInWorkingCapital)
+        List<CashFlowReport> annualCashFlowReports = cashFlowRepository.findBySymbol(ticker)
+                .map(CashFlowData::getAnnualReports)
+                .orElse(java.util.Collections.emptyList())
+                .stream()
+                .sorted(Comparator.comparing(CashFlowReport::getDate).reversed())
+                .collect(Collectors.toList());
+
+        if (annualIncomeReports.size() >= 3 && annualCashFlowReports.size() >= 3) {
+            double averageReinvestmentRate = 0.0;
+            int validYears = 0;
+
+            for (int i = 0; i < 3; i++) {
+                IncomeReport incomeReport = annualIncomeReports.get(i);
+                CashFlowReport cashFlowReport = annualCashFlowReports.get(i);
+
+                BigDecimal revenue = safeParser.parse(incomeReport.getRevenue());
+                BigDecimal capitalExpenditure = safeParser.parse(cashFlowReport.getCapitalExpenditure());
+                BigDecimal depreciation = safeParser.parse(cashFlowReport.getDepreciationAndAmortization());
+                BigDecimal changeInWorkingCapital = safeParser.parse(cashFlowReport.getChangeInWorkingCapital());
+
+                // Net Reinvestment = (|CapEx| - Depreciation) + ChangeInWorkingCapital
+                BigDecimal grossReinvestment = capitalExpenditure.abs().subtract(depreciation);
+                BigDecimal netReinvestment = grossReinvestment.add(changeInWorkingCapital);
+
+                // Floor at zero to prevent negative reinvestment rates
+                BigDecimal flooredReinvestment = netReinvestment.max(BigDecimal.ZERO);
+
+                if (revenue.compareTo(BigDecimal.ZERO) != 0) {
+                    double reinvestmentRate = flooredReinvestment.divide(revenue, 4, RoundingMode.HALF_UP).doubleValue();
+                    averageReinvestmentRate += reinvestmentRate;
+                    validYears++;
+                }
+            }
+
+            if (validYears > 0) {
+                growthUserInput.setReinvestmentAsPctOfRevenue((averageReinvestmentRate / validYears) * 100); // Convert to percentage
+            } else {
+                growthUserInput.setReinvestmentAsPctOfRevenue(0.0); // Default if no valid data
+            }
+        } else {
+            growthUserInput.setReinvestmentAsPctOfRevenue(0.0); // Default if insufficient data
+        }
+
+        return growthUserInput;
     }
 
 
