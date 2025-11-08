@@ -8,6 +8,7 @@ import com.testehan.finana.model.valuation.Valuations;
 import com.testehan.finana.model.valuation.growth.*;
 import com.testehan.finana.repository.*;
 import com.testehan.finana.util.SafeParser;
+import com.testehan.finana.service.valuation.growth.GrowthValuationCalculator;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -32,6 +33,7 @@ public class ValuationService {
 
     private final FMPService fmpService;
     private final SafeParser safeParser;
+    private final GrowthValuationCalculator growthValuationCalculator;
 
     public ValuationService(CompanyOverviewRepository companyOverviewRepository,
                             StockQuotesRepository stockQuotesRepository,
@@ -39,7 +41,8 @@ public class ValuationService {
                             BalanceSheetRepository balanceSheetRepository,
                             CashFlowRepository cashFlowRepository,
                             ValuationsRepository valuationsRepository, FMPService fmpService,
-                            SafeParser safeParser) {
+                            SafeParser safeParser,
+                            GrowthValuationCalculator growthValuationCalculator) {
         this.companyOverviewRepository = companyOverviewRepository;
         this.stockQuotesRepository = stockQuotesRepository;
         this.incomeStatementRepository = incomeStatementRepository;
@@ -48,6 +51,7 @@ public class ValuationService {
         this.valuationsRepository = valuationsRepository;
         this.fmpService = fmpService;
         this.safeParser = safeParser;
+        this.growthValuationCalculator = growthValuationCalculator;
     }
 
     public void saveDcfValuation(DcfValuation dcfValuation) {
@@ -80,7 +84,10 @@ public class ValuationService {
                 .orElse(java.util.Collections.emptyList());
     }
 
-    public GrowthValuationData getGrowthCompanyValuationData(String ticker) {
+    public GrowthValuation getGrowthCompanyValuationData(String ticker) {
+        GrowthValuation growthValuation = new GrowthValuation();
+
+        GrowthUserInput growthUserInput = new GrowthUserInput();
         GrowthValuationData growthValuationData = new GrowthValuationData();
         ticker = ticker.toUpperCase();
         growthValuationData.setTicker(ticker);
@@ -171,9 +178,9 @@ public class ValuationService {
             double pretaxIncome = safeParser.parse(latestReport.getIncomeBeforeTax()).doubleValue();
             double incomeTaxExpense = safeParser.parse(latestReport.getIncomeTaxExpense()).doubleValue();
             if (pretaxIncome != 0) {
-                growthValuationData.setMarginalTaxRate(incomeTaxExpense / pretaxIncome);
+                growthUserInput.setMarginalTaxRate(incomeTaxExpense / pretaxIncome);
             } else {
-                growthValuationData.setMarginalTaxRate(0.21); // Default to US corporate tax rate
+                growthUserInput.setMarginalTaxRate(0.21); // Default to US corporate tax rate
             }
         });
 
@@ -227,17 +234,19 @@ public class ValuationService {
             growthValuationData.setMarketCapitalization(growthValuationData.getCommonSharesOutstanding() * growthValuationData.getCurrentSharePrice());
         }
 
-        return growthValuationData;
+        growthValuation.setGrowthValuationData(growthValuationData);
+        growthValuation.setGrowthUserInput(growthUserInput);
+        return growthValuation;
     }
 
 
-    public void saveGrowthCompanyValuation(GrowthValuation growthValuation) {
-        growthValuation.setValuationDate(LocalDateTime.now().toString());
-        String ticker = growthValuation.getGrowthValuationData().getTicker();
-        Valuations valuations = valuationsRepository.findById(ticker).orElse(new Valuations());
-        valuations.setTicker(ticker);
-        valuations.getGrowthValuations().add(growthValuation);
-        valuationsRepository.save(valuations);
+    public GrowthOutput calculateGrowthCompanyValuation(GrowthValuation growthValuation) {
+        GrowthOutput calculatedOutput = growthValuationCalculator.calculateIntrinsicValue(
+                growthValuation.getGrowthValuationData(),
+                growthValuation.getGrowthUserInput()
+        );
+
+        return calculatedOutput;
     }
 
     public List<GrowthValuation> getGrowthCompanyValuationHistory(String ticker) {
@@ -273,6 +282,15 @@ public class ValuationService {
                 .cashFlow(cashFlow)
                 .assumptions(assumptions)
                 .build();
+    }
+
+    public void saveGrowthCompanyValuation(GrowthValuation growthValuation) {
+        growthValuation.setValuationDate(LocalDateTime.now().toString());
+        String ticker = growthValuation.getGrowthValuationData().getTicker();
+        Valuations valuations = valuationsRepository.findById(ticker).orElse(new Valuations());
+        valuations.setTicker(ticker);
+        valuations.getGrowthValuations().add(growthValuation);
+        valuationsRepository.save(valuations);
     }
 
     private DcfCalculationData.CompanyMeta getCompanyMeta(String ticker) {

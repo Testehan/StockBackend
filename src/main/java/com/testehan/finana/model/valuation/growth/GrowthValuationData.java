@@ -32,7 +32,6 @@ public class GrowthValuationData {
     // either way right now the react client code does not use them...but uses marginalTaxRate
     private double netOperatingLossCarryforward;
     private int nolExpirationYears;
-    private double marginalTaxRate;
 
     // Capital Structure
     private double totalDebt;

@@ -16,4 +16,5 @@ public class GrowthUserInput {
     private Integer yearsOfRiskConvergence; // Years of Risk Convergence
     private Double probabilityOfFailure;   // Probability of Failure (%)
     private Double distressProceedsPctOfBookOrRevenue; // Distress Proceeds (% of book or revenue)
+    private Double marginalTaxRate;
 }
