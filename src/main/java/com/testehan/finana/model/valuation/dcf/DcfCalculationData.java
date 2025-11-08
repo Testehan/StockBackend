@@ -1,4 +1,4 @@
-package com.testehan.finana.model.valuation;
+package com.testehan.finana.model.valuation.dcf;
 
 import lombok.Builder;
 

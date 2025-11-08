@@ -1,21 +1,12 @@
 package com.testehan.finana.controller;
 
 import com.testehan.finana.model.*;
-import com.testehan.finana.service.AlphaVantageService;
-import com.testehan.finana.service.FMPService;
-import com.testehan.finana.service.FinancialDataService;
-import com.testehan.finana.service.FinancialDataOrchestrator;
-import com.testehan.finana.service.CompanyDataService;
-import com.testehan.finana.service.FinancialStatementService;
-import com.testehan.finana.service.EarningsService;
-import com.testehan.finana.service.QuoteService;
-import com.testehan.finana.model.FinancialDataAvailability;
+import com.testehan.finana.service.*;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/stocks")
@@ -43,8 +34,10 @@ public class StockController {
 
     @GetMapping("/overview/{symbol}")
     public Mono<CompanyOverview> getCompanyOverview(@PathVariable String symbol) {
-        return financialDataOrchestrator.ensureFinancialDataIsPresent(symbol.toUpperCase())
-                .then(companyDataService.getCompanyOverview(symbol).map(list -> list.getFirst()));
+//        return financialDataOrchestrator.ensureFinancialDataIsPresent(symbol.toUpperCase())
+//                .then(companyDataService.getCompanyOverview(symbol).map(list -> list.getFirst()));
+
+        return companyDataService.getCompanyOverview(symbol).map(list -> list.getFirst());
     }
 
     @GetMapping("/presentfinancialdata/{symbol}")

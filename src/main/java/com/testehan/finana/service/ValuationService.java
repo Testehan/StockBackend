@@ -1,10 +1,11 @@
 package com.testehan.finana.service;
 
 import com.testehan.finana.model.*;
-import com.testehan.finana.model.valuation.DcfCalculationData;
-import com.testehan.finana.model.valuation.DcfValuation;
-import com.testehan.finana.model.valuation.ReverseDcfValuation;
+import com.testehan.finana.model.valuation.dcf.DcfCalculationData;
+import com.testehan.finana.model.valuation.dcf.DcfValuation;
+import com.testehan.finana.model.valuation.dcf.ReverseDcfValuation;
 import com.testehan.finana.model.valuation.Valuations;
+import com.testehan.finana.model.valuation.growth.*;
 import com.testehan.finana.repository.*;
 import com.testehan.finana.util.SafeParser;
 import org.springframework.stereotype.Service;
@@ -76,6 +77,172 @@ public class ValuationService {
     public List<ReverseDcfValuation> getReverseDcfHistory(String ticker) {
         return valuationsRepository.findById(ticker)
                 .map(Valuations::getReverseDcfValuations)
+                .orElse(java.util.Collections.emptyList());
+    }
+
+    public GrowthValuationData getGrowthCompanyValuationData(String ticker) {
+        GrowthValuationData growthValuationData = new GrowthValuationData();
+        ticker = ticker.toUpperCase();
+        growthValuationData.setTicker(ticker);
+
+        // Fetch Company Profile
+        Optional<CompanyOverview> companyOverviewOptional = companyOverviewRepository.findBySymbol(ticker);
+        companyOverviewOptional.ifPresent(overview -> {
+            growthValuationData.setName(overview.getCompanyName());
+            growthValuationData.setSector(overview.getSector());
+            growthValuationData.setIndustry(overview.getIndustry());
+            growthValuationData.setCurrency(overview.getCurrency());
+        });
+
+        // Fetch Market Data
+        Optional<GlobalQuote> globalQuoteOptional = stockQuotesRepository.findBySymbol(ticker)
+                .flatMap(quotes -> quotes.getQuotes().stream().findFirst());
+        globalQuoteOptional.ifPresent(quote -> {
+            growthValuationData.setCurrentSharePrice(safeParser.parse(quote.getAdjClose()).doubleValue());
+            // marketCapitalization would need shares outstanding, which we'll get from income statement
+        });
+        // Risk-free rate can be hardcoded for now, or fetched from a config
+        growthValuationData.setRiskFreeRate(0.042); // Example: 4.2% - 10Y US Treasury yield
+
+        // Fetch Financial Statements (Annual Reports for multi-year history)
+        List<IncomeReport> annualIncomeReports = incomeStatementRepository.findBySymbol(ticker)
+                .map(IncomeStatementData::getAnnualReports)
+                .orElse(java.util.Collections.emptyList())
+                .stream()
+                .sorted(Comparator.comparing(IncomeReport::getDate)) // Sort ascending for easier year processing
+                .collect(Collectors.toList());
+
+        List<BalanceSheetReport> annualBalanceSheetReports = balanceSheetRepository.findBySymbol(ticker)
+                .map(BalanceSheetData::getAnnualReports)
+                .orElse(java.util.Collections.emptyList())
+                .stream()
+                .sorted(Comparator.comparing(BalanceSheetReport::getDate))
+                .collect(Collectors.toList());
+
+        List<CashFlowReport> annualCashFlowReports = cashFlowRepository.findBySymbol(ticker)
+                .map(CashFlowData::getAnnualReports)
+                .orElse(java.util.Collections.emptyList())
+                .stream()
+                .sorted(Comparator.comparing(CashFlowReport::getDate))
+                .collect(Collectors.toList());
+
+        List<IncomeStatementYear> incomeStatementYears = new ArrayList<>();
+        for (IncomeReport report : annualIncomeReports) {
+            IncomeStatementYear year = new IncomeStatementYear();
+            year.setFiscalYear(LocalDate.parse(report.getDate()).getYear());
+            year.setRevenue(safeParser.parse(report.getRevenue()).doubleValue());
+            year.setOperatingIncome(safeParser.parse(report.getOperatingIncome()).doubleValue());
+            year.setPretaxIncome(safeParser.parse(report.getIncomeBeforeTax()).doubleValue());
+            year.setNetIncome(safeParser.parse(report.getNetIncome()).doubleValue());
+            incomeStatementYears.add(year);
+        }
+        growthValuationData.setIncomeStatements(incomeStatementYears);
+
+        List<BalanceSheetYear> balanceSheetYears = new ArrayList<>();
+        for (BalanceSheetReport report : annualBalanceSheetReports) {
+            BalanceSheetYear year = new BalanceSheetYear();
+            year.setFiscalYear(LocalDate.parse(report.getDate()).getYear());
+            year.setCashAndEquivalents(safeParser.parse(report.getCashAndCashEquivalents()).doubleValue());
+            year.setShortTermDebt(safeParser.parse(report.getShortTermDebt()).doubleValue());
+            year.setLongTermDebt(safeParser.parse(report.getLongTermDebt()).doubleValue());
+            year.setTotalAssets(safeParser.parse(report.getTotalAssets()).doubleValue());
+            year.setTotalEquity(safeParser.parse(report.getTotalEquity()).doubleValue());
+            balanceSheetYears.add(year);
+        }
+        growthValuationData.setBalanceSheets(balanceSheetYears);
+
+        List<CashFlowYear> cashFlowYears = new ArrayList<>();
+        for (CashFlowReport report : annualCashFlowReports) {
+            CashFlowYear year = new CashFlowYear();
+            year.setFiscalYear(LocalDate.parse(report.getDate()).getYear());
+            year.setOperatingCashFlow(safeParser.parse(report.getOperatingCashFlow()).doubleValue());
+            year.setCapitalExpenditures(safeParser.parse(report.getCapitalExpenditure()).doubleValue());
+            year.setDepreciationAndAmortization(safeParser.parse(report.getDepreciationAndAmortization()).doubleValue());
+            year.setChangeInWorkingCapital(safeParser.parse(report.getChangeInWorkingCapital()).doubleValue());
+            cashFlowYears.add(year);
+        }
+        growthValuationData.setCashFlows(cashFlowYears);
+
+        // Tax Attributes (Placeholder - actual data source needed)
+        growthValuationData.setNetOperatingLossCarryforward(0.0); // TODO
+        growthValuationData.setNolExpirationYears(0); // TODO
+        // Calculate marginalTaxRate from latest income statement if available
+        annualIncomeReports.stream().max(Comparator.comparing(IncomeReport::getDate)).ifPresent(latestReport -> {
+            double pretaxIncome = safeParser.parse(latestReport.getIncomeBeforeTax()).doubleValue();
+            double incomeTaxExpense = safeParser.parse(latestReport.getIncomeTaxExpense()).doubleValue();
+            if (pretaxIncome != 0) {
+                growthValuationData.setMarginalTaxRate(incomeTaxExpense / pretaxIncome);
+            } else {
+                growthValuationData.setMarginalTaxRate(0.21); // Default to US corporate tax rate
+            }
+        });
+
+        // Capital Structure (from latest balance sheet and income statement)
+        annualBalanceSheetReports.stream().max(Comparator.comparing(BalanceSheetReport::getDate)).ifPresent(latestReport -> {
+            double latestTotalDebt = safeParser.parse(latestReport.getShortTermDebt()).doubleValue() + safeParser.parse(latestReport.getLongTermDebt()).doubleValue();
+            growthValuationData.setTotalDebt(latestTotalDebt);
+            growthValuationData.setCashBalance(safeParser.parse(latestReport.getCashAndCashEquivalents()).doubleValue());
+
+            // Calculate Average Interest Rate
+            if (annualBalanceSheetReports.size() >= 2 && annualIncomeReports.size() >= 1) {
+                // annualBalanceSheetReports is already sorted ascending by date
+                int latestReportIndex = annualBalanceSheetReports.indexOf(latestReport);
+                BalanceSheetReport previousReport = null;
+                if (latestReportIndex > 0) {
+                    previousReport = annualBalanceSheetReports.get(latestReportIndex - 1);
+                }
+
+                IncomeReport latestIncomeReport = annualIncomeReports.stream()
+                        .max(Comparator.comparing(IncomeReport::getDate))
+                        .orElse(null);
+
+                double interestExpense = 0.0;
+                if (latestIncomeReport != null) {
+                    interestExpense = Math.abs(safeParser.parse(latestIncomeReport.getInterestExpense()).doubleValue());
+                }
+
+                if (previousReport != null && latestIncomeReport != null) {
+                    double previousTotalDebt = safeParser.parse(previousReport.getShortTermDebt()).doubleValue() + safeParser.parse(previousReport.getLongTermDebt()).doubleValue();
+                    double averageDebt = (latestTotalDebt + previousTotalDebt) / 2.0;
+
+                    if (averageDebt != 0) {
+                        if (interestExpense == 0.0) {
+                            growthValuationData.setAverageInterestRate(0.0);
+                        } else {
+                            growthValuationData.setAverageInterestRate(interestExpense / averageDebt);
+                        }
+                    }
+                }
+            }
+        });
+
+
+        // Share Counts (from latest income statement)
+        annualIncomeReports.stream().max(Comparator.comparing(IncomeReport::getDate)).ifPresent(latestReport -> {
+            growthValuationData.setCommonSharesOutstanding(safeParser.parse(latestReport.getWeightedAverageShsOut()).doubleValue());
+        });
+
+        // Calculate Market Capitalization if sharesOutstanding and currentSharePrice are available
+        if (growthValuationData.getCommonSharesOutstanding() != 0 && growthValuationData.getCurrentSharePrice() != 0) {
+            growthValuationData.setMarketCapitalization(growthValuationData.getCommonSharesOutstanding() * growthValuationData.getCurrentSharePrice());
+        }
+
+        return growthValuationData;
+    }
+
+
+    public void saveGrowthCompanyValuation(GrowthValuation growthValuation) {
+        growthValuation.setValuationDate(LocalDateTime.now().toString());
+        String ticker = growthValuation.getGrowthValuationData().getTicker();
+        Valuations valuations = valuationsRepository.findById(ticker).orElse(new Valuations());
+        valuations.setTicker(ticker);
+        valuations.getGrowthValuations().add(growthValuation);
+        valuationsRepository.save(valuations);
+    }
+
+    public List<GrowthValuation> getGrowthCompanyValuationHistory(String ticker) {
+        return valuationsRepository.findById(ticker)
+                .map(Valuations::getGrowthValuations)
                 .orElse(java.util.Collections.emptyList());
     }
 

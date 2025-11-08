@@ -1,8 +1,10 @@
 package com.testehan.finana.controller;
 
-import com.testehan.finana.model.valuation.DcfCalculationData;
-import com.testehan.finana.model.valuation.DcfValuation;
-import com.testehan.finana.model.valuation.ReverseDcfValuation;
+import com.testehan.finana.model.valuation.dcf.DcfCalculationData;
+import com.testehan.finana.model.valuation.dcf.DcfValuation;
+import com.testehan.finana.model.valuation.dcf.ReverseDcfValuation;
+import com.testehan.finana.model.valuation.growth.GrowthValuation;
+import com.testehan.finana.model.valuation.growth.GrowthValuationData;
 import com.testehan.finana.service.ValuationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -68,5 +70,29 @@ public class ValuationController {
         return ResponseEntity.ok(valuationService.getReverseDcfHistory(symbol.toUpperCase()));
     }
 
+    @GetMapping("/growth/{symbol}")
+    public ResponseEntity<GrowthValuationData> getGrowthCompanyValuationData(@PathVariable String symbol) {
+        GrowthValuationData data = valuationService.getGrowthCompanyValuationData(symbol.toUpperCase());
+        if (data == null || data.getTicker() == null || data.getTicker().equals("N/A")) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(data);
+    }
+
+
+    @PostMapping("/growth")
+    public ResponseEntity<Void> saveGrowthCompanyValuation(@RequestBody GrowthValuation growthValuation) {
+        logger.info("Received Growth Company valuation to save: {}", growthValuation);
+        valuationService.saveGrowthCompanyValuation(growthValuation);
+        return ResponseEntity.ok().build();
+
+    }
+
+    @GetMapping("/growth/history/{symbol}")
+    public ResponseEntity<List<GrowthValuation>> getGrowthCompanyValuationHistory(@PathVariable String symbol) {
+        return ResponseEntity.ok(valuationService.getGrowthCompanyValuationHistory(symbol.toUpperCase()));
+    }
 
 }
+
+    
