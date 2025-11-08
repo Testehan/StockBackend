@@ -2,8 +2,10 @@ package com.testehan.finana.model.valuation.growth;
 
 import lombok.Data;
 
+import java.math.BigDecimal;
+
 @Data
 public class GrowthOutput {
-    private Double intrinsicValuePerShare;
+    private BigDecimal intrinsicValuePerShare;
     private String verdict;
 }

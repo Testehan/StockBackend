@@ -2,16 +2,19 @@ package com.testehan.finana.model.valuation.growth;
 
 import lombok.Data;
 
+import java.math.BigDecimal;
+
 @Data
 public class BalanceSheetYear {
 
     private int fiscalYear;
 
-    private double cashAndEquivalents;
+    private BigDecimal cashAndEquivalents;
 
-    private double shortTermDebt;
-    private double longTermDebt;
+    private BigDecimal shortTermDebt;
+    private BigDecimal longTermDebt;
 
-    private double totalAssets;
-    private double totalEquity;
+    private BigDecimal totalAssets;
+    private BigDecimal totalEquity;
 }
+

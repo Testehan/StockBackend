@@ -3,29 +3,33 @@ package com.testehan.finana.service.valuation.growth;
 import com.testehan.finana.model.valuation.growth.*;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.math.MathContext;
 import java.util.Comparator;
 import java.util.List;
 
 @Service
 public class GrowthValuationCalculator {
 
+    private static final MathContext MC = MathContext.DECIMAL64; // Using DECIMAL64 for 16 digits of precision
+
     public GrowthOutput calculateIntrinsicValue(GrowthValuationData data, GrowthUserInput input) {
         // Initialize variables based on input and data
-        double initialRevenueGrowthRate = input.getInitialRevenueGrowthRate() / 100.0;
+        BigDecimal initialRevenueGrowthRate = input.getInitialRevenueGrowthRate().divide(BigDecimal.valueOf(100), MC);
         int growthFadePeriod = input.getGrowthFadePeriod();
-        double terminalGrowthRate = input.getTerminalGrowthRate() / 100.0;
+        BigDecimal terminalGrowthRate = input.getTerminalGrowthRate().divide(BigDecimal.valueOf(100), MC);
         int yearsToProject = input.getYearsToProject();
-        double targetOperatingMargin = input.getTargetOperatingMargin() / 100.0;
+        BigDecimal targetOperatingMargin = input.getTargetOperatingMargin().divide(BigDecimal.valueOf(100), MC);
         int yearsToReachTargetMargin = input.getYearsToReachTargetMargin();
-        double marginalTaxRate = input.getMarginalTaxRate() / 100.0;
-        double initialCostOfCapital = input.getInitialCostOfCapital() / 100.0;
-        double terminalCostOfCapital = input.getTerminalCostOfCapital() / 100.0;
+        BigDecimal marginalTaxRate = input.getMarginalTaxRate().divide(BigDecimal.valueOf(100), MC);
+        BigDecimal initialCostOfCapital = input.getInitialCostOfCapital().divide(BigDecimal.valueOf(100), MC);
+        BigDecimal terminalCostOfCapital = input.getTerminalCostOfCapital().divide(BigDecimal.valueOf(100), MC);
         int yearsOfRiskConvergence = input.getYearsOfRiskConvergence();
-        double probabilityOfFailure = input.getProbabilityOfFailure() / 100.0;
-        double distressProceeds = input.getDistressProceedsPctOfBookOrRevenue() / 100.0; // This is a percentage
-        double totalDebt = data.getTotalDebt();
-        double cashBalance = data.getCashBalance();
-        double commonSharesOutstanding = data.getCommonSharesOutstanding();
+        BigDecimal probabilityOfFailure = input.getProbabilityOfFailure().divide(BigDecimal.valueOf(100), MC);
+        BigDecimal distressProceeds = input.getDistressProceedsPctOfBookOrRevenue().divide(BigDecimal.valueOf(100), MC); // This is a percentage
+        BigDecimal totalDebt = data.getTotalDebt();
+        BigDecimal cashBalance = data.getCashBalance();
+        BigDecimal commonSharesOutstanding = data.getCommonSharesOutstanding();
 
         // Get current data (latest year)
         // Ensure data is sorted
@@ -42,12 +46,14 @@ public class GrowthValuationCalculator {
         }
 
         IncomeStatementYear latestStatement = sortedIncomeStatements.get(sortedIncomeStatements.size() - 1);
-        double currentRevenue = latestStatement.getRevenue();
-        double currentOperatingIncome = latestStatement.getOperatingIncome();
-        double currentMargin = (currentRevenue != 0) ? currentOperatingIncome / currentRevenue : 0.0;
+        BigDecimal currentRevenue = latestStatement.getRevenue();
+        BigDecimal currentOperatingIncome = latestStatement.getOperatingIncome();
+        BigDecimal currentMargin = (currentRevenue.compareTo(BigDecimal.ZERO) != 0) ? currentOperatingIncome.divide(currentRevenue, MC) : BigDecimal.ZERO;
+        // Cap the starting loss at -100% to prevent the "scaled loss" explosion
+        currentMargin = currentMargin.max(BigDecimal.valueOf(-1.0));
 
         // Call the main calculation method
-        double pricePerShare = calculateEquityValue(
+        BigDecimal pricePerShare = calculateEquityValue(
             currentRevenue,
             currentMargin,
             yearsToProject,
@@ -62,7 +68,7 @@ public class GrowthValuationCalculator {
             // This means reinvestmentRate was a multiplier, not a percentage. If reinvestmentAsPctOfRevenue is 0.20 for 20%,
             // then reinvestment = incrementalRevenue / 0.20 = incrementalRevenue * 5. This was a bug in JS.
             // I will assume reinvestmentAsPctOfRevenue is the actual percentage to be applied to incremental revenue.
-            input.getReinvestmentAsPctOfRevenue() / 100.0, // Corrected assumption: this is the percentage of incremental revenue reinvested
+            input.getReinvestmentAsPctOfRevenue().divide(BigDecimal.valueOf(100), MC), // Corrected assumption: this is the percentage of incremental revenue reinvested
             initialCostOfCapital,
             terminalCostOfCapital,
             yearsOfRiskConvergence,
@@ -79,124 +85,165 @@ public class GrowthValuationCalculator {
         return output;
     }
 
-    public double projectRevenue(double currentRevenue, int year, double initialRevenueGrowthRate, int nearTermYears, int growthFadePeriod, double terminalGrowthRate) {
-        double growthRate;
+    public BigDecimal projectRevenue(BigDecimal currentRevenue, int year, BigDecimal initialRevenueGrowthRate, int nearTermYears, int growthFadePeriod, BigDecimal terminalGrowthRate) {
+        BigDecimal growthRate;
         if (year <= nearTermYears) {
             growthRate = initialRevenueGrowthRate;
         } else if (year <= nearTermYears + growthFadePeriod) {
-            int fadeYears = year - nearTermYears;
-            growthRate = initialRevenueGrowthRate - ((initialRevenueGrowthRate - terminalGrowthRate) / growthFadePeriod) * fadeYears;
+            BigDecimal fadeYears = BigDecimal.valueOf(year - nearTermYears);
+            growthRate = initialRevenueGrowthRate.subtract(
+                initialRevenueGrowthRate.subtract(terminalGrowthRate)
+                    .divide(BigDecimal.valueOf(growthFadePeriod), MC)
+                    .multiply(fadeYears, MC),
+                MC
+            );
         } else {
             growthRate = terminalGrowthRate;
         }
-        return currentRevenue * (1 + growthRate);
+        return currentRevenue.multiply(BigDecimal.ONE.add(growthRate, MC), MC);
     }
 
-    public double projectOperatingMargin(double currentMargin, int year, int yearsToReachTargetMargin, double targetOperatingMargin) {
+    public BigDecimal projectOperatingMargin(BigDecimal currentMargin, int year, int yearsToReachTargetMargin, BigDecimal targetOperatingMargin) {
         if (yearsToReachTargetMargin <= 0) return targetOperatingMargin; // Avoid division by zero
         if (year >= yearsToReachTargetMargin) return targetOperatingMargin;
-        return currentMargin + (targetOperatingMargin - currentMargin) / yearsToReachTargetMargin * year;
+        return currentMargin.add(
+            targetOperatingMargin.subtract(currentMargin, MC)
+                .divide(BigDecimal.valueOf(yearsToReachTargetMargin), MC)
+                .multiply(BigDecimal.valueOf(year), MC),
+            MC
+        );
     }
 
-    public double computeFCF(double revenue, double incrementalRevenue, double operatingMargin, double marginalTaxRate, double reinvestmentAsPctOfRevenue) {
-        double operatingIncome = revenue * operatingMargin;
-        // Reinvestment is calculated based on incremental revenue * reinvestment rate
-        double reinvestment = incrementalRevenue * reinvestmentAsPctOfRevenue;
-        return operatingIncome * (1 - marginalTaxRate) - reinvestment;
+    public BigDecimal computeFCF(BigDecimal revenue, BigDecimal incrementalRevenue, BigDecimal operatingMargin, BigDecimal marginalTaxRate, BigDecimal reinvestmentAsPctOfRevenue) {
+        BigDecimal operatingIncome = revenue.multiply(operatingMargin, MC);
+        BigDecimal taxes = operatingIncome.compareTo(BigDecimal.ZERO) > 0 ? operatingIncome.multiply(marginalTaxRate, MC) : BigDecimal.ZERO; // Taxes can't be negative
+        BigDecimal reinvestment = incrementalRevenue.multiply(reinvestmentAsPctOfRevenue, MC);
+        return (operatingIncome.subtract(taxes, MC)).subtract(reinvestment, MC);
     }
 
-    public double discountRate(int year, int yearsOfRiskConvergence, double initialCostOfCapital, double terminalCostOfCapital) {
+    public BigDecimal discountRate(int year, int yearsOfRiskConvergence, BigDecimal initialCostOfCapital, BigDecimal terminalCostOfCapital) {
         if (yearsOfRiskConvergence <= 0) return terminalCostOfCapital; // Avoid division by zero
         if (year >= yearsOfRiskConvergence) return terminalCostOfCapital;
-        return initialCostOfCapital - ((initialCostOfCapital - terminalCostOfCapital) / yearsOfRiskConvergence) * year;
+        return initialCostOfCapital.subtract(
+            initialCostOfCapital.subtract(terminalCostOfCapital, MC)
+                .divide(BigDecimal.valueOf(yearsOfRiskConvergence), MC)
+                .multiply(BigDecimal.valueOf(year), MC),
+            MC
+        );
     }
 
-    public double terminalValue(double finalFCF, double terminalGrowthRate, double terminalCostOfCapital) {
+    public BigDecimal terminalValue(BigDecimal finalFCF, BigDecimal terminalGrowthRate, BigDecimal terminalCostOfCapital) {
         // Gordon Growth Model: TV = FCF × (1 + g) / (WACC - g)
-        if (terminalCostOfCapital - terminalGrowthRate <= 0) {
+        BigDecimal denominator = terminalCostOfCapital.subtract(terminalGrowthRate, MC);
+        if (denominator.compareTo(BigDecimal.ZERO) <= 0) {
             // Handle case where denominator is zero or negative (e.g., if growth rate > discount rate)
             // This would imply infinite value or negative value, which is not realistic in this model.
             // Return a very large number or throw an exception, depending on desired behavior.
             // For now, return 0.0 to avoid unexpected results.
-            return 0.0;
+            return BigDecimal.ZERO;
         }
-        return finalFCF * (1 + terminalGrowthRate) / (terminalCostOfCapital - terminalGrowthRate);
+        return finalFCF.multiply(BigDecimal.ONE.add(terminalGrowthRate, MC), MC).divide(denominator, MC);
     }
 
-    public double calculateEquityValue(
-        double currentRevenue,
-        double currentMargin,
+    public BigDecimal calculateEquityValue(
+        BigDecimal currentRevenue,
+        BigDecimal currentMargin,
         int yearsToProject,
-        double initialRevenueGrowthRate,
+        BigDecimal initialRevenueGrowthRate,
         int growthFadePeriod,
-        double terminalGrowthRate,
-        double targetOperatingMargin,
+        BigDecimal terminalGrowthRate,
+        BigDecimal targetOperatingMargin,
         int yearsToReachTargetMargin,
-        double marginalTaxRate,
-        double reinvestmentAsPctOfRevenue,
-        double initialCostOfCapital,
-        double terminalCostOfCapital,
+        BigDecimal marginalTaxRate,
+        BigDecimal reinvestmentAsPctOfRevenue,
+        BigDecimal initialCostOfCapital,
+        BigDecimal terminalCostOfCapital,
         int yearsOfRiskConvergence,
-        double probabilityOfFailure,
-        double distressProceeds, // This is a percentage of current revenue or book value, not a rate
-        double totalDebt,
-        double cashBalance,
-        double commonSharesOutstanding,
+        BigDecimal probabilityOfFailure,
+        BigDecimal distressProceeds, // This is a percentage of current revenue or book value, not a rate
+        BigDecimal totalDebt,
+        BigDecimal cashBalance,
+        BigDecimal commonSharesOutstanding,
         List<BalanceSheetYear> sortedBalanceSheets
     ) {
-        double revenue = currentRevenue;
-        double previousRevenue = currentRevenue;
-        double equityValue = 0;
-        double fcf = 0;
-        double cumulativeDiscountFactor = 1;
+        BigDecimal revenue = currentRevenue;
+        BigDecimal previousRevenue = currentRevenue;
+        BigDecimal equityValue = BigDecimal.ZERO;
+        BigDecimal fcf = BigDecimal.ZERO;
+        BigDecimal cumulativeDiscountFactor = BigDecimal.ONE;
         int nearTermYears = 3; // From the JS code
+        BigDecimal terminalVal = BigDecimal.ZERO; // Declare terminalVal here
+
 
         for (int year = 1; year <= yearsToProject; year++) {
             revenue = projectRevenue(revenue, year, initialRevenueGrowthRate, nearTermYears, growthFadePeriod, terminalGrowthRate);
-            double incrementalRevenue = revenue - previousRevenue;
-            double margin = projectOperatingMargin(currentMargin, year, yearsToReachTargetMargin, targetOperatingMargin);
+            BigDecimal incrementalRevenue = revenue.subtract(previousRevenue, MC);
+            BigDecimal margin = projectOperatingMargin(currentMargin, year, yearsToReachTargetMargin, targetOperatingMargin);
             fcf = computeFCF(revenue, incrementalRevenue, margin, marginalTaxRate, reinvestmentAsPctOfRevenue);
 
             // Cumulative discounting - multiply by this year's discount factor
-            double yearDiscountRate = discountRate(year, yearsOfRiskConvergence, initialCostOfCapital, terminalCostOfCapital);
-            cumulativeDiscountFactor *= (1 + yearDiscountRate);
+            BigDecimal yearDiscountRate = discountRate(year, yearsOfRiskConvergence, initialCostOfCapital, terminalCostOfCapital);
+            cumulativeDiscountFactor = cumulativeDiscountFactor.multiply(BigDecimal.ONE.add(yearDiscountRate, MC), MC);
 
             // Discount FCF using cumulative discount factor
-            equityValue += fcf / cumulativeDiscountFactor;
+            equityValue = equityValue.add(fcf.divide(cumulativeDiscountFactor, MC), MC);
 
             previousRevenue = revenue;
         }
 
-        // Calculate terminal value - handle negative FCF case
-        double terminalVal = 0;
-        if (fcf > 0) {
-            terminalVal = terminalValue(fcf, terminalGrowthRate, terminalCostOfCapital);
-            // Discount terminal value using cumulative discount factor
-            equityValue += terminalVal / cumulativeDiscountFactor;
+        // Smarter Terminal Value Calculation
+        BigDecimal perpetuityGrowth = terminalGrowthRate;
+        BigDecimal terminalWACC = terminalCostOfCapital;
+
+        // Ensure denominator is not zero or negative for terminal value
+        BigDecimal terminalValueDenominator = terminalWACC.subtract(perpetuityGrowth, MC);
+        if (terminalValueDenominator.compareTo(BigDecimal.ZERO) <= 0) {
+            // Handle case where denominator is zero or negative (e.g., if growth rate >= discount rate)
+            // This would imply infinite value or negative value, which is not realistic in this model.
+            // In such cases, a more conservative approach might be needed, e.g., liquidation value or 0.
+            // For now, return 0 for terminal value to avoid unexpected results.
+            terminalVal = BigDecimal.ZERO;
         } else {
-            // If FCF is negative, use liquidation value approach (conservative)
-            // Value of assets if company were liquidated = Total Assets - Total Debt (per book value)
-            // Use the latest year's data
-            if (sortedBalanceSheets.isEmpty()) {
-                // Should not happen if check at the beginning of calculateIntrinsicValue passes, but defensive coding.
-                return 0.0;
+            // Sustainable reinvestment in terminal year:
+            // Reinvestment = (Growth / Return on Capital) * After-tax Operating Income
+            // For simplicity, assume reinvestment = (perpetuityGrowth / terminalWACC) * OperatingIncome
+            // Note: The formula provided in the prompt `(perpetuityGrowth / terminalWACC)` for reinvestment
+            // implies that Return on Capital is assumed to be terminalWACC.
+            // Also, after-tax operating income needs to be calculated first.
+
+            BigDecimal terminalOperatingIncome = revenue.multiply(targetOperatingMargin, MC);
+            BigDecimal terminalTaxes = terminalOperatingIncome.compareTo(BigDecimal.ZERO) > 0 ? terminalOperatingIncome.multiply(marginalTaxRate, MC) : BigDecimal.ZERO;
+            BigDecimal afterTaxOperatingIncome = terminalOperatingIncome.subtract(terminalTaxes, MC);
+
+            BigDecimal terminalReinvestmentRate = BigDecimal.ZERO;
+            if (terminalWACC.compareTo(BigDecimal.ZERO) > 0) {
+                 terminalReinvestmentRate = perpetuityGrowth.divide(terminalWACC, MC);
             }
-            BalanceSheetYear latestBalanceSheet = sortedBalanceSheets.get(sortedBalanceSheets.size() - 1);
-            double liquidationValue = (latestBalanceSheet.getTotalAssets() - totalDebt);
-            // Discount liquidation value and add to equity
-            equityValue += liquidationValue / cumulativeDiscountFactor;
+            // Ensure reinvestment rate is not excessively high
+            if (terminalReinvestmentRate.compareTo(BigDecimal.ONE) > 0) {
+                 terminalReinvestmentRate = BigDecimal.ONE;
+            }
+
+
+            BigDecimal terminalReinvestment = afterTaxOperatingIncome.multiply(terminalReinvestmentRate, MC);
+            BigDecimal terminalFCF = afterTaxOperatingIncome.subtract(terminalReinvestment, MC);
+
+
+            terminalVal = terminalFCF.divide(terminalValueDenominator, MC);
         }
+        // Discount terminal value using cumulative discount factor
+        equityValue = equityValue.add(terminalVal.divide(cumulativeDiscountFactor, MC), MC);
 
         // Calculate distress value as percentage of current revenue
-        double distressValue = currentRevenue * distressProceeds; // distressProceeds is already a percentage
+        BigDecimal distressValue = currentRevenue.multiply(distressProceeds, MC); // distressProceeds is already a percentage
 
         // Adjust for failure probability
-        equityValue = (1 - probabilityOfFailure) * equityValue + probabilityOfFailure * distressValue;
+        equityValue = (BigDecimal.ONE.subtract(probabilityOfFailure, MC)).multiply(equityValue, MC).add(probabilityOfFailure.multiply(distressValue, MC), MC);
 
         // Subtract debt, add cash
-        if (commonSharesOutstanding == 0) {
-            return 0.0; // Avoid division by zero
+        if (commonSharesOutstanding.compareTo(BigDecimal.ZERO) == 0) {
+            return BigDecimal.ZERO; // Avoid division by zero
         }
-        return (equityValue - totalDebt + cashBalance) / commonSharesOutstanding;
+        return (equityValue.subtract(totalDebt, MC).add(cashBalance, MC)).divide(commonSharesOutstanding, MC);
     }
 }

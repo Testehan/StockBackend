@@ -2,14 +2,16 @@ package com.testehan.finana.model.valuation.growth;
 
 import lombok.Data;
 
+import java.math.BigDecimal;
+
 @Data
 public class CashFlowYear {
 
     private int fiscalYear;
 
-    private double operatingCashFlow;
-    private double capitalExpenditures;
+    private BigDecimal operatingCashFlow;
+    private BigDecimal capitalExpenditures;
 
-    private double depreciationAndAmortization;
-    private double changeInWorkingCapital;
+    private BigDecimal depreciationAndAmortization;
+    private BigDecimal changeInWorkingCapital;
 }

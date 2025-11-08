@@ -2,6 +2,7 @@ package com.testehan.finana.model.valuation.growth;
 
 import lombok.Data;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @Data
@@ -17,9 +18,9 @@ public class GrowthValuationData {
 //    private int yearsPublic;
 
     // Market Data
-    private double currentSharePrice;
-    private double marketCapitalization;
-    private double riskFreeRate;
+    private BigDecimal currentSharePrice;
+    private BigDecimal marketCapitalization;
+    private BigDecimal riskFreeRate;
 
     // Financial Statements
     private List<IncomeStatementYear> incomeStatements;
@@ -30,14 +31,14 @@ public class GrowthValuationData {
     // TODO THE NEXT 2 are set to 0...this is because the information about them is not available in the income statements...
     // it is somewhere in the sec fillings so it should be extracted from there...or given as input fields
     // either way right now the react client code does not use them...but uses marginalTaxRate
-    private double netOperatingLossCarryforward;
+    private BigDecimal netOperatingLossCarryforward;
     private int nolExpirationYears;
 
     // Capital Structure
-    private double totalDebt;
-    private double averageInterestRate;
-    private double cashBalance;
+    private BigDecimal totalDebt;
+    private BigDecimal averageInterestRate;
+    private BigDecimal cashBalance;
 
     // Share Counts
-    private double commonSharesOutstanding;
+    private BigDecimal commonSharesOutstanding;
 }
