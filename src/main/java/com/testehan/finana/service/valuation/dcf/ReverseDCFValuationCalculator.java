@@ -87,14 +87,18 @@ public class ReverseDCFValuationCalculator {
         }
 
         // 1. Get a realistic benchmark for the sector
-        double benchmarkRate = switch (data.meta().sector().toUpperCase()) {
-            case "TECHNOLOGY", "SOFTWARE" -> 0.15; // 15%
-            case "SEMICONDUCTORS"          -> 0.12; // 12%
-            case "HEALTHCARE"              -> 0.08; // 8%
-            case "CONSUMER STAPLES"        -> 0.04; // 4%
-            case "UTILITIES"               -> 0.03; // 3%
-            default                        -> 0.07; // 7% Market Average
-        };
+        String sector = data.meta().sector();
+        double benchmarkRate = 0.07; // Default market average
+        if (sector != null) {
+            benchmarkRate = switch (sector.toUpperCase()) {
+                case "TECHNOLOGY", "SOFTWARE" -> 0.15; // 15%
+                case "SEMICONDUCTORS"          -> 0.12; // 12%
+                case "HEALTHCARE"              -> 0.08; // 8%
+                case "CONSUMER STAPLES"        -> 0.04; // 4%
+                case "UTILITIES"               -> 0.03; // 3%
+                default                        -> 0.07; // 7% Market Average
+            };
+        }
 
         // 2. Calculate verdict
         String verdict = calculateVerdict(mid.doubleValue(), benchmarkRate);

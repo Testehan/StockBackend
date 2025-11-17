@@ -28,6 +28,7 @@ class ReverseDCFValuationCalculatorTest {
                 .currency("USD")
                 .currentSharePrice(new BigDecimal("175.00"))
                 .sharesOutstanding(new BigDecimal("15000000000"))
+                .sector("TECHNOLOGY")
                 .build())
             .income(DcfCalculationData.IncomeData.builder()
                 .revenue(new BigDecimal("380000000000"))
