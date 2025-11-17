@@ -3,9 +3,12 @@ package com.testehan.finana.service.valuation;
 import com.testehan.finana.model.*;
 import com.testehan.finana.model.valuation.Valuations;
 import com.testehan.finana.model.valuation.dcf.DcfCalculationData;
+import com.testehan.finana.model.valuation.dcf.DcfOutput;
+import com.testehan.finana.model.valuation.dcf.DcfUserInput;
 import com.testehan.finana.model.valuation.dcf.DcfValuation;
 import com.testehan.finana.repository.*;
 import com.testehan.finana.service.FMPService;
+import com.testehan.finana.service.valuation.dcf.DCFValuationCalculator;
 import com.testehan.finana.util.SafeParser;
 import org.springframework.stereotype.Service;
 
@@ -22,6 +25,8 @@ import java.util.stream.Collectors;
 @Service
 public class DcfValuationService extends BaseValuationService {
 
+    private final DCFValuationCalculator dcfValuationCalculator;
+
     public DcfValuationService(CompanyOverviewRepository companyOverviewRepository,
                                StockQuotesRepository stockQuotesRepository,
                                IncomeStatementRepository incomeStatementRepository,
@@ -29,9 +34,15 @@ public class DcfValuationService extends BaseValuationService {
                                CashFlowRepository cashFlowRepository,
                                ValuationsRepository valuationsRepository,
                                FMPService fmpService,
-                               SafeParser safeParser) {
+                               SafeParser safeParser,
+                               DCFValuationCalculator dcfValuationCalculator) {
         super(companyOverviewRepository, stockQuotesRepository, incomeStatementRepository,
                 balanceSheetRepository, cashFlowRepository, valuationsRepository, fmpService, safeParser);
+        this.dcfValuationCalculator = dcfValuationCalculator;
+    }
+
+    public DcfOutput calculateDcfValuation(DcfCalculationData data, DcfUserInput input) {
+        return dcfValuationCalculator.calculateIntrinsicValue(data, input);
     }
 
     public DcfCalculationData getDcfCalculationData(String ticker) {

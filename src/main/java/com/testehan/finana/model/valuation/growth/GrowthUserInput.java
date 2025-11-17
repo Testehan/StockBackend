@@ -19,4 +19,6 @@ public class GrowthUserInput {
     private BigDecimal probabilityOfFailure = BigDecimal.ZERO;   // Probability of Failure (%)
     private BigDecimal distressProceedsPctOfBookOrRevenue = BigDecimal.ZERO; // Distress Proceeds (% of book or revenue)
     private BigDecimal marginalTaxRate = BigDecimal.valueOf(21);
+
+    private String userComments;
 }

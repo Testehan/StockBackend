@@ -1,6 +1,7 @@
 package com.testehan.finana.controller;
 
 import com.testehan.finana.model.valuation.dcf.DcfCalculationData;
+import com.testehan.finana.model.valuation.dcf.DcfOutput;
 import com.testehan.finana.model.valuation.dcf.DcfValuation;
 import com.testehan.finana.model.valuation.dcf.ReverseDcfValuation;
 import com.testehan.finana.model.valuation.growth.GrowthOutput;
@@ -84,6 +85,13 @@ public class ValuationController {
     public ResponseEntity<GrowthOutput> calculateGrowthCompanyValuation(@RequestBody GrowthValuation growthValuation) {
         logger.info("Received Growth Company valuation to calculate: {}", growthValuation);
         GrowthOutput calculatedOutput = valuationService.calculateGrowthCompanyValuation(growthValuation);
+        return ResponseEntity.ok(calculatedOutput);
+    }
+
+    @PostMapping("/calculate/dcf")
+    public ResponseEntity<DcfOutput> calculateDcfValuation(@RequestBody DcfValuation dcfValuation) {
+        logger.info("Received DCF valuation to calculate: {}", dcfValuation);
+        DcfOutput calculatedOutput = valuationService.calculateDcfValuation(dcfValuation);
         return ResponseEntity.ok(calculatedOutput);
     }
 

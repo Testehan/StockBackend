@@ -1,6 +1,7 @@
 package com.testehan.finana.service;
 
 import com.testehan.finana.model.valuation.dcf.DcfCalculationData;
+import com.testehan.finana.model.valuation.dcf.DcfOutput;
 import com.testehan.finana.model.valuation.dcf.DcfValuation;
 import com.testehan.finana.model.valuation.dcf.ReverseDcfValuation;
 import com.testehan.finana.model.valuation.growth.GrowthOutput;
@@ -51,6 +52,13 @@ public class ValuationService {
     // DCF Valuation Methods
     public DcfCalculationData getDcfCalculationData(String ticker) {
         return dcfValuationService.getDcfCalculationData(ticker);
+    }
+
+    public DcfOutput calculateDcfValuation(DcfValuation dcfValuation) {
+        return dcfValuationService.calculateDcfValuation(
+            dcfValuation.getDcfCalculationData(),
+            dcfValuation.getDcfUserInput()
+        );
     }
 
     public void saveDcfValuation(DcfValuation dcfValuation) {
