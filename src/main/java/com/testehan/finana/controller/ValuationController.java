@@ -67,9 +67,35 @@ public class ValuationController {
         return ResponseEntity.ok(valuationService.getDcfHistory(symbol.toUpperCase()));
     }
 
+    @DeleteMapping("/dcf/{symbol}")
+    public ResponseEntity<Void> deleteDcfValuation(
+            @PathVariable String symbol,
+            @RequestParam String valuationDate) {
+        logger.info("Received request to delete DCF valuation for {} with date: {}", symbol, valuationDate);
+        boolean deleted = valuationService.deleteDcfValuation(symbol.toUpperCase(), valuationDate);
+        if (deleted) {
+            return ResponseEntity.noContent().build();
+        } else {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
     @GetMapping("/reverse-dcf/history/{symbol}")
     public ResponseEntity<List<ReverseDcfValuation>> getReverseDcfHistory(@PathVariable String symbol) {
         return ResponseEntity.ok(valuationService.getReverseDcfHistory(symbol.toUpperCase()));
+    }
+
+    @DeleteMapping("/reverse-dcf/{symbol}")
+    public ResponseEntity<Void> deleteReverseDcfValuation(
+            @PathVariable String symbol,
+            @RequestParam String valuationDate) {
+        logger.info("Received request to delete Reverse DCF valuation for {} with date: {}", symbol, valuationDate);
+        boolean deleted = valuationService.deleteReverseDcfValuation(symbol.toUpperCase(), valuationDate);
+        if (deleted) {
+            return ResponseEntity.noContent().build();
+        } else {
+            return ResponseEntity.notFound().build();
+        }
     }
 
     @GetMapping("/growth/{symbol}")
@@ -113,6 +139,19 @@ public class ValuationController {
     @GetMapping("/growth/history/{symbol}")
     public ResponseEntity<List<GrowthValuation>> getGrowthCompanyValuationHistory(@PathVariable String symbol) {
         return ResponseEntity.ok(valuationService.getGrowthCompanyValuationHistory(symbol.toUpperCase()));
+    }
+
+    @DeleteMapping("/growth/{symbol}")
+    public ResponseEntity<Void> deleteGrowthValuation(
+            @PathVariable String symbol,
+            @RequestParam String valuationDate) {
+        logger.info("Received request to delete Growth valuation for {} with date: {}", symbol, valuationDate);
+        boolean deleted = valuationService.deleteGrowthValuation(symbol.toUpperCase(), valuationDate);
+        if (deleted) {
+            return ResponseEntity.noContent().build();
+        } else {
+            return ResponseEntity.notFound().build();
+        }
     }
 
 }

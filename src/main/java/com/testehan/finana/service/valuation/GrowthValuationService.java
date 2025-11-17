@@ -324,6 +324,24 @@ public class GrowthValuationService extends BaseValuationService {
         valuationsRepository.save(valuations);
     }
 
+    public boolean deleteGrowthValuation(String ticker, String valuationDate) {
+        Optional<Valuations> valuationsOpt = valuationsRepository.findById(ticker.toUpperCase());
+        if (valuationsOpt.isEmpty()) {
+            return false;
+        }
+
+        Valuations valuations = valuationsOpt.get();
+        List<GrowthValuation> growthValuations = valuations.getGrowthValuations();
+
+        boolean removed = growthValuations.removeIf(v -> valuationDate.equals(v.getValuationDate()));
+
+        if (removed) {
+            valuationsRepository.save(valuations);
+        }
+
+        return removed;
+    }
+
     private BigDecimal calculateNthRoot(BigDecimal base, int n) {
         if (base.compareTo(BigDecimal.ZERO) < 0) {
             throw new IllegalArgumentException("Base must be non-negative for real roots.");

@@ -70,6 +70,10 @@ public class ValuationService {
         return dcfValuationService.getDcfHistory(ticker);
     }
 
+    public boolean deleteDcfValuation(String ticker, String valuationDate) {
+        return dcfValuationService.deleteDcfValuation(ticker, valuationDate);
+    }
+
     // Reverse DCF Valuation Methods
     public ReverseDcfOutput calculateReverseDcfValuation(ReverseDcfValuation reverseDcfValuation) {
         return reverseDcfValuationService.calculateReverseDcfValuation(
@@ -84,5 +88,14 @@ public class ValuationService {
 
     public List<ReverseDcfValuation> getReverseDcfHistory(String ticker) {
         return reverseDcfValuationService.getReverseDcfHistory(ticker);
+    }
+
+    public boolean deleteReverseDcfValuation(String ticker, String valuationDate) {
+        return reverseDcfValuationService.deleteReverseDcfValuation(ticker, valuationDate);
+    }
+
+    // Growth Valuation Methods
+    public boolean deleteGrowthValuation(String ticker, String valuationDate) {
+        return growthValuationService.deleteGrowthValuation(ticker, valuationDate);
     }
 }

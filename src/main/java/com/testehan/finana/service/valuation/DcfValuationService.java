@@ -88,6 +88,24 @@ public class DcfValuationService extends BaseValuationService {
                 .orElse(java.util.Collections.emptyList());
     }
 
+    public boolean deleteDcfValuation(String ticker, String valuationDate) {
+        Optional<Valuations> valuationsOpt = valuationsRepository.findById(ticker.toUpperCase());
+        if (valuationsOpt.isEmpty()) {
+            return false;
+        }
+
+        Valuations valuations = valuationsOpt.get();
+        List<DcfValuation> dcfValuations = valuations.getDcfValuations();
+        
+        boolean removed = dcfValuations.removeIf(v -> valuationDate.equals(v.getValuationDate()));
+        
+        if (removed) {
+            valuationsRepository.save(valuations);
+        }
+        
+        return removed;
+    }
+
     private DcfCalculationData.CompanyMeta getCompanyMeta(String ticker) {
         Optional<CompanyOverview> companyOverviewOptional = companyOverviewRepository.findBySymbol(ticker);
         Optional<GlobalQuote> globalQuoteOptional = stockQuotesRepository.findBySymbol(ticker)

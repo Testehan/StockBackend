@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class ReverseDcfValuationService extends BaseValuationService {
@@ -50,5 +51,23 @@ public class ReverseDcfValuationService extends BaseValuationService {
         return valuationsRepository.findById(ticker)
                 .map(Valuations::getReverseDcfValuations)
                 .orElse(java.util.Collections.emptyList());
+    }
+
+    public boolean deleteReverseDcfValuation(String ticker, String valuationDate) {
+        Optional<Valuations> valuationsOpt = valuationsRepository.findById(ticker.toUpperCase());
+        if (valuationsOpt.isEmpty()) {
+            return false;
+        }
+
+        Valuations valuations = valuationsOpt.get();
+        List<ReverseDcfValuation> reverseDcfValuations = valuations.getReverseDcfValuations();
+        
+        boolean removed = reverseDcfValuations.removeIf(v -> valuationDate.equals(v.getValuationDate()));
+        
+        if (removed) {
+            valuationsRepository.save(valuations);
+        }
+        
+        return removed;
     }
 }
