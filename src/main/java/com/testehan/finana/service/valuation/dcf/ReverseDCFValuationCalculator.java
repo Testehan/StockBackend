@@ -86,9 +86,23 @@ public class ReverseDCFValuationCalculator {
             }
         }
 
+        // 1. Get a realistic benchmark for the sector
+        double benchmarkRate = switch (data.meta().sector().toUpperCase()) {
+            case "TECHNOLOGY", "SOFTWARE" -> 0.15; // 15%
+            case "SEMICONDUCTORS"          -> 0.12; // 12%
+            case "HEALTHCARE"              -> 0.08; // 8%
+            case "CONSUMER STAPLES"        -> 0.04; // 4%
+            case "UTILITIES"               -> 0.03; // 3%
+            default                        -> 0.07; // 7% Market Average
+        };
+
+        // 2. Calculate verdict
+        String verdict = calculateVerdict(mid.doubleValue(), benchmarkRate);
+
         // Return the implied growth rate as a percentage (e.g., 0.05 for 5%)
         return ReverseDcfOutput.builder()
             .impliedFCFGrowthRate(mid.doubleValue())
+            .verdict(verdict)
             .build();
     }
 
@@ -139,5 +153,21 @@ public class ReverseDCFValuationCalculator {
 
         // Total enterprise value
         return presentValue.add(discountedTerminalValue, MC);
+    }
+
+    private String calculateVerdict(double impliedRate, double estimatedRate) {
+        // 3% margin of safety expressed as a decimal
+        double threshold = 0.03;
+
+        // Example: 0.15 (estimated) - 0.05 (implied) = 0.10 spread
+        double spread = estimatedRate - impliedRate;
+
+        if (spread > threshold) {
+            return "Undervalued";
+        } else if (spread < -threshold) {
+            return "Overvalued";
+        } else {
+            return "Neutral";
+        }
     }
 }

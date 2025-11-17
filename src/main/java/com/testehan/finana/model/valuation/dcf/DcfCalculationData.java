@@ -30,6 +30,7 @@ public record DcfCalculationData(
     public record CompanyMeta(
         String ticker,
         String companyName,
+        String sector,
         String currency,            // e.g., "USD"
         BigDecimal currentSharePrice,
         BigDecimal sharesOutstanding,

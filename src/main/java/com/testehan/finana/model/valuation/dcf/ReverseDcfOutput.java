@@ -4,6 +4,7 @@ import lombok.Builder;
 
 @Builder
 public record ReverseDcfOutput(
-        Double impliedFCFGrowthRate
+        Double impliedFCFGrowthRate,
+        String verdict
 ) {
 }

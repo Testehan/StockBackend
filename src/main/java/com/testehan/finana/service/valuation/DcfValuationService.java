@@ -122,6 +122,7 @@ public class DcfValuationService extends BaseValuationService {
                 .collect(Collectors.toList());
 
         String companyName = companyOverviewOptional.map(CompanyOverview::getCompanyName).orElse("N/A");
+        String sector = companyOverviewOptional.map(CompanyOverview::getSector).orElse("N/A");
         String currency = companyOverviewOptional.map(CompanyOverview::getCurrency).orElse("USD");
         BigDecimal currentSharePrice = globalQuoteOptional.map(gq -> safeParser.parse(gq.getAdjClose())).orElse(BigDecimal.ZERO);
 
@@ -133,6 +134,7 @@ public class DcfValuationService extends BaseValuationService {
         return DcfCalculationData.CompanyMeta.builder()
                 .ticker(ticker)
                 .companyName(companyName)
+                .sector(sector)
                 .currency(currency)
                 .currentSharePrice(currentSharePrice)
                 .sharesOutstanding(sharesOutstanding)
