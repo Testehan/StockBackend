@@ -82,6 +82,25 @@ public class GrowthValuationCalculator {
 
         GrowthOutput output = new GrowthOutput();
         output.setIntrinsicValuePerShare(pricePerShare);
+        
+        // Determine verdict based on comparison with current share price
+        BigDecimal currentSharePrice = data.getCurrentSharePrice();
+        if (currentSharePrice == null || currentSharePrice.compareTo(BigDecimal.ZERO) <= 0) {
+            output.setVerdict("Neutral");
+        } else {
+            BigDecimal margin = pricePerShare.subtract(currentSharePrice, MC)
+                .divide(currentSharePrice, MC);
+            double marginPercent = margin.doubleValue();
+            
+            if (marginPercent > 0.20) {
+                output.setVerdict("Undervalued");
+            } else if (marginPercent < -0.20) {
+                output.setVerdict("Overvalued");
+            } else {
+                output.setVerdict("Neutral");
+            }
+        }
+        
         return output;
     }
 

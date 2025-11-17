@@ -140,12 +140,12 @@ public class DCFValuationCalculator {
             .divide(currentSharePrice, MC);
         double marginPercent = margin.doubleValue();
 
-        if (marginPercent > 0.15) {
-            return "UNDERVALUED - Potential buy opportunity";
-        } else if (marginPercent < -0.15) {
-            return "OVERVALUED - Consider selling";
+        if (marginPercent > 0.20) {
+            return "Undervalued";
+        } else if (marginPercent < -0.20) {
+            return "Overvalued";
         } else {
-            return "FAIRLY VALUED - Within 15% of current price";
+            return "Neutral";
         }
     }
 
