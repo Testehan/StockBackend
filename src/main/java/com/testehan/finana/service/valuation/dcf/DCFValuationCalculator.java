@@ -72,16 +72,25 @@ public class DCFValuationCalculator {
         BigDecimal currentCapitalExpenditure = capitalExpenditure;
 
         for (int i = 1; i <= PROJECTION_YEARS; i++) {
-            // Project OCF and CapEx based on the growth rate assumption
-            currentOperatingCashFlow = currentOperatingCashFlow.multiply(
-                BigDecimal.ONE.add(fcfGrowthRate, MC), MC);
-            currentCapitalExpenditure = currentCapitalExpenditure.multiply(
-                BigDecimal.ONE.add(fcfGrowthRate, MC), MC);
+            if (initialOperatingCashFlow.compareTo(BigDecimal.ZERO) < 0) {
+                /*
+                   If OCF is negative, "Growth" should reduce the loss.
+                   We add a portion of the absolute initial loss back each year.
+                   Example: If OCF is -100 and growth is 20%, we add 20 each year.
+                */
+                BigDecimal improvement = initialOperatingCashFlow.abs().multiply(fcfGrowthRate, MC);
+                currentOperatingCashFlow = currentOperatingCashFlow.add(improvement, MC);
+            } else {
+                // If OCF is positive, use standard compounding growth
+                currentOperatingCashFlow = currentOperatingCashFlow.multiply(
+                        BigDecimal.ONE.add(fcfGrowthRate, MC), MC);
+            }
+
+            // CapEx usually grows with the scale of the business
+            currentCapitalExpenditure = currentCapitalExpenditure.multiply(BigDecimal.ONE.add(fcfGrowthRate, MC), MC);
 
             // FCFF = OCF - |CapEx|
-            BigDecimal fcf = currentOperatingCashFlow.subtract(
-                currentCapitalExpenditure.abs(), MC);
-
+            BigDecimal fcf = currentOperatingCashFlow.subtract(currentCapitalExpenditure.abs(), MC);
             fcfProjections.add(new ProjectedFcf(i, fcf));
         }
 
@@ -89,7 +98,14 @@ public class DCFValuationCalculator {
         BigDecimal terminalValue = BigDecimal.ZERO;
         if (!fcfProjections.isEmpty()) {
             BigDecimal lastProjectedFcf = fcfProjections.get(fcfProjections.size() - 1).fcf();
-            terminalValue = lastProjectedFcf.multiply(terminalMultiple, MC);
+
+            // Safety Check: A DCF only works if the company is eventually profitable.
+            // If last FCF is still negative, the Terminal Value is 0 (or liquidation value).
+            if (lastProjectedFcf.compareTo(BigDecimal.ZERO) > 0) {
+                terminalValue = lastProjectedFcf.multiply(terminalMultiple, MC);
+            } else {
+                terminalValue = BigDecimal.ZERO;
+            }
         }
 
         // --- Discounting FCFs and Terminal Value ---
