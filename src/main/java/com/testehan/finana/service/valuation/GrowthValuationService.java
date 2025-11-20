@@ -1,6 +1,8 @@
 package com.testehan.finana.service.valuation;
 
 import com.testehan.finana.model.*;
+import com.testehan.finana.model.finstatement.*;
+import com.testehan.finana.model.quote.GlobalQuote;
 import com.testehan.finana.model.valuation.Valuations;
 import com.testehan.finana.model.valuation.growth.*;
 import com.testehan.finana.repository.*;

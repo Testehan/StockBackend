@@ -1,7 +1,7 @@
 package com.testehan.finana.controller;
 
-import com.testehan.finana.model.UserStock;
-import com.testehan.finana.model.UserStockStatus;
+import com.testehan.finana.model.user.UserStock;
+import com.testehan.finana.model.user.UserStockStatus;
 import com.testehan.finana.repository.UserStockRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

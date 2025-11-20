@@ -1,9 +1,9 @@
 package com.testehan.finana.service.reporting;
 
-import com.testehan.finana.model.ChecklistReport;
-import com.testehan.finana.model.ReportItem;
-import com.testehan.finana.model.GeneratedReport;
-import com.testehan.finana.model.ReportType;
+import com.testehan.finana.model.reporting.ChecklistReport;
+import com.testehan.finana.model.reporting.ReportItem;
+import com.testehan.finana.model.reporting.GeneratedReport;
+import com.testehan.finana.model.reporting.ReportType;
 import com.testehan.finana.repository.GeneratedReportRepository;
 import org.springframework.stereotype.Service;
 

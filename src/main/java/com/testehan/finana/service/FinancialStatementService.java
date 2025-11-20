@@ -1,10 +1,10 @@
 package com.testehan.finana.service;
 
-import com.testehan.finana.model.BalanceSheetData;
-import com.testehan.finana.model.CashFlowData;
-import com.testehan.finana.model.IncomeStatementData;
-import com.testehan.finana.model.RevenueGeographicSegmentationData;
-import com.testehan.finana.model.RevenueSegmentationData;
+import com.testehan.finana.model.finstatement.BalanceSheetData;
+import com.testehan.finana.model.finstatement.CashFlowData;
+import com.testehan.finana.model.finstatement.IncomeStatementData;
+import com.testehan.finana.model.finstatement.RevenueGeographicSegmentationData;
+import com.testehan.finana.model.finstatement.RevenueSegmentationData;
 import com.testehan.finana.repository.BalanceSheetRepository;
 import com.testehan.finana.repository.CashFlowRepository;
 import com.testehan.finana.repository.IncomeStatementRepository;
@@ -13,8 +13,6 @@ import com.testehan.finana.repository.RevenueSegmentationDataRepository;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
-
-import java.util.Optional;
 
 @Service
 public class FinancialStatementService {

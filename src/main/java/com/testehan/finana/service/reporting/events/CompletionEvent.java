@@ -1,7 +1,6 @@
 package com.testehan.finana.service.reporting.events;
 
-import com.testehan.finana.model.ChecklistReport;
-import org.springframework.http.MediaType;
+import com.testehan.finana.model.reporting.ChecklistReport;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 public class CompletionEvent extends ReportEvent {

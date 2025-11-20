@@ -1,12 +1,12 @@
 package com.testehan.finana.service.reporting.calc.positives;
 
-import com.testehan.finana.model.BalanceSheetData;
-import com.testehan.finana.model.BalanceSheetReport;
+import com.testehan.finana.model.finstatement.BalanceSheetData;
+import com.testehan.finana.model.finstatement.BalanceSheetReport;
 import com.testehan.finana.model.CompanyOverview;
-import com.testehan.finana.model.ReportItem;
-import com.testehan.finana.model.RevenueSegmentationData;
-import com.testehan.finana.model.RevenueSegmentationReport;
-import com.testehan.finana.model.SecFiling;
+import com.testehan.finana.model.reporting.ReportItem;
+import com.testehan.finana.model.finstatement.RevenueSegmentationData;
+import com.testehan.finana.model.finstatement.RevenueSegmentationReport;
+import com.testehan.finana.model.filing.SecFiling;
 import com.testehan.finana.model.llm.responses.LlmScoreExplanationResponse;
 import com.testehan.finana.repository.BalanceSheetRepository;
 import com.testehan.finana.repository.CompanyOverviewRepository;

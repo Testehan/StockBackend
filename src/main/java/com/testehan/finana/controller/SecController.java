@@ -1,8 +1,8 @@
 package com.testehan.finana.controller;
 
-import com.testehan.finana.model.SecFiling;
-import com.testehan.finana.model.TenKFilings;
-import com.testehan.finana.model.TenQFilings;
+import com.testehan.finana.model.filing.SecFiling;
+import com.testehan.finana.model.filing.TenKFilings;
+import com.testehan.finana.model.filing.TenQFilings;
 import com.testehan.finana.repository.SecFilingRepository;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;

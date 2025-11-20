@@ -1,6 +1,6 @@
 package com.testehan.finana.util.ratio;
 
-import com.testehan.finana.model.FinancialRatiosReport;
+import com.testehan.finana.model.ratio.FinancialRatiosReport;
 import com.testehan.finana.util.data.ParsedFinancialData;
 import org.springframework.stereotype.Component;
 

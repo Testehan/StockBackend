@@ -1,6 +1,6 @@
 package com.testehan.finana.repository;
 
-import com.testehan.finana.model.RevenueSegmentationData;
+import com.testehan.finana.model.finstatement.RevenueSegmentationData;
 import org.springframework.data.mongodb.repository.MongoRepository;
 
 import java.util.Optional;

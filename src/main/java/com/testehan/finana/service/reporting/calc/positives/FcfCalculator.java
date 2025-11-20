@@ -1,10 +1,10 @@
 package com.testehan.finana.service.reporting.calc.positives;
 
-import com.testehan.finana.model.ReportItem;
-import com.testehan.finana.model.FinancialRatiosData;
-import com.testehan.finana.model.FinancialRatiosReport;
-import com.testehan.finana.model.IncomeReport;
-import com.testehan.finana.model.IncomeStatementData;
+import com.testehan.finana.model.reporting.ReportItem;
+import com.testehan.finana.model.ratio.FinancialRatiosData;
+import com.testehan.finana.model.ratio.FinancialRatiosReport;
+import com.testehan.finana.model.finstatement.IncomeReport;
+import com.testehan.finana.model.finstatement.IncomeStatementData;
 import com.testehan.finana.repository.FinancialRatiosRepository;
 import com.testehan.finana.repository.IncomeStatementRepository;
 import com.testehan.finana.service.reporting.events.MessageEvent;
@@ -16,7 +16,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;

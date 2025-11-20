@@ -1,6 +1,10 @@
 package com.testehan.finana.service;
 
 import com.testehan.finana.model.*;
+import com.testehan.finana.model.finstatement.*;
+import com.testehan.finana.model.ratio.FinancialRatiosData;
+import com.testehan.finana.model.ratio.FinancialRatiosReport;
+import com.testehan.finana.model.ratio.FmpRatios;
 import com.testehan.finana.repository.FinancialRatiosRepository;
 import com.testehan.finana.repository.GeneratedReportRepository;
 import com.testehan.finana.util.FinancialRatiosCalculator;

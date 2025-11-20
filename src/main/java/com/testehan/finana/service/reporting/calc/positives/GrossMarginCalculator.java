@@ -1,8 +1,8 @@
 package com.testehan.finana.service.reporting.calc.positives;
 
-import com.testehan.finana.model.ReportItem;
-import com.testehan.finana.model.FinancialRatiosData;
-import com.testehan.finana.model.FinancialRatiosReport;
+import com.testehan.finana.model.reporting.ReportItem;
+import com.testehan.finana.model.ratio.FinancialRatiosData;
+import com.testehan.finana.model.ratio.FinancialRatiosReport;
 import com.testehan.finana.repository.FinancialRatiosRepository;
 import com.testehan.finana.service.reporting.events.MessageEvent;
 import org.slf4j.Logger;

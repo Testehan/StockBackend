@@ -1,6 +1,9 @@
 package com.testehan.finana.service.reporting;
 
 import com.testehan.finana.model.*;
+import com.testehan.finana.model.reporting.*;
+import com.testehan.finana.model.user.UserStock;
+import com.testehan.finana.model.user.UserStockStatus;
 import com.testehan.finana.repository.GeneratedReportRepository;
 import com.testehan.finana.repository.UserStockRepository;
 import com.testehan.finana.service.CompanyDataService;

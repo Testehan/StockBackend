@@ -1,8 +1,8 @@
 package com.testehan.finana.service.reporting;
 
-import com.testehan.finana.model.ChecklistReport;
-import com.testehan.finana.model.ReportItem;
-import com.testehan.finana.model.ReportType;
+import com.testehan.finana.model.reporting.ChecklistReport;
+import com.testehan.finana.model.reporting.ReportItem;
+import com.testehan.finana.model.reporting.ReportType;
 import com.testehan.finana.service.reporting.calc.ReportItemCalculator;
 import com.testehan.finana.service.reporting.events.CompletionEvent;
 import com.testehan.finana.service.reporting.events.MessageEvent;

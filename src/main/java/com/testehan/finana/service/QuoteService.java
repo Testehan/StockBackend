@@ -1,9 +1,9 @@
 package com.testehan.finana.service;
 
-import com.testehan.finana.model.GlobalQuote;
-import com.testehan.finana.model.IndexData;
-import com.testehan.finana.model.IndexQuotes;
-import com.testehan.finana.model.StockQuotes;
+import com.testehan.finana.model.quote.GlobalQuote;
+import com.testehan.finana.model.quote.IndexData;
+import com.testehan.finana.model.quote.IndexQuotes;
+import com.testehan.finana.model.quote.StockQuotes;
 import com.testehan.finana.repository.IndexQuotesRepository;
 import com.testehan.finana.repository.StockQuotesRepository;
 import org.springframework.stereotype.Service;

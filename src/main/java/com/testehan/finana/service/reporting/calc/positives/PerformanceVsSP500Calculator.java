@@ -1,8 +1,8 @@
 package com.testehan.finana.service.reporting.calc.positives;
 
-import com.testehan.finana.model.GlobalQuote;
-import com.testehan.finana.model.IndexData;
-import com.testehan.finana.model.ReportItem;
+import com.testehan.finana.model.quote.GlobalQuote;
+import com.testehan.finana.model.quote.IndexData;
+import com.testehan.finana.model.reporting.ReportItem;
 import com.testehan.finana.service.QuoteService;
 import com.testehan.finana.service.reporting.events.ErrorEvent;
 import com.testehan.finana.util.SafeParser;

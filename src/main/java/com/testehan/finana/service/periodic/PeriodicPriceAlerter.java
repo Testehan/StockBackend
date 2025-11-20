@@ -1,8 +1,8 @@
 package com.testehan.finana.service.periodic;
 
-import com.testehan.finana.model.GlobalQuote;
-import com.testehan.finana.model.UserStock;
-import com.testehan.finana.model.UserStockStatus;
+import com.testehan.finana.model.quote.GlobalQuote;
+import com.testehan.finana.model.user.UserStock;
+import com.testehan.finana.model.user.UserStockStatus;
 import com.testehan.finana.model.valuation.Valuations;
 import com.testehan.finana.model.valuation.dcf.*;
 import com.testehan.finana.model.valuation.growth.GrowthOutput;

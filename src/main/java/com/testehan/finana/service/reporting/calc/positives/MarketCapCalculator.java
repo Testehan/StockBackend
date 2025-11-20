@@ -1,7 +1,7 @@
 package com.testehan.finana.service.reporting.calc.positives;
 
 import com.testehan.finana.model.CompanyOverview;
-import com.testehan.finana.model.ReportItem;
+import com.testehan.finana.model.reporting.ReportItem;
 import com.testehan.finana.repository.CompanyOverviewRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

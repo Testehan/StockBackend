@@ -1,9 +1,9 @@
 package com.testehan.finana.util.data;
 
-import com.testehan.finana.model.BalanceSheetReport;
-import com.testehan.finana.model.CashFlowReport;
+import com.testehan.finana.model.finstatement.BalanceSheetReport;
+import com.testehan.finana.model.finstatement.CashFlowReport;
 import com.testehan.finana.model.CompanyOverview;
-import com.testehan.finana.model.IncomeReport;
+import com.testehan.finana.model.finstatement.IncomeReport;
 import com.testehan.finana.util.SafeParser;
 
 import java.math.BigDecimal;

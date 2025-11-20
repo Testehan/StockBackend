@@ -1,6 +1,6 @@
 package com.testehan.finana.service.reporting;
 
-import com.testehan.finana.model.ReportType;
+import com.testehan.finana.model.reporting.ReportType;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;

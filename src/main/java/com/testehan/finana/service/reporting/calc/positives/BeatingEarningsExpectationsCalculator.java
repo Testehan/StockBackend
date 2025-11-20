@@ -1,7 +1,7 @@
 package com.testehan.finana.service.reporting.calc.positives;
 
 import com.testehan.finana.model.EarningsHistory;
-import com.testehan.finana.model.ReportItem;
+import com.testehan.finana.model.reporting.ReportItem;
 import com.testehan.finana.model.QuarterlyEarning;
 import com.testehan.finana.repository.EarningsHistoryRepository;
 import com.testehan.finana.service.FinancialDataService;

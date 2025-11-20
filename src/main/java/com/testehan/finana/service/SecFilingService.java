@@ -1,6 +1,6 @@
 package com.testehan.finana.service;
 
-import com.testehan.finana.model.*;
+import com.testehan.finana.model.filing.*;
 import com.testehan.finana.repository.SecFilingRepository;
 import com.testehan.finana.repository.SecFilingUrlsRepository;
 import org.jsoup.Jsoup;

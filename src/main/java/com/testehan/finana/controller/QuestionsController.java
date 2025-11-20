@@ -36,7 +36,7 @@ public class QuestionsController {
 
         executorService.execute(() -> {
             try {
-                questionAnswerService.answerQuestion(stockId, questionId, emitter);
+                questionAnswerService.answerQuestion(stockId.toUpperCase(), questionId, emitter);
             } catch (Exception ex) {
                 emitter.completeWithError(ex);
             }

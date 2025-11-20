@@ -1,7 +1,7 @@
 package com.testehan.finana.service.reporting.calc.negatives;
 
-import com.testehan.finana.model.ReportItem;
-import com.testehan.finana.model.RevenueGeographicSegmentationReport;
+import com.testehan.finana.model.reporting.ReportItem;
+import com.testehan.finana.model.finstatement.RevenueGeographicSegmentationReport;
 import com.testehan.finana.repository.RevenueGeographicSegmentationRepository;
 import com.testehan.finana.service.reporting.events.ErrorEvent;
 import org.slf4j.Logger;

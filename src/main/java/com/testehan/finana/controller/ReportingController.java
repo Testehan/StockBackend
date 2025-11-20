@@ -2,12 +2,12 @@ package com.testehan.finana.controller;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import com.testehan.finana.model.ChecklistReport;
-import com.testehan.finana.model.ChecklistReportSummaryDTO;
-import com.testehan.finana.model.ReportItem;
-import com.testehan.finana.model.ReportType;
-import com.testehan.finana.model.UserStock;
-import com.testehan.finana.model.UserStockStatus;
+import com.testehan.finana.model.reporting.ChecklistReport;
+import com.testehan.finana.model.reporting.ChecklistReportSummaryDTO;
+import com.testehan.finana.model.reporting.ReportItem;
+import com.testehan.finana.model.reporting.ReportType;
+import com.testehan.finana.model.user.UserStock;
+import com.testehan.finana.model.user.UserStockStatus;
 import com.testehan.finana.repository.UserStockRepository;
 import com.testehan.finana.service.reporting.ChecklistReportOrchestrator;
 import org.springframework.http.HttpStatus;

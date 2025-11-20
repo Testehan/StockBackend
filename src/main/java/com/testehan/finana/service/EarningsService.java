@@ -1,9 +1,9 @@
 package com.testehan.finana.service;
 
-import com.testehan.finana.model.CompanyEarningsTranscripts;
+import com.testehan.finana.model.filing.CompanyEarningsTranscripts;
 import com.testehan.finana.model.EarningsEstimate;
 import com.testehan.finana.model.EarningsHistory;
-import com.testehan.finana.model.QuarterlyEarningsTranscript;
+import com.testehan.finana.model.filing.QuarterlyEarningsTranscript;
 import com.testehan.finana.repository.CompanyEarningsTranscriptsRepository;
 import com.testehan.finana.repository.EarningsEstimatesRepository;
 import com.testehan.finana.repository.EarningsHistoryRepository;

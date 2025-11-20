@@ -1,7 +1,12 @@
 package com.testehan.finana.service.reporting.calc.positives;
 
-import com.testehan.finana.model.*;
+import com.testehan.finana.model.filing.SecFiling;
+import com.testehan.finana.model.finstatement.IncomeReport;
+import com.testehan.finana.model.finstatement.IncomeStatementData;
 import com.testehan.finana.model.llm.responses.LlmScoreExplanationResponse;
+import com.testehan.finana.model.ratio.FinancialRatiosData;
+import com.testehan.finana.model.ratio.FinancialRatiosReport;
+import com.testehan.finana.model.reporting.ReportItem;
 import com.testehan.finana.repository.*;
 import com.testehan.finana.service.LlmService;
 import com.testehan.finana.service.reporting.events.ErrorEvent;
@@ -160,8 +165,8 @@ public class OrganicGrowthRunawayCalculator {
             return BigDecimal.ZERO;
         }
 
-        List<com.testehan.finana.model.FinancialRatiosReport> annualReports = financialRatiosDataOpt.get().getAnnualReports().stream()
-                .sorted(Comparator.comparing(com.testehan.finana.model.FinancialRatiosReport::getDate).reversed())
+        List<FinancialRatiosReport> annualReports = financialRatiosDataOpt.get().getAnnualReports().stream()
+                .sorted(Comparator.comparing(FinancialRatiosReport::getDate).reversed())
                 .limit(3)
                 .collect(Collectors.toList());
 
@@ -171,7 +176,7 @@ public class OrganicGrowthRunawayCalculator {
         }
 
         List<BigDecimal> sgrValues = new ArrayList<>();
-        for (com.testehan.finana.model.FinancialRatiosReport report : annualReports) {
+        for (FinancialRatiosReport report : annualReports) {
             BigDecimal roic = report.getRoic();
             BigDecimal dividendPayoutRatio = report.getDividendPayoutRatio();
 

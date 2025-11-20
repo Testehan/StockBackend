@@ -1,6 +1,10 @@
 package com.testehan.finana.util;
 
 import com.testehan.finana.model.*;
+import com.testehan.finana.model.finstatement.BalanceSheetReport;
+import com.testehan.finana.model.finstatement.CashFlowReport;
+import com.testehan.finana.model.finstatement.IncomeReport;
+import com.testehan.finana.model.ratio.FinancialRatiosReport;
 import com.testehan.finana.util.data.ParsedFinancialData;
 import com.testehan.finana.util.ratio.*;
 import org.springframework.stereotype.Component;
@@ -46,10 +50,10 @@ public class FinancialRatiosCalculator {
      * @return FinancialRatiosReport populated with all calculated ratios
      */
     public FinancialRatiosReport calculateRatios(CompanyOverview companyOverview,
-                                                  IncomeReport incomeReport,
-                                                  BalanceSheetReport balanceSheetReport,
-                                                  CashFlowReport cashFlowReport,
-                                                  BigDecimal stockPrice) {
+                                                 IncomeReport incomeReport,
+                                                 BalanceSheetReport balanceSheetReport,
+                                                 CashFlowReport cashFlowReport,
+                                                 BigDecimal stockPrice) {
         FinancialRatiosReport ratios = new FinancialRatiosReport();
         ratios.setDate(incomeReport.getDate());
 

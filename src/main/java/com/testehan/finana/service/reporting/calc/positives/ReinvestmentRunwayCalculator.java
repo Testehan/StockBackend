@@ -1,7 +1,10 @@
 package com.testehan.finana.service.reporting.calc.positives;
 
 import com.testehan.finana.model.*;
+import com.testehan.finana.model.filing.SecFiling;
+import com.testehan.finana.model.finstatement.*;
 import com.testehan.finana.model.llm.responses.LlmScoreExplanationResponse;
+import com.testehan.finana.model.reporting.ReportItem;
 import com.testehan.finana.repository.*;
 import com.testehan.finana.service.EarningsService;
 import com.testehan.finana.service.FinancialDataOrchestrator;

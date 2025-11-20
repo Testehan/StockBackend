@@ -1,12 +1,11 @@
 package com.testehan.finana.service.reporting.calc.positives;
 
-import com.testehan.finana.model.CashFlowData;
-import com.testehan.finana.model.CashFlowReport;
+import com.testehan.finana.model.finstatement.CashFlowData;
+import com.testehan.finana.model.finstatement.CashFlowReport;
 import com.testehan.finana.model.CompanyOverview;
-import com.testehan.finana.model.ReportItem;
+import com.testehan.finana.model.reporting.ReportItem;
 import com.testehan.finana.repository.CashFlowRepository;
 import com.testehan.finana.repository.CompanyOverviewRepository;
-import com.testehan.finana.service.reporting.events.ErrorEvent;
 import com.testehan.finana.service.reporting.events.MessageEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

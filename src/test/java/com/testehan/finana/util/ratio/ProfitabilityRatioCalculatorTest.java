@@ -1,10 +1,10 @@
 package com.testehan.finana.util.ratio;
 
-import com.testehan.finana.model.BalanceSheetReport;
-import com.testehan.finana.model.CashFlowReport;
+import com.testehan.finana.model.finstatement.BalanceSheetReport;
+import com.testehan.finana.model.finstatement.CashFlowReport;
 import com.testehan.finana.model.CompanyOverview;
-import com.testehan.finana.model.FinancialRatiosReport;
-import com.testehan.finana.model.IncomeReport;
+import com.testehan.finana.model.ratio.FinancialRatiosReport;
+import com.testehan.finana.model.finstatement.IncomeReport;
 import com.testehan.finana.util.data.ParsedFinancialData;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

@@ -1,6 +1,8 @@
 package com.testehan.finana.service;
 
-import com.testehan.finana.model.*;
+import com.testehan.finana.model.filing.CompanyEarningsTranscripts;
+import com.testehan.finana.model.filing.EarningsCallTranscript;
+import com.testehan.finana.model.filing.QuarterlyEarningsTranscript;
 import com.testehan.finana.repository.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

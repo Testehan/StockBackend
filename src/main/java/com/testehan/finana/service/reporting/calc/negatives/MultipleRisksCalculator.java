@@ -1,7 +1,7 @@
 package com.testehan.finana.service.reporting.calc.negatives;
 
 import com.testehan.finana.model.CompanyOverview;
-import com.testehan.finana.model.SecFiling;
+import com.testehan.finana.model.filing.SecFiling;
 import com.testehan.finana.model.llm.responses.FerolNegativesAnalysisLlmResponse;
 import com.testehan.finana.repository.CompanyOverviewRepository;
 import com.testehan.finana.repository.SecFilingRepository;

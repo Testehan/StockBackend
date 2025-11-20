@@ -1,7 +1,7 @@
 package com.testehan.finana.service.reporting.calc.positives;
 
-import com.testehan.finana.model.IncomeReport;
-import com.testehan.finana.model.ReportItem;
+import com.testehan.finana.model.finstatement.IncomeReport;
+import com.testehan.finana.model.reporting.ReportItem;
 import com.testehan.finana.repository.IncomeStatementRepository;
 import com.testehan.finana.service.reporting.events.ErrorEvent;
 import org.slf4j.Logger;

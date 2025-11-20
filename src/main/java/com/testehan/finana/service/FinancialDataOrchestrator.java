@@ -1,7 +1,7 @@
 package com.testehan.finana.service;
 
 import com.testehan.finana.model.FinancialDataAvailability;
-import com.testehan.finana.model.IncomeStatementData;
+import com.testehan.finana.model.finstatement.IncomeStatementData;
 import com.testehan.finana.util.DateUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

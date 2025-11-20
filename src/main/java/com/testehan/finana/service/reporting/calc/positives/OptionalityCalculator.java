@@ -1,14 +1,18 @@
 package com.testehan.finana.service.reporting.calc.positives;
 
 import com.testehan.finana.model.*;
+import com.testehan.finana.model.filing.SecFiling;
+import com.testehan.finana.model.finstatement.IncomeReport;
+import com.testehan.finana.model.finstatement.IncomeStatementData;
 import com.testehan.finana.model.llm.responses.LlmScoreExplanationResponse;
+import com.testehan.finana.model.ratio.FinancialRatiosData;
+import com.testehan.finana.model.reporting.ReportItem;
 import com.testehan.finana.repository.CompanyOverviewRepository;
 import com.testehan.finana.repository.FinancialRatiosRepository;
 import com.testehan.finana.repository.IncomeStatementRepository;
 import com.testehan.finana.repository.SecFilingRepository;
 import com.testehan.finana.service.EarningsService;
 import com.testehan.finana.service.FinancialDataOrchestrator;
-import com.testehan.finana.service.FinancialDataService;
 import com.testehan.finana.service.LlmService;
 import com.testehan.finana.service.reporting.events.ErrorEvent;
 import com.testehan.finana.service.reporting.events.MessageEvent;

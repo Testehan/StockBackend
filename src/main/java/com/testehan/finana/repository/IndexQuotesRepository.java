@@ -1,7 +1,7 @@
 package com.testehan.finana.repository;
 
-import com.testehan.finana.model.IndexData;
-import com.testehan.finana.model.IndexQuotes;
+import com.testehan.finana.model.quote.IndexData;
+import com.testehan.finana.model.quote.IndexQuotes;
 import org.springframework.data.mongodb.repository.Aggregation;
 import org.springframework.data.mongodb.repository.MongoRepository;
 

@@ -1,6 +1,6 @@
 package com.testehan.finana.config;
 
-import com.testehan.finana.model.ReportType;
+import com.testehan.finana.model.reporting.ReportType;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.stereotype.Component;
 

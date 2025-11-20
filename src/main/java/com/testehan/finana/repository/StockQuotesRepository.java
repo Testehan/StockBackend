@@ -1,8 +1,8 @@
 
 package com.testehan.finana.repository;
 
-import com.testehan.finana.model.GlobalQuote;
-import com.testehan.finana.model.StockQuotes;
+import com.testehan.finana.model.quote.GlobalQuote;
+import com.testehan.finana.model.quote.StockQuotes;
 import org.springframework.data.mongodb.repository.Aggregation;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.stereotype.Repository;

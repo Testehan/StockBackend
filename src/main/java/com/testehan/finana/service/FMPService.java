@@ -1,6 +1,12 @@
 package com.testehan.finana.service;
 
 import com.testehan.finana.model.*;
+import com.testehan.finana.model.filing.SecFilingUrlData;
+import com.testehan.finana.model.finstatement.*;
+import com.testehan.finana.model.quote.GlobalQuote;
+import com.testehan.finana.model.quote.IndexData;
+import com.testehan.finana.model.ratio.FmpRatios;
+import com.testehan.finana.model.ratio.FmpRatiosTtm;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -87,7 +93,7 @@ public class FMPService {
                 });
     }
 
-    public Mono<List<IncomeReport>> getIncomeStatement(String symbol,String period) {
+    public Mono<List<IncomeReport>> getIncomeStatement(String symbol, String period) {
         return webClient.get()
                 .uri(uriBuilder -> uriBuilder
                         .path("/stable/income-statement")
@@ -99,7 +105,7 @@ public class FMPService {
                 .bodyToMono(new ParameterizedTypeReference<List<IncomeReport>>() {});
     }
 
-    public Mono<List<BalanceSheetReport>> getBalanceSheetStatement(String symbol,String period) {
+    public Mono<List<BalanceSheetReport>> getBalanceSheetStatement(String symbol, String period) {
         return webClient.get()
                 .uri(uriBuilder -> uriBuilder
                         .path("/stable/balance-sheet-statement")
@@ -111,7 +117,7 @@ public class FMPService {
                 .bodyToMono(new ParameterizedTypeReference<List<BalanceSheetReport>>() {});
     }
 
-    public Mono<List<CashFlowReport>> getCashflowStatement(String symbol,String period) {
+    public Mono<List<CashFlowReport>> getCashflowStatement(String symbol, String period) {
         return webClient.get()
                 .uri(uriBuilder -> uriBuilder
                         .path("/stable/cash-flow-statement")

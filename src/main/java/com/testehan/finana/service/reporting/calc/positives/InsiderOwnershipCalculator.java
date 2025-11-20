@@ -1,8 +1,8 @@
 package com.testehan.finana.service.reporting.calc.positives;
 
 import com.testehan.finana.model.CompanyOverview;
-import com.testehan.finana.model.ReportItem;
-import com.testehan.finana.model.ReportType;
+import com.testehan.finana.model.reporting.ReportItem;
+import com.testehan.finana.model.reporting.ReportType;
 import com.testehan.finana.model.llm.responses.LlmScoreExplanationResponse;
 import com.testehan.finana.repository.CompanyOverviewRepository;
 import com.testehan.finana.service.LlmService;

@@ -1,6 +1,11 @@
 package com.testehan.finana.controller;
 
 import com.testehan.finana.model.*;
+import com.testehan.finana.model.filing.QuarterlyEarningsTranscript;
+import com.testehan.finana.model.finstatement.*;
+import com.testehan.finana.model.quote.GlobalQuote;
+import com.testehan.finana.model.quote.IndexQuotes;
+import com.testehan.finana.model.ratio.FinancialRatiosData;
 import com.testehan.finana.service.*;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
