@@ -26,11 +26,22 @@ public class ChecklistReportPersistenceService {
 
         ChecklistReport checklistReport = new ChecklistReport();
         checklistReport.setItems(checklistReportItems);
-        checklistReport.setGeneratedAt(LocalDateTime.now());
 
         switch (reportType) {
-            case FEROL -> generatedReport.setFerolReport(checklistReport);
-            case ONE_HUNDRED_BAGGER -> generatedReport.setOneHundredBaggerReport(checklistReport);
+            case FEROL -> {
+                generatedReport.setFerolReport(checklistReport);
+                generatedReport.setFerolReportGeneratedAt(LocalDateTime.now());
+                generatedReport.setTotalFerolScore(checklistReport.getItems().stream()
+                        .mapToInt(item -> item.getScore() != null ? item.getScore() : 0)
+                        .sum());
+            }
+            case ONE_HUNDRED_BAGGER -> {
+                generatedReport.setOneHundredBaggerReport(checklistReport);
+                generatedReport.setOneHundredBaggerReportGeneratedAt(LocalDateTime.now());
+                generatedReport.setTotalOneHundredBaggerScore(checklistReport.getItems().stream()
+                        .mapToInt(item -> item.getScore() != null ? item.getScore() : 0)
+                        .sum());
+            }
         }
 
         generatedReportRepository.save(generatedReport);

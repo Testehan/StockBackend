@@ -58,6 +58,10 @@ public class CompanyDataService {
         return companyOverviewRepository.findAll(pageable);
     }
 
+    public List<CompanyOverview> findBySymbolsIn(List<String> symbols) {
+        return companyOverviewRepository.findBySymbolIn(symbols);
+    }
+
     public void deleteBySymbol(String symbol) {
         companyOverviewRepository.deleteBySymbol(symbol);
     }
