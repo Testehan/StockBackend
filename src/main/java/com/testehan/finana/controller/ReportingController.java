@@ -1,5 +1,7 @@
 package com.testehan.finana.controller;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import com.testehan.finana.model.ChecklistReport;
 import com.testehan.finana.model.ChecklistReportSummaryDTO;
 import com.testehan.finana.model.ReportItem;
@@ -42,17 +44,19 @@ public class ReportingController {
     }
 
     @GetMapping("/checklist/summary/{userId}")
-    public ResponseEntity<List<ChecklistReportSummaryDTO>> getChecklistReportsSummary(@PathVariable String userId) {
-        List<ChecklistReportSummaryDTO> summary = checklistReportOrchestrator.getChecklistReportsSummary();
+    public ResponseEntity<Page<ChecklistReportSummaryDTO>> getChecklistReportsSummary(
+            @PathVariable String userId,
+            Pageable pageable) {
+        Page<ChecklistReportSummaryDTO> summaryPage = checklistReportOrchestrator.getChecklistReportsSummary(pageable);
         List<UserStock> userStocks = userStockRepository.findByUserId(userId);
         Map<String, UserStockStatus> userStockStatusMap = userStocks.stream()
                 .collect(Collectors.toMap(UserStock::getStockId, UserStock::getStatus));
 
-        summary.forEach(dto -> {
+        summaryPage.forEach(dto -> {
             UserStockStatus status = userStockStatusMap.getOrDefault(dto.getTicker(), UserStockStatus.NEW);
             dto.setStatus(status);
         });
 
-        return new ResponseEntity<>(summary, HttpStatus.OK);
+        return new ResponseEntity<>(summaryPage, HttpStatus.OK);
     }
 }

@@ -59,7 +59,7 @@ public class PeriodicPriceAlerter {
         this.valuationAlertService = valuationAlertService;
     }
 
-    @Scheduled(fixedRate = 600_000)
+    @Scheduled(fixedRate = 6_000_000)
     public void checkAndAlertPriceChanges() {
         LOGGER.info("Starting periodic price alert check for user: {}", USER_ID);
 

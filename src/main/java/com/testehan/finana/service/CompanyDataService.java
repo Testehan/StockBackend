@@ -1,5 +1,7 @@
 package com.testehan.finana.service;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import com.testehan.finana.model.CompanyOverview;
 import com.testehan.finana.repository.CompanyOverviewRepository;
 import org.springframework.dao.DuplicateKeyException;
@@ -52,8 +54,8 @@ public class CompanyDataService {
         return ChronoUnit.MINUTES.between(lastUpdated, LocalDateTime.now()) < minutes;
     }
 
-    public List<CompanyOverview> findAllCompanyOverview() {
-        return companyOverviewRepository.findAll();
+    public Page<CompanyOverview> findAllCompanyOverview(Pageable pageable) {
+        return companyOverviewRepository.findAll(pageable);
     }
 
     public void deleteBySymbol(String symbol) {

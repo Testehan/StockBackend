@@ -1,5 +1,8 @@
 package com.testehan.finana.service.reporting;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import com.testehan.finana.model.*;
 import com.testehan.finana.repository.GeneratedReportRepository;
 import com.testehan.finana.service.CompanyDataService;
@@ -118,14 +121,18 @@ public class ChecklistReportOrchestrator {
         return checklistReportPersistenceService.buildAndSaveReport(ticker, checklistReportItems, reportType);
     }
 
-    public List<ChecklistReportSummaryDTO> getChecklistReportsSummary() {
-        List<CompanyOverview> allCompanies = companyDataService.findAllCompanyOverview();
-        List<GeneratedReport> allGeneratedReports = generatedReportRepository.findAll();
+    public Page<ChecklistReportSummaryDTO> getChecklistReportsSummary(Pageable pageable) {
+        Page<CompanyOverview> pagedCompanies = companyDataService.findAllCompanyOverview(pageable);
+        List<String> tickers = pagedCompanies.getContent().stream()
+                .map(CompanyOverview::getSymbol)
+                .collect(Collectors.toList());
 
-        Map<String, GeneratedReport> reportMap = allGeneratedReports.stream()
-                .collect(Collectors.toMap(GeneratedReport::getSymbol, report -> report));
+        List<GeneratedReport> generatedReports = generatedReportRepository.findBySymbolIn(tickers);
 
-        return allCompanies.stream()
+        Map<String, GeneratedReport> reportMap = generatedReports.stream()
+                .collect(Collectors.toMap(GeneratedReport::getSymbol, Function.identity()));
+
+        List<ChecklistReportSummaryDTO> summaryList = pagedCompanies.getContent().stream()
                 .map(company -> {
                     String ticker = company.getSymbol();
                     GeneratedReport generatedReport = reportMap.get(ticker);
@@ -155,6 +162,8 @@ public class ChecklistReportOrchestrator {
                     return new ChecklistReportSummaryDTO(ticker, totalFerolScore, totalHundredBaggerScore, ferolReportGeneratedAt, hundredBaggerReportGeneratedAt);
                 })
                 .collect(Collectors.toList());
+
+        return new PageImpl<>(summaryList, pageable, pagedCompanies.getTotalElements());
     }
 
     private ChecklistReport getReportFromGeneratedReport(GeneratedReport generatedReport, ReportType reportType) {
