@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -57,7 +58,9 @@ public class FerolReportGenerator implements ReportGenerator {
         }
 
         eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Building and saving Checklist report..."));
-        ChecklistReport checklistReport = checklistReportPersistenceService.buildAndSaveReport(ticker, checklistReportItems, getReportType());
+        var reportDate = LocalDateTime.now();
+        ChecklistReport checklistReport = checklistReportPersistenceService.buildAndSaveReport(ticker, checklistReportItems, getReportType(), reportDate);
+        checklistReport.setGeneratedAt(reportDate);
         eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Checklist report built and saved."));
 
         eventPublisher.publishEvent(new CompletionEvent(this, ticker, sseEmitter, checklistReport));

@@ -89,6 +89,7 @@ public class ChecklistReportOrchestrator {
                         ChecklistReport checklistReport = getReportFromGeneratedReport(existingGeneratedReport.get(), reportType);
                         if (Objects.nonNull(checklistReport)) {
                             eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Report loaded from database."));
+                            checklistReport.setGeneratedAt(getReportDate(existingGeneratedReport.get(),reportType));
                             eventPublisher.publishEvent(new CompletionEvent(this, ticker, sseEmitter, checklistReport));
                             LOGGER.info("Checklist report for {} loaded from DB and sent.", ticker);
                             return; // Exit as report is sent
@@ -129,7 +130,7 @@ public class ChecklistReportOrchestrator {
 
     public ChecklistReport saveChecklistReport(String ticker, List<ReportItem> checklistReportItems, ReportType reportType) {
         LOGGER.info("Saving Checklist report for {}", ticker);
-        return checklistReportPersistenceService.buildAndSaveReport(ticker, checklistReportItems, reportType);
+        return checklistReportPersistenceService.buildAndSaveReport(ticker, checklistReportItems, reportType, LocalDateTime.now());
     }
 
     public Page<ChecklistReportSummaryDTO> getChecklistReportsSummary(Pageable pageable, UserStockStatus status) {
@@ -281,6 +282,13 @@ public class ChecklistReportOrchestrator {
         return switch (reportType) {
             case FEROL -> generatedReport.getFerolReport();
             case ONE_HUNDRED_BAGGER -> generatedReport.getOneHundredBaggerReport();
+        };
+    }
+
+    private LocalDateTime getReportDate(GeneratedReport generatedReport, ReportType reportType) {
+        return switch (reportType) {
+            case FEROL -> generatedReport.getFerolReportGeneratedAt();
+            case ONE_HUNDRED_BAGGER -> generatedReport.getOneHundredBaggerReportGeneratedAt();
         };
     }
 }

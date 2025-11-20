@@ -18,7 +18,7 @@ public class ChecklistReportPersistenceService {
         this.generatedReportRepository = generatedReportRepository;
     }
 
-    public ChecklistReport buildAndSaveReport(String ticker, List<ReportItem> checklistReportItems, ReportType reportType) {
+    public ChecklistReport buildAndSaveReport(String ticker, List<ReportItem> checklistReportItems, ReportType reportType, LocalDateTime dateTime) {
         GeneratedReport generatedReport = generatedReportRepository.findBySymbol(ticker).orElse(new GeneratedReport());
         if (generatedReport.getSymbol()==null) {
             generatedReport.setSymbol(ticker);
