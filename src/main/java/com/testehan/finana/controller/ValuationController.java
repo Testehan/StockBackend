@@ -7,11 +7,14 @@ import com.testehan.finana.model.valuation.dcf.ReverseDcfOutput;
 import com.testehan.finana.model.valuation.dcf.ReverseDcfValuation;
 import com.testehan.finana.model.valuation.growth.GrowthOutput;
 import com.testehan.finana.model.valuation.growth.GrowthValuation;
+import com.testehan.finana.service.ValuationAlertService;
 import com.testehan.finana.service.ValuationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
 
@@ -22,9 +25,11 @@ public class ValuationController {
     private static final Logger logger = LoggerFactory.getLogger(ValuationController.class);
 
     private final ValuationService valuationService;
+    private final ValuationAlertService valuationAlertService;
 
-    public ValuationController(ValuationService valuationService) {
+    public ValuationController(ValuationService valuationService, ValuationAlertService valuationAlertService) {
         this.valuationService = valuationService;
+        this.valuationAlertService = valuationAlertService;
     }
 
     @GetMapping("/dcf/{symbol}")
@@ -152,6 +157,11 @@ public class ValuationController {
         } else {
             return ResponseEntity.notFound().build();
         }
+    }
+
+    @GetMapping(value = "/alerts/{userId}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter subscribeToAlerts(@PathVariable String userId) {
+        return valuationAlertService.subscribe(userId);
     }
 
 }

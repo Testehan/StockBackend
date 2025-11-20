@@ -4,14 +4,14 @@ import com.testehan.finana.model.GlobalQuote;
 import com.testehan.finana.model.UserStock;
 import com.testehan.finana.model.UserStockStatus;
 import com.testehan.finana.model.valuation.Valuations;
-import com.testehan.finana.model.valuation.dcf.DcfCalculationData;
-import com.testehan.finana.model.valuation.dcf.DcfOutput;
-import com.testehan.finana.model.valuation.dcf.ReverseDcfOutput;
+import com.testehan.finana.model.valuation.dcf.*;
 import com.testehan.finana.model.valuation.growth.GrowthOutput;
 import com.testehan.finana.model.valuation.growth.GrowthValuation;
 import com.testehan.finana.repository.UserStockRepository;
 import com.testehan.finana.repository.ValuationsRepository;
 import com.testehan.finana.service.QuoteService;
+import com.testehan.finana.service.ValuationAlert;
+import com.testehan.finana.service.ValuationAlertService;
 import com.testehan.finana.service.valuation.DcfValuationService;
 import com.testehan.finana.service.valuation.GrowthValuationService;
 import com.testehan.finana.service.valuation.ReverseDcfValuationService;
@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -40,19 +41,22 @@ public class PeriodicPriceAlerter {
     private final DcfValuationService dcfValuationService;
     private final GrowthValuationService growthValuationService;
     private final ReverseDcfValuationService reverseDcfValuationService;
+    private final ValuationAlertService valuationAlertService;
 
     public PeriodicPriceAlerter(UserStockRepository userStockRepository,
                                 ValuationsRepository valuationsRepository,
                                 QuoteService quoteService,
                                 DcfValuationService dcfValuationService,
                                 GrowthValuationService growthValuationService,
-                                ReverseDcfValuationService reverseDcfValuationService) {
+                                ReverseDcfValuationService reverseDcfValuationService,
+                                ValuationAlertService valuationAlertService) {
         this.userStockRepository = userStockRepository;
         this.valuationsRepository = valuationsRepository;
         this.quoteService = quoteService;
         this.dcfValuationService = dcfValuationService;
         this.growthValuationService = growthValuationService;
         this.reverseDcfValuationService = reverseDcfValuationService;
+        this.valuationAlertService = valuationAlertService;
     }
 
     @Scheduled(fixedRate = 600_000)
@@ -124,7 +128,12 @@ public class PeriodicPriceAlerter {
             DcfOutput newOutput = dcfValuationService.calculateDcfValuation(updatedData, latestDcf.getDcfUserInput());
 
             if (newOutput.intrinsicValuePerShare() != null) {
-                logValuationResult("DCF", latestPrice, newOutput.intrinsicValuePerShare(), newOutput.verdict());
+                String verdict = newOutput.verdict();
+                logValuationResult("DCF", latestPrice, newOutput.intrinsicValuePerShare(), verdict);
+
+                if ("Undervalued".equals(verdict) || "Neutral".equals(verdict)) {
+                    saveDcfValuation(ticker, latestDcf.getDcfUserInput(), updatedData, newOutput, latestPrice);
+                }
             }
         } catch (Exception e) {
             LOGGER.error("    Error recalculating DCF for {}: {}", ticker, e.getMessage());
@@ -146,11 +155,17 @@ public class PeriodicPriceAlerter {
         logPriceChange("Growth", originalPrice, latestPrice);
 
         try {
-            GrowthValuation updatedData = growthValuationService.getGrowthCompanyValuationData(ticker);
-            GrowthOutput newOutput = growthValuationService.calculateGrowthCompanyValuation(updatedData);
+            GrowthValuation freshData = growthValuationService.getGrowthCompanyValuationData(ticker);
+            freshData.setGrowthUserInput(latestGrowth.getGrowthUserInput());
+            GrowthOutput newOutput = growthValuationService.calculateGrowthCompanyValuation(freshData);
 
             if (newOutput.getIntrinsicValuePerShare() != null) {
-                logValuationResult("Growth", latestPrice, newOutput.getIntrinsicValuePerShare(), newOutput.getVerdict());
+                String verdict = newOutput.getVerdict();
+                logValuationResult("Growth", latestPrice, newOutput.getIntrinsicValuePerShare(), verdict);
+
+                if ("Undervalued".equals(verdict) || "Neutral".equals(verdict)) {
+                    saveGrowthValuation(ticker, freshData, newOutput, latestPrice);
+                }
             }
         } catch (Exception e) {
             LOGGER.error("    Error recalculating Growth for {}: {}", ticker, e.getMessage());
@@ -181,9 +196,100 @@ public class PeriodicPriceAlerter {
             if (newOutput.impliedFCFGrowthRate() != null) {
                 LOGGER.info("    Reverse DCF recalculated: Implied FCF growth rate: {}%", 
                         String.format("%.2f", newOutput.impliedFCFGrowthRate() * 100));
+
+                String verdict = newOutput.verdict();
+                if ("Undervalued".equals(verdict) || "Neutral".equals(verdict)) {
+                    saveReverseDcfValuation(ticker, latestReverse.getReverseDcfUserInput(), updatedData, newOutput, latestPrice);
+                }
             }
         } catch (Exception e) {
             LOGGER.error("    Error recalculating Reverse DCF for {}: {}", ticker, e.getMessage());
+        }
+    }
+
+    private void saveDcfValuation(String ticker, DcfUserInput userInput, DcfCalculationData calculationData, 
+                                  DcfOutput output, BigDecimal currentPrice) {
+        try {
+            userInput.setUserComments("Generated");
+
+            DcfValuation dcfValuation = new DcfValuation();
+            dcfValuation.setValuationDate(LocalDateTime.now().toString());
+            dcfValuation.setDcfUserInput(userInput);
+            dcfValuation.setDcfCalculationData(calculationData);
+            dcfValuation.setDcfOutput(output);
+
+            Valuations valuations = valuationsRepository.findById(ticker).orElse(new Valuations());
+            valuations.setTicker(ticker);
+            
+            valuations.getDcfValuations().removeIf(v -> "Generated".equals(v.getDcfUserInput().getUserComments()));
+            
+            valuations.getDcfValuations().add(dcfValuation);
+            valuationsRepository.save(valuations);
+
+            LOGGER.info("    Saved DCF valuation for {}", ticker);
+            
+            ValuationAlert alert = ValuationAlert.fromValuation(
+                    ticker, "DCF", output.verdict(), 
+                    currentPrice, output.intrinsicValuePerShare(), dcfValuation);
+            valuationAlertService.pushValuationAlert(alert);
+        } catch (Exception e) {
+            LOGGER.error("    Error saving DCF valuation for {}: {}", ticker, e.getMessage());
+        }
+    }
+
+    private void saveGrowthValuation(String ticker, GrowthValuation growthValuation, 
+                                     GrowthOutput output, BigDecimal currentPrice) {
+        try {
+            growthValuation.getGrowthUserInput().setUserComments("Generated");
+            growthValuation.setValuationDate(LocalDateTime.now().toString());
+            growthValuation.setGrowthOutput(output);
+
+            Valuations valuations = valuationsRepository.findById(ticker).orElse(new Valuations());
+            valuations.setTicker(ticker);
+            
+            valuations.getGrowthValuations().removeIf(v -> "Generated".equals(v.getGrowthUserInput().getUserComments()));
+            
+            valuations.getGrowthValuations().add(growthValuation);
+            valuationsRepository.save(valuations);
+
+            LOGGER.info("    Saved Growth valuation for {}", ticker);
+            
+            ValuationAlert alert = ValuationAlert.fromValuation(
+                    ticker, "Growth", output.getVerdict(), 
+                    currentPrice, output.getIntrinsicValuePerShare(), growthValuation);
+            valuationAlertService.pushValuationAlert(alert);
+        } catch (Exception e) {
+            LOGGER.error("    Error saving Growth valuation for {}: {}", ticker, e.getMessage());
+        }
+    }
+
+    private void saveReverseDcfValuation(String ticker, ReverseDcfUserInput userInput, DcfCalculationData calculationData, 
+                                        ReverseDcfOutput output, BigDecimal currentPrice) {
+        try {
+            userInput.setUserComments("Generated");
+
+            ReverseDcfValuation reverseDcfValuation = new ReverseDcfValuation();
+            reverseDcfValuation.setValuationDate(LocalDateTime.now().toString());
+            reverseDcfValuation.setReverseDcfUserInput(userInput);
+            reverseDcfValuation.setDcfCalculationData(calculationData);
+            reverseDcfValuation.setReverseDcfOutput(output);
+
+            Valuations valuations = valuationsRepository.findById(ticker).orElse(new Valuations());
+            valuations.setTicker(ticker);
+            
+            valuations.getReverseDcfValuations().removeIf(v -> "Generated".equals(v.getReverseDcfUserInput().getUserComments()));
+            
+            valuations.getReverseDcfValuations().add(reverseDcfValuation);
+            valuationsRepository.save(valuations);
+
+            LOGGER.info("    Saved Reverse DCF valuation for {}", ticker);
+            
+            ValuationAlert alert = ValuationAlert.fromValuation(
+                    ticker, "Reverse DCF", output.verdict(), 
+                    currentPrice, null, reverseDcfValuation);
+            valuationAlertService.pushValuationAlert(alert);
+        } catch (Exception e) {
+            LOGGER.error("    Error saving Reverse DCF valuation for {}: {}", ticker, e.getMessage());
         }
     }
 
