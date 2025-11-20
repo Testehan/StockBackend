@@ -46,15 +46,16 @@ public class ReportingController {
     @GetMapping("/checklist/summary/{userId}")
     public ResponseEntity<Page<ChecklistReportSummaryDTO>> getChecklistReportsSummary(
             @PathVariable String userId,
+            @RequestParam(required = false) UserStockStatus status,
             Pageable pageable) {
-        Page<ChecklistReportSummaryDTO> summaryPage = checklistReportOrchestrator.getChecklistReportsSummary(pageable);
+        Page<ChecklistReportSummaryDTO> summaryPage = checklistReportOrchestrator.getChecklistReportsSummary(pageable, status);
         List<UserStock> userStocks = userStockRepository.findByUserId(userId);
         Map<String, UserStockStatus> userStockStatusMap = userStocks.stream()
                 .collect(Collectors.toMap(UserStock::getStockId, UserStock::getStatus));
 
         summaryPage.forEach(dto -> {
-            UserStockStatus status = userStockStatusMap.getOrDefault(dto.getTicker(), UserStockStatus.NEW);
-            dto.setStatus(status);
+            UserStockStatus stockStatus = userStockStatusMap.getOrDefault(dto.getTicker(), UserStockStatus.NEW);
+            dto.setStatus(stockStatus);
         });
 
         return new ResponseEntity<>(summaryPage, HttpStatus.OK);

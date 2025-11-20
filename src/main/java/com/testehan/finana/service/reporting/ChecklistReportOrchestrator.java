@@ -2,6 +2,7 @@ package com.testehan.finana.service.reporting;
 
 import com.testehan.finana.model.*;
 import com.testehan.finana.repository.GeneratedReportRepository;
+import com.testehan.finana.repository.UserStockRepository;
 import com.testehan.finana.service.CompanyDataService;
 import com.testehan.finana.service.FinancialDataOrchestrator;
 import com.testehan.finana.service.reporting.events.CompletionEvent;
@@ -37,6 +38,7 @@ public class ChecklistReportOrchestrator {
     private final CompanyDataService companyDataService;
     private final ChecklistReportPersistenceService checklistReportPersistenceService;
     private final GeneratedReportRepository generatedReportRepository;
+    private final UserStockRepository userStockRepository;
     private final Executor checklistExecutor;
     private final ApplicationEventPublisher eventPublisher;
     private final Map<ReportType, ReportGenerator> reportGenerators;
@@ -46,6 +48,7 @@ public class ChecklistReportOrchestrator {
                                        CompanyDataService companyDataService,
                                        ChecklistReportPersistenceService checklistReportPersistenceService,
                                        GeneratedReportRepository generatedReportRepository,
+                                       UserStockRepository userStockRepository,
                                        @Qualifier("checklistExecutor") Executor checklistExecutor,
                                        ApplicationEventPublisher eventPublisher,
                                        List<ReportGenerator> reportGenerators,
@@ -54,6 +57,7 @@ public class ChecklistReportOrchestrator {
         this.companyDataService = companyDataService;
         this.checklistReportPersistenceService = checklistReportPersistenceService;
         this.generatedReportRepository = generatedReportRepository;
+        this.userStockRepository = userStockRepository;
         this.checklistExecutor = checklistExecutor;
         this.eventPublisher = eventPublisher;
         this.reportGenerators = reportGenerators.stream()
@@ -128,8 +132,16 @@ public class ChecklistReportOrchestrator {
         return checklistReportPersistenceService.buildAndSaveReport(ticker, checklistReportItems, reportType);
     }
 
-    public Page<ChecklistReportSummaryDTO> getChecklistReportsSummary(Pageable pageable) {
+    public Page<ChecklistReportSummaryDTO> getChecklistReportsSummary(Pageable pageable, UserStockStatus status) {
         LOGGER.info("Received Pageable with sort: {}", pageable.getSort());
+
+        Set<String> tickersWithStatus = null;
+        if (status != null) {
+            List<UserStock> userStocksWithStatus = userStockRepository.findByStatus(status);
+            tickersWithStatus = userStocksWithStatus.stream()
+                    .map(UserStock::getStockId)
+                    .collect(Collectors.toSet());
+        }
 
         boolean isPrimarySortOnCompanyOverview = pageable.getSort().stream()
                 .anyMatch(order -> "ticker".equals(order.getProperty())); // Check if ticker is in sort
@@ -154,6 +166,10 @@ public class ChecklistReportOrchestrator {
             Query companyOverviewQuery = new Query().with(companyOverviewPageable);
             if (companyOverviewSort.stream().anyMatch(order -> "symbol".equals(order.getProperty()))) {
                 companyOverviewQuery.collation(Collation.of(Locale.ENGLISH).strength(1));
+            }
+
+            if (tickersWithStatus != null && !tickersWithStatus.isEmpty()) {
+                companyOverviewQuery.addCriteria(Criteria.where("symbol").in(tickersWithStatus));
             }
 
             List<CompanyOverview> pagedCompanyOverviewsContent = mongoTemplate.find(companyOverviewQuery, CompanyOverview.class, "company_overviews");
@@ -215,6 +231,10 @@ public class ChecklistReportOrchestrator {
                 query.with(Sort.by(modifiedOrders));
             } else {
                 query.with(pageable.getSort());
+            }
+
+            if (tickersWithStatus != null && !tickersWithStatus.isEmpty()) {
+                query.addCriteria(Criteria.where("symbol").in(tickersWithStatus));
             }
 
             query.skip(pageable.getOffset()).limit(pageable.getPageSize());
