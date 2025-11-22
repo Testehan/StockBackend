@@ -23,16 +23,18 @@ public class FinancialDataOrchestrator {
     private final EarningsService earningsService;
     private final SecFilingService secFilingService;
     private final FinancialDataService financialDataService; // Temporarily keep for ratios and update methods
+    private final AdjustmentService adjustmentService;
 
     private final DateUtils dateUtils;
 
-    public FinancialDataOrchestrator(CompanyDataService companyDataService, QuoteService quoteService, FinancialStatementService financialStatementService, EarningsService earningsService, SecFilingService secFilingService, FinancialDataService financialDataService, DateUtils dateUtils) {
+    public FinancialDataOrchestrator(CompanyDataService companyDataService, QuoteService quoteService, FinancialStatementService financialStatementService, EarningsService earningsService, SecFilingService secFilingService, FinancialDataService financialDataService, AdjustmentService adjustmentService, DateUtils dateUtils) {
         this.companyDataService = companyDataService;
         this.quoteService = quoteService;
         this.financialStatementService = financialStatementService;
         this.earningsService = earningsService;
         this.secFilingService = secFilingService;
         this.financialDataService = financialDataService; // For remaining methods
+        this.adjustmentService = adjustmentService;
         this.dateUtils = dateUtils;
     }
 
@@ -62,7 +64,7 @@ public class FinancialDataOrchestrator {
                 financialStatementService.getRevenueGeographicSegmentation(ticker)
         );
 
-        // 2. Once core financials are saved, run Ratios and Transcripts
+        // 2. Once core financials are saved, run Ratios and Transcripts and Adjustments
         Mono<Void> dependentData = coreFinancials.then(Mono.defer(() -> {
             // This block only starts after coreFinancials completes (writes to DB are done)
 
@@ -85,7 +87,10 @@ public class FinancialDataOrchestrator {
                             })
             ));
 
-            return Mono.when(transcriptMono, ratiosMono);
+            Mono<Void> adjustmentsMono = Mono.fromRunnable(() -> adjustmentService.getFinancialAdjustments(ticker))
+                    .then();
+
+            return Mono.when(transcriptMono, ratiosMono, adjustmentsMono);
         }));
 
         // FINAL JOIN: Run Track A and Track B in parallel
@@ -103,11 +108,10 @@ public class FinancialDataOrchestrator {
         earningsService.deleteEarningsHistoryBySymbol(upperCaseSymbol);
         quoteService.deleteBySymbol(upperCaseSymbol);
         earningsService.deleteEarningsEstimatesBySymbol(upperCaseSymbol);
-        // FinancialRatiosRepository delete remains in FinancialDataService for now
-        // GeneratedReportRepository delete remains in FinancialDataService for now
         financialStatementService.deleteRevenueGeographicSegmentationBySymbol(upperCaseSymbol);
         financialStatementService.deleteRevenueSegmentationBySymbol(upperCaseSymbol);
         secFilingService.deleteSecFilings(upperCaseSymbol);
+        adjustmentService.deleteFinancialAdjustmentBySymbol(upperCaseSymbol);
 
         LOGGER.info("Deleted all financial data for ticker: {}", upperCaseSymbol);
     }

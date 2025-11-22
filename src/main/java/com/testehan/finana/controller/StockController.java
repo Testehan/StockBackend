@@ -1,5 +1,6 @@
 package com.testehan.finana.controller;
 
+import com.testehan.finana.model.adjustment.FinancialAdjustment;
 import com.testehan.finana.model.*;
 import com.testehan.finana.model.filing.QuarterlyEarningsTranscript;
 import com.testehan.finana.model.finstatement.*;
@@ -25,8 +26,9 @@ public class StockController {
     private final EarningsService earningsService;
     private final QuoteService quoteService;
     private final FinancialDataService financialDataService; // For remaining methods (ratios)
+    private final AdjustmentService adjustmentService;
 
-    public StockController(AlphaVantageService alphaVantageService, FMPService fmpService, FinancialDataOrchestrator financialDataOrchestrator, CompanyDataService companyDataService, FinancialStatementService financialStatementService, EarningsService earningsService, QuoteService quoteService, FinancialDataService financialDataService) {
+    public StockController(AlphaVantageService alphaVantageService, FMPService fmpService, FinancialDataOrchestrator financialDataOrchestrator, CompanyDataService companyDataService, FinancialStatementService financialStatementService, EarningsService earningsService, QuoteService quoteService, FinancialDataService financialDataService, AdjustmentService adjustmentService) {
         this.alphaVantageService = alphaVantageService;
         this.fmpService = fmpService;
         this.financialDataOrchestrator = financialDataOrchestrator;
@@ -35,6 +37,12 @@ public class StockController {
         this.earningsService = earningsService;
         this.quoteService = quoteService;
         this.financialDataService = financialDataService; // For remaining methods (ratios)
+        this.adjustmentService = adjustmentService;
+    }
+
+    @GetMapping("/adjustments/{symbol}")
+    public ResponseEntity<FinancialAdjustment> getFinancialAdjustments(@PathVariable String symbol) {
+        return ResponseEntity.ok(adjustmentService.getFinancialAdjustments(symbol.toUpperCase()));
     }
 
     @GetMapping("/overview/{symbol}")
