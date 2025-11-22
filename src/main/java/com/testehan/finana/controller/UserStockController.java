@@ -48,7 +48,7 @@ public class UserStockController {
 
     @PutMapping("/{stockId}/status/{status}")
     public ResponseEntity<UserStock> updateUserStockStatus(@PathVariable String userId, @PathVariable String stockId, @PathVariable UserStockStatus status) {
-        return userStockRepository.findByUserIdAndStockId(userId, stockId)
+        return userStockRepository.findByUserIdAndStockId(userId, stockId.toUpperCase())
                 .map(userStock -> {
                     userStock.setStatus(status);
                     return new ResponseEntity<>(userStockRepository.save(userStock), HttpStatus.OK);
@@ -56,7 +56,7 @@ public class UserStockController {
                 .orElseGet(() -> {
                     UserStock newUserStock = new UserStock();
                     newUserStock.setUserId(userId);
-                    newUserStock.setStockId(stockId);
+                    newUserStock.setStockId(stockId.toUpperCase());
                     newUserStock.setStatus(status);
                     return new ResponseEntity<>(userStockRepository.save(newUserStock), HttpStatus.CREATED);
                 });
@@ -64,7 +64,7 @@ public class UserStockController {
 
     @PutMapping("/{stockId}/personalnotes")
     public ResponseEntity<UserStock> updateUserStockPersonalNotes(@PathVariable String userId, @PathVariable String stockId, @RequestBody String personalNotes) {
-        return userStockRepository.findByUserIdAndStockId(userId, stockId)
+        return userStockRepository.findByUserIdAndStockId(userId, stockId.toUpperCase())
                 .map(userStock -> {
                     userStock.setNotes(personalNotes);
                     return new ResponseEntity<>(userStockRepository.save(userStock), HttpStatus.OK);
@@ -72,7 +72,7 @@ public class UserStockController {
                 .orElseGet(() -> {
                     UserStock newUserStock = new UserStock();
                     newUserStock.setUserId(userId);
-                    newUserStock.setStockId(stockId);
+                    newUserStock.setStockId(stockId.toUpperCase());
                     newUserStock.setNotes(personalNotes);
                     return new ResponseEntity<>(userStockRepository.save(newUserStock), HttpStatus.CREATED);
                 });
@@ -80,7 +80,7 @@ public class UserStockController {
 
     @GetMapping("/{stockId}/status")
     public ResponseEntity<UserStockStatus> getUserStockStatus(@PathVariable String userId, @PathVariable String stockId) {
-        UserStockStatus status = userStockRepository.findByUserIdAndStockId(userId, stockId)
+        UserStockStatus status = userStockRepository.findByUserIdAndStockId(userId, stockId.toUpperCase())
                 .map(UserStock::getStatus)
                 .orElse(UserStockStatus.NEW);
         return new ResponseEntity<>(status, HttpStatus.OK);
@@ -88,7 +88,7 @@ public class UserStockController {
 
     @GetMapping("/{stockId}/personalnotes")
     public ResponseEntity<String> getUserStockPersonalNotes(@PathVariable String userId, @PathVariable String stockId) {
-        String notes = userStockRepository.findByUserIdAndStockId(userId, stockId)
+        String notes = userStockRepository.findByUserIdAndStockId(userId, stockId.toUpperCase())
                 .map(UserStock::getNotes)
                 .orElse("");
         return new ResponseEntity<>(notes, HttpStatus.OK);
@@ -96,6 +96,6 @@ public class UserStockController {
 
     @DeleteMapping("/{stockId}")
     public void deleteUserStock(@PathVariable String userId, @PathVariable String stockId) {
-        userStockRepository.deleteById(stockId);
+        userStockRepository.deleteById(stockId.toUpperCase());
     }
 }
