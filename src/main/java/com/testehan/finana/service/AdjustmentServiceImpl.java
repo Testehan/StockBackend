@@ -1,14 +1,12 @@
 package com.testehan.finana.service;
 
-import com.testehan.finana.model.CompanyOverview;
 import com.testehan.finana.model.adjustment.FinancialAdjustment;
 import com.testehan.finana.model.adjustment.FinancialAdjustmentReport;
 import com.testehan.finana.model.finstatement.*;
 import com.testehan.finana.model.quote.GlobalQuote;
-import com.testehan.finana.repository.BalanceSheetRepository;
-import com.testehan.finana.repository.CashFlowRepository;
-import com.testehan.finana.repository.FinancialAdjustmentRepository;
-import com.testehan.finana.repository.IncomeStatementRepository;
+import com.testehan.finana.model.ratio.FinancialRatiosData;
+import com.testehan.finana.model.ratio.FinancialRatiosReport;
+import com.testehan.finana.repository.*;
 import com.testehan.finana.util.SafeParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,6 +15,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -33,15 +32,17 @@ public class AdjustmentServiceImpl implements AdjustmentService {
     private final CashFlowRepository cashFlowRepository;
     private final CompanyDataService companyDataService;
     private final QuoteService quoteService;
+    private final FinancialRatiosRepository financialRatiosRepository;
     private final SafeParser safeParser;
 
-    public AdjustmentServiceImpl(IncomeStatementRepository incomeStatementRepository, FinancialAdjustmentRepository financialAdjustmentRepository, BalanceSheetRepository balanceSheetRepository, CashFlowRepository cashFlowRepository, CompanyDataService companyDataService, QuoteService quoteService, SafeParser safeParser) {
+    public AdjustmentServiceImpl(IncomeStatementRepository incomeStatementRepository, FinancialAdjustmentRepository financialAdjustmentRepository, BalanceSheetRepository balanceSheetRepository, CashFlowRepository cashFlowRepository, CompanyDataService companyDataService, QuoteService quoteService, FinancialRatiosRepository financialRatiosRepository, SafeParser safeParser) {
         this.incomeStatementRepository = incomeStatementRepository;
         this.financialAdjustmentRepository = financialAdjustmentRepository;
         this.balanceSheetRepository = balanceSheetRepository;
         this.cashFlowRepository = cashFlowRepository;
         this.companyDataService = companyDataService;
         this.quoteService = quoteService;
+        this.financialRatiosRepository = financialRatiosRepository;
         this.safeParser = safeParser;
     }
 
@@ -49,77 +50,124 @@ public class AdjustmentServiceImpl implements AdjustmentService {
     public FinancialAdjustment getFinancialAdjustments(String symbol) {
         BigDecimal price = getLatestStockPrice(symbol);
 
-        Optional<FinancialAdjustment> existingAdjustment = financialAdjustmentRepository.findBySymbol(symbol);
-        if (existingAdjustment.isPresent()) {
-            FinancialAdjustment adjustment = existingAdjustment.get();
-            if (price != null) {
-                updatePriceDependentMetrics(adjustment, price);
-            }
-            return adjustment;
-        }
-
         Optional<IncomeStatementData> incomeStatementDataOptional = incomeStatementRepository.findBySymbol(symbol);
         Optional<BalanceSheetData> balanceSheetDataOptional = balanceSheetRepository.findBySymbol(symbol);
         Optional<CashFlowData> cashFlowDataOptional = cashFlowRepository.findBySymbol(symbol);
+        Optional<FinancialRatiosData> financialRatiosDataOptional = financialRatiosRepository.findBySymbol(symbol);
         Optional<com.testehan.finana.model.CompanyOverview> companyOverviewOptional = companyDataService.getCompanyOverview(symbol).blockOptional()
-            .flatMap(list -> list.stream().findFirst());
+                .flatMap(list -> list.stream().findFirst());
 
         if (incomeStatementDataOptional.isEmpty() || incomeStatementDataOptional.get().getAnnualReports() == null ||
                 balanceSheetDataOptional.isEmpty() || balanceSheetDataOptional.get().getAnnualReports() == null ||
                 cashFlowDataOptional.isEmpty() || cashFlowDataOptional.get().getAnnualReports() == null ||
-                companyOverviewOptional.isEmpty() || price == null) {
+                financialRatiosDataOptional.isEmpty() ||
+                companyOverviewOptional.isEmpty()) {
             return new FinancialAdjustment();
         }
 
-        List<IncomeReport> annualIncomeReports = incomeStatementDataOptional.get().getAnnualReports();
+        List<IncomeReport> annualIncomeReports = incomeStatementDataOptional.get().getAnnualReports().stream()
+                .sorted(Comparator.comparing(IncomeReport::getDate).reversed())
+                .collect(Collectors.toList());
         List<BalanceSheetReport> annualBalanceSheetReports = balanceSheetDataOptional.get().getAnnualReports();
         List<CashFlowReport> annualCashFlowReports = cashFlowDataOptional.get().getAnnualReports();
+        List<FinancialRatiosReport> annualRatiosReports = financialRatiosDataOptional.get().getAnnualReports();
 
-        if (annualIncomeReports.size() < 5 || annualBalanceSheetReports.size() < 1 || annualCashFlowReports.size() < 1) { 
+        if (annualIncomeReports.size() < 5) {
             return new FinancialAdjustment();
         }
 
-        // Sort income reports by date (assuming YYYY-MM-DD format) to get the latest 5 years
-        List<IncomeReport> last5YearsOfIncomeReports = annualIncomeReports.stream()
-                .sorted(Comparator.comparing(IncomeReport::getDate).reversed())
-                .limit(5)
-                .collect(Collectors.toList());
+        String latestAvailableYear = annualIncomeReports.get(0).getDate().substring(0, 4);
 
-        // Get the latest balance sheet report matching the latest income report year
-        String latestIncomeReportYear = last5YearsOfIncomeReports.get(0).getDate().substring(0, 4);
-        Optional<BalanceSheetReport> latestBalanceSheetReport = annualBalanceSheetReports.stream()
-                .filter(report -> report.getDate().startsWith(latestIncomeReportYear))
-                .sorted(Comparator.comparing(BalanceSheetReport::getDate).reversed())
-                .findFirst();
+        Optional<FinancialAdjustment> existingAdjustmentOpt = financialAdjustmentRepository.findBySymbol(symbol);
+        if (existingAdjustmentOpt.isPresent()) {
+            FinancialAdjustment existing = existingAdjustmentOpt.get();
+            String lastCalculatedYear = existing.getAnnualAdjustments().stream()
+                    .map(r -> r.getDate().substring(0, 4))
+                    .max(Comparator.naturalOrder())
+                    .orElse("");
 
-        // Get the latest cash flow report matching the latest income report year
-        Optional<CashFlowReport> latestCashFlowReport = annualCashFlowReports.stream()
-                .filter(report -> report.getDate().startsWith(latestIncomeReportYear))
-                .sorted(Comparator.comparing(CashFlowReport::getDate).reversed())
-                .findFirst();
-
-
-        if (latestBalanceSheetReport.isEmpty() || latestCashFlowReport.isEmpty()) {
-            return new FinancialAdjustment();
+            // Smart Refresh: If we have a newer year in the repository than what was last calculated
+            if (latestAvailableYear.compareTo(lastCalculatedYear) <= 0) {
+                if (price != null) {
+                    existing.setLastUpdated(LocalDateTime.now());
+                    updatePriceDependentMetrics(existing, price);
+                }
+                return existing;
+            }
+            // If newer year is available, we fall through and recalculate everything to include the new year(s)
         }
 
-        FinancialAdjustmentReport adjustmentReport = calculateRdAdjustment(last5YearsOfIncomeReports, latestBalanceSheetReport.get(), latestCashFlowReport.get(), companyOverviewOptional.get(), price);
+        // Calculate historical adjustments for all available periods that have 5 years of history
+        List<FinancialAdjustmentReport> allAdjustments = new ArrayList<>();
+        
+        // We iterate through available income reports. For each, we need 5 years of history.
+        // So we can calculate adjustments for index i where i + 4 < annualIncomeReports.size()
+        for (int i = 0; i <= annualIncomeReports.size() - 5; i++) {
+            List<IncomeReport> fiveYearWindow = annualIncomeReports.subList(i, i + 5);
+            String currentYear = fiveYearWindow.get(0).getDate().substring(0, 4);
 
-        FinancialAdjustment financialAdjustment = new FinancialAdjustment();
+            Optional<BalanceSheetReport> bsReport = annualBalanceSheetReports.stream()
+                    .filter(r -> r.getDate().startsWith(currentYear)).findFirst();
+            Optional<CashFlowReport> cfReport = annualCashFlowReports.stream()
+                    .filter(r -> r.getDate().startsWith(currentYear)).findFirst();
+            Optional<FinancialRatiosReport> ratioReport = annualRatiosReports.stream()
+                    .filter(r -> r.getDate().startsWith(currentYear)).findFirst();
+
+            if (bsReport.isPresent() && cfReport.isPresent() && ratioReport.isPresent()) {
+                // Only provide the 'live' price for the very latest year (index 0)
+                BigDecimal priceToUse = (i == 0) ? price : null;
+                FinancialAdjustmentReport report = calculateRdAdjustment(fiveYearWindow, bsReport.get(), cfReport.get(), ratioReport.get(), companyOverviewOptional.get(), priceToUse);
+                if (report.getCalendarYear() > 0) {
+                    allAdjustments.add(report);
+                }
+            }
+        }
+
+        FinancialAdjustment financialAdjustment = existingAdjustmentOpt.orElse(new FinancialAdjustment());
         financialAdjustment.setSymbol(symbol);
         financialAdjustment.setLastUpdated(LocalDateTime.now());
-        financialAdjustment.setAnnualAdjustments(List.of(adjustmentReport));
+        financialAdjustment.setAnnualAdjustments(allAdjustments);
 
         return financialAdjustmentRepository.save(financialAdjustment);
     }
 
     private void updatePriceDependentMetrics(FinancialAdjustment adjustment, BigDecimal price) {
-        if (adjustment.getAnnualAdjustments() != null) {
-            for (FinancialAdjustmentReport report : adjustment.getAnnualAdjustments()) {
-                BigDecimal adjustedEps = safeParser.parse(report.getAdjustedEps());
-                BigDecimal newPe = calculateAdjustedPe(price, adjustedEps);
-                report.setAdjustedPe(newPe.toString());
+        if (adjustment.getAnnualAdjustments() != null && !adjustment.getAnnualAdjustments().isEmpty()) {
+            // Only update the latest report, assuming sorting by date DESC (latest first)
+            // If not sorted, we should find the latest by date string
+            FinancialAdjustmentReport latestReport = adjustment.getAnnualAdjustments().stream()
+                    .max(Comparator.comparing(FinancialAdjustmentReport::getDate))
+                    .orElse(adjustment.getAnnualAdjustments().get(0));
+
+            // 1. Update Adjusted PE
+            BigDecimal adjustedEps = safeParser.parse(latestReport.getAdjustedEps());
+            BigDecimal newAdjustedPe = calculateAdjustedPe(price, adjustedEps);
+            latestReport.setAdjustedPe(newAdjustedPe.toString());
+
+            // 2. Update Reported PE (using the new price and reported EPS)
+            BigDecimal reportedEps = safeParser.parse(latestReport.getReportedEps());
+            BigDecimal newReportedPe = calculateAdjustedPe(price, reportedEps);
+            latestReport.setReportedPe(newReportedPe.toString());
+
+            // 3. Update EV/EBITDA (requires recalculating EV with the new price)
+            BigDecimal shares = safeParser.parse(latestReport.getWeightedAverageShsOutDil());
+            BigDecimal debt = safeParser.parse(latestReport.getTotalDebt());
+            BigDecimal cash = safeParser.parse(latestReport.getCashAndCashEquivalents());
+            BigDecimal adjustedEbitda = safeParser.parse(latestReport.getAdjustedEbitda());
+            BigDecimal reportedEbitda = safeParser.parse(latestReport.getReportedEbitda());
+
+            if (shares.compareTo(BigDecimal.ZERO) > 0) {
+                BigDecimal newMarketCap = price.multiply(shares);
+                BigDecimal newEv = calculateEnterpriseValue(newMarketCap, debt, cash);
+
+                BigDecimal newAdjustedEvToEbitda = calculateEvToAdjustedEbitda(newEv, adjustedEbitda);
+                latestReport.setAdjustedEvToEbitda(newAdjustedEvToEbitda.toString());
+
+                BigDecimal newReportedEvToEbitda = calculateEvToAdjustedEbitda(newEv, reportedEbitda);
+                latestReport.setReportedEvToEbitda(newReportedEvToEbitda.toString());
             }
+
+            financialAdjustmentRepository.save(adjustment);
         }
     }
 
@@ -128,7 +176,7 @@ public class AdjustmentServiceImpl implements AdjustmentService {
         financialAdjustmentRepository.findBySymbol(symbol).ifPresent(financialAdjustmentRepository::delete);
     }
 
-    private FinancialAdjustmentReport calculateRdAdjustment(List<IncomeReport> incomeReports, BalanceSheetReport balanceSheetReport, CashFlowReport cashFlowReport, com.testehan.finana.model.CompanyOverview companyOverview, BigDecimal price) {
+    private FinancialAdjustmentReport calculateRdAdjustment(List<IncomeReport> incomeReports, BalanceSheetReport balanceSheetReport, CashFlowReport cashFlowReport, FinancialRatiosReport ratiosReport, com.testehan.finana.model.CompanyOverview companyOverview, BigDecimal price) {
         FinancialAdjustmentReport report = new FinancialAdjustmentReport();
 
         // Ensure we have exactly 5 years, sorted in descending order (latest first)
@@ -137,7 +185,7 @@ public class AdjustmentServiceImpl implements AdjustmentService {
         }
 
         IncomeReport year0Income = incomeReports.get(0);
-        RdAdjustmentData data = parseFinancialData(incomeReports, balanceSheetReport, cashFlowReport, companyOverview, price);
+        RdAdjustmentData data = parseFinancialData(incomeReports, balanceSheetReport, cashFlowReport, ratiosReport, companyOverview, price);
 
         // Check if R&D for latest year is valid and > 0, and other core values
         if (data.rd0.compareTo(BigDecimal.ZERO) <= 0 || data.ebit0.compareTo(BigDecimal.ZERO) == 0 || data.revenue0.compareTo(BigDecimal.ZERO) == 0) {
@@ -152,12 +200,26 @@ public class AdjustmentServiceImpl implements AdjustmentService {
         calculateOperatingAndProfitabilityMetrics(report, data);
         calculateEquityAndEarningsMetrics(report, data);
         calculateCashFlowAndEbitdaMetrics(report, data);
+        
+        // Custom logic for Valuation metrics based on whether we have a "live" price
         calculateValuationAndLeverageMetrics(report, data);
+        
+        if (price == null) {
+            // If no live price is provided, ensure we use the reported historical ratios
+            report.setReportedPe(data.reportedPe != null ? data.reportedPe.toString() : "0");
+            report.setReportedEvToEbitda(data.reportedEvToEbitda != null ? data.reportedEvToEbitda.toString() : "0");
+            
+            // For historical adjusted PE, we don't have the historical price easily, 
+            // so we'll just use the reported PE as a placeholder or 0.
+            // In a more advanced version, we'd fetch historical prices.
+            report.setAdjustedPe("0");
+            report.setAdjustedEvToEbitda("0");
+        }
 
         return report;
     }
 
-    private RdAdjustmentData parseFinancialData(List<IncomeReport> incomeReports, BalanceSheetReport balanceSheetReport, CashFlowReport cashFlowReport, CompanyOverview companyOverview, BigDecimal price) {
+    private RdAdjustmentData parseFinancialData(List<IncomeReport> incomeReports, BalanceSheetReport balanceSheetReport, CashFlowReport cashFlowReport, FinancialRatiosReport ratiosReport, com.testehan.finana.model.CompanyOverview companyOverview, BigDecimal price) {
         RdAdjustmentData data = new RdAdjustmentData();
         IncomeReport year0Income = incomeReports.get(0);
 
@@ -168,12 +230,14 @@ public class AdjustmentServiceImpl implements AdjustmentService {
         data.rd_4 = safeParser.parse(incomeReports.get(4).getResearchAndDevelopmentExpenses());
 
         data.ebit0 = safeParser.parse(year0Income.getOperatingIncome());
+        data.reportedEbitda0 = safeParser.parse(year0Income.getEbitda());
         data.revenue0 = safeParser.parse(year0Income.getRevenue());
         data.incomeTaxExpense0 = safeParser.parse(year0Income.getIncomeTaxExpense());
         data.incomeBeforeTax0 = safeParser.parse(year0Income.getIncomeBeforeTax());
         data.interestExpense0 = safeParser.parse(year0Income.getInterestExpense());
         data.netIncome0 = safeParser.parse(year0Income.getNetIncome());
         data.depreciationAndAmortization0 = safeParser.parse(year0Income.getDepreciationAndAmortization());
+        data.otherExpenses0 = safeParser.parse(year0Income.getOtherExpenses());
 
         data.totalDebt = safeParser.parse(balanceSheetReport.getTotalDebt());
         data.totalEquity = safeParser.parse(balanceSheetReport.getTotalEquity());
@@ -183,10 +247,19 @@ public class AdjustmentServiceImpl implements AdjustmentService {
         data.stockBasedCompensation = safeParser.parse(cashFlowReport.getStockBasedCompensation());
         data.operatingCashFlow = safeParser.parse(cashFlowReport.getOperatingCashFlow());
         data.capitalExpenditure = safeParser.parse(cashFlowReport.getCapitalExpenditure());
+        data.reportedFreeCashFlow0 = safeParser.parse(cashFlowReport.getFreeCashFlow());
 
         data.currentSharePrice = price;
         data.marketCap = safeParser.parse(companyOverview.getMarketCap());
         data.weightedAverageShsOutDil = safeParser.parse(year0Income.getWeightedAverageShsOutDil());
+        data.reportedEps0 = safeParser.parse(year0Income.getEpsDiluted());
+
+        data.reportedRoic = ratiosReport.getRoic();
+        data.reportedPe = ratiosReport.getPeRatio();
+        data.reportedNetDebtToEbitda = ratiosReport.getNetDebtToEbitda();
+        data.reportedSalesToCapital = ratiosReport.getSalesToCapitalRatio();
+        data.reportedInterestCoverage = ratiosReport.getInterestCoverageRatio();
+        data.reportedEvToEbitda = ratiosReport.getEnterpriseValueMultiple();
 
         return data;
     }
@@ -194,15 +267,24 @@ public class AdjustmentServiceImpl implements AdjustmentService {
     private void calculateOperatingAndProfitabilityMetrics(FinancialAdjustmentReport report, RdAdjustmentData data) {
         BigDecimal rdAmortization = data.rd_4;
         BigDecimal rdCapitalizationAdjustment = calculateRdCapitalizationAdjustment(data.rd0, rdAmortization);
-        data.adjustedOperatingIncome = calculateAdjustedOperatingIncome(data.ebit0, rdCapitalizationAdjustment);
+        
+        // Damodaran Normalization: Add back non-recurring 'Other Expenses' to Operating Income (EBIT)
+        BigDecimal cleanedEbit = data.ebit0.add(data.otherExpenses0);
+        data.adjustedOperatingIncome = calculateAdjustedOperatingIncome(cleanedEbit, rdCapitalizationAdjustment);
 
-        report.setRdCapitalizationAdjustment(rdCapitalizationAdjustment.toString());
         report.setAdjustedOperatingIncome(data.adjustedOperatingIncome.toString());
+        report.setReportedOperatingIncome(data.ebit0.toString());
 
         BigDecimal investedCapitalReported = calculateInvestedCapitalReported(data.totalDebt, data.totalEquity, data.cashAndCashEquivalents);
-        BigDecimal adjInvestedCapital = calculateAdjInvestedCapital(investedCapitalReported, data.researchAsset);
-
         BigDecimal marginalTaxRate = calculateMarginalTaxRate(data.incomeTaxExpense0, data.incomeBeforeTax0);
+        
+        // Damodaran Fix: Adjusted Invested Capital = Reported + Research Asset - (Research Asset * Marginal Tax Rate)
+        BigDecimal taxBenefit = data.researchAsset.multiply(marginalTaxRate);
+        BigDecimal adjInvestedCapital = calculateAdjInvestedCapital(investedCapitalReported, data.researchAsset).subtract(taxBenefit);
+
+        report.setReportedInvestedCapital(investedCapitalReported.toString());
+        report.setAdjustedInvestedCapital(adjInvestedCapital.toString());
+
         report.setAdjustedMarginalTaxRate(marginalTaxRate.toString());
 
         BigDecimal adjustedNopat = calculateAdjustedNopat(data.adjustedOperatingIncome, marginalTaxRate);
@@ -211,57 +293,83 @@ public class AdjustmentServiceImpl implements AdjustmentService {
         BigDecimal adjustedRoic = calculateAdjustedRoic(adjustedNopat, adjInvestedCapital);
         report.setAdjustedRoic(adjustedRoic.toString());
 
+        BigDecimal reportedNopat = calculateAdjustedNopat(data.ebit0, marginalTaxRate);
+        report.setReportedNopat(reportedNopat.toString());
+        report.setReportedRoic(data.reportedRoic != null ? data.reportedRoic.toString() : "0");
+
         BigDecimal salesToCapital = calculateSalesToCapital(data.revenue0, adjInvestedCapital);
-        report.setSalesToCapital(salesToCapital.toString());
+        report.setAdjustedSalesToCapital(salesToCapital.toString());
+
+        report.setReportedSalesToCapital(data.reportedSalesToCapital != null ? data.reportedSalesToCapital.toString() : "0");
 
         data.adjInvestedCapital = adjInvestedCapital;
         data.marginalTaxRate = marginalTaxRate;
     }
 
     private void calculateEquityAndEarningsMetrics(FinancialAdjustmentReport report, RdAdjustmentData data) {
-        BigDecimal adjustedNetIncome = calculateAdjustedNetIncome(data.adjustedOperatingIncome, data.interestExpense0, data.incomeTaxExpense0);
+        BigDecimal adjustedNetIncome = calculateAdjustedNetIncome(data.netIncome0, data.adjustedOperatingIncome, data.ebit0);
         report.setAdjustedNetIncome(adjustedNetIncome.toString());
+        report.setReportedNetIncome(data.netIncome0.toString());
 
-        BigDecimal dilutedNetIncome = calculateDilutedNetIncome(data.netIncome0, data.stockBasedCompensation);
-        report.setDilutedNetIncome(dilutedNetIncome.toString());
-
-        BigDecimal adjustedBookValueOfEquity = calculateAdjustedBookValueOfEquity(data.totalStockholdersEquity, data.researchAsset);
+        // Damodaran Fix: Adjusted Equity = Reported Equity + Research Asset - (Research Asset * Marginal Tax Rate)
+        BigDecimal taxBenefit = data.researchAsset.multiply(data.marginalTaxRate);
+        BigDecimal adjustedBookValueOfEquity = calculateAdjustedBookValueOfEquity(data.totalStockholdersEquity, data.researchAsset).subtract(taxBenefit);
         report.setAdjustedBookValueOfEquity(adjustedBookValueOfEquity.toString());
+        report.setReportedBookValueOfEquity(data.totalStockholdersEquity.toString());
 
-        data.adjustedEps = calculateAdjustedEps(dilutedNetIncome, data.weightedAverageShsOutDil);
+        data.adjustedEps = calculateAdjustedEps(adjustedNetIncome, data.weightedAverageShsOutDil);
         report.setAdjustedEps(data.adjustedEps.toString());
+
+        report.setReportedEps(data.reportedEps0.toString());
     }
 
     private void calculateCashFlowAndEbitdaMetrics(FinancialAdjustmentReport report, RdAdjustmentData data) {
         BigDecimal adjustedFreeCashFlow = calculateAdjustedFreeCashFlow(data.operatingCashFlow, data.capitalExpenditure);
         report.setAdjustedFreeCashFlow(adjustedFreeCashFlow.toString());
+        report.setReportedFreeCashFlow(data.reportedFreeCashFlow0.toString());
 
         data.adjustedEbitda = calculateAdjustedEbitda(data.adjustedOperatingIncome, data.depreciationAndAmortization0);
         report.setAdjustedEbitda(data.adjustedEbitda.toString());
+
+        report.setReportedEbitda(data.reportedEbitda0.toString());
     }
 
     private void calculateValuationAndLeverageMetrics(FinancialAdjustmentReport report, RdAdjustmentData data) {
         BigDecimal netDebt = calculateNetDebt(data.totalDebt, data.cashAndCashEquivalents);
         BigDecimal netDebtToAdjustedEbitda = calculateNetDebtToAdjustedEbitda(netDebt, data.adjustedEbitda);
-        report.setNetDebtToAdjustedEbitda(netDebtToAdjustedEbitda.toString());
+        report.setAdjustedNetDebtToEbitda(netDebtToAdjustedEbitda.toString());
+
+        report.setReportedNetDebtToEbitda(data.reportedNetDebtToEbitda != null ? data.reportedNetDebtToEbitda.toString() : "0");
 
         BigDecimal adjustedEbitToInterest = calculateAdjustedEbitToInterest(data.adjustedOperatingIncome, data.interestExpense0);
         report.setAdjustedEbitToInterest(adjustedEbitToInterest.toString());
 
+        report.setReportedEbitToInterest(data.reportedInterestCoverage != null ? data.reportedInterestCoverage.toString() : "0");
+
         BigDecimal adjustedPe = calculateAdjustedPe(data.currentSharePrice, data.adjustedEps);
         report.setAdjustedPe(adjustedPe.toString());
 
+        report.setReportedPe(data.reportedPe != null ? data.reportedPe.toString() : "0");
+
         BigDecimal enterpriseValue = calculateEnterpriseValue(data.marketCap, data.totalDebt, data.cashAndCashEquivalents);
         BigDecimal evToAdjustedEbitda = calculateEvToAdjustedEbitda(enterpriseValue, data.adjustedEbitda);
-        report.setEvToAdjustedEbitda(evToAdjustedEbitda.toString());
+        report.setAdjustedEvToEbitda(evToAdjustedEbitda.toString());
+
+        report.setReportedEvToEbitda(data.reportedEvToEbitda != null ? data.reportedEvToEbitda.toString() : "0");
+
+        // Set fields for future recalculations
+        report.setWeightedAverageShsOutDil(data.weightedAverageShsOutDil != null ? data.weightedAverageShsOutDil.toString() : "0");
+        report.setTotalDebt(data.totalDebt != null ? data.totalDebt.toString() : "0");
+        report.setCashAndCashEquivalents(data.cashAndCashEquivalents != null ? data.cashAndCashEquivalents.toString() : "0");
     }
 
     private static class RdAdjustmentData {
         BigDecimal rd0, rd_1, rd_2, rd_3, rd_4;
-        BigDecimal ebit0, revenue0, incomeTaxExpense0, incomeBeforeTax0, interestExpense0, netIncome0, depreciationAndAmortization0;
+        BigDecimal ebit0, reportedEbitda0, revenue0, incomeTaxExpense0, incomeBeforeTax0, interestExpense0, netIncome0, depreciationAndAmortization0, otherExpenses0;
         BigDecimal totalDebt, totalEquity, cashAndCashEquivalents, totalStockholdersEquity;
-        BigDecimal stockBasedCompensation, operatingCashFlow, capitalExpenditure;
-        BigDecimal currentSharePrice, marketCap, weightedAverageShsOutDil;
+        BigDecimal stockBasedCompensation, operatingCashFlow, capitalExpenditure, reportedFreeCashFlow0;
+        BigDecimal currentSharePrice, marketCap, weightedAverageShsOutDil, reportedEps0;
+        BigDecimal reportedRoic, reportedPe, reportedNetDebtToEbitda, reportedSalesToCapital, reportedInterestCoverage, reportedEvToEbitda;
         BigDecimal researchAsset;
         BigDecimal adjustedOperatingIncome;
         BigDecimal adjInvestedCapital;
@@ -328,24 +436,19 @@ public class AdjustmentServiceImpl implements AdjustmentService {
         return salesToCapital;
     }
 
-    private BigDecimal calculateAdjustedNetIncome(BigDecimal adjustedOperatingIncome, BigDecimal interestExpense0, BigDecimal incomeTaxExpense0) {
-        return adjustedOperatingIncome
-                .subtract(interestExpense0)
-                .subtract(incomeTaxExpense0);
-    }
-
-    private BigDecimal calculateDilutedNetIncome(BigDecimal netIncome0, BigDecimal stockBasedCompensation) {
-        return netIncome0.subtract(stockBasedCompensation);
+    private BigDecimal calculateAdjustedNetIncome(BigDecimal reportedNetIncome, BigDecimal adjustedOperatingIncome, BigDecimal reportedOperatingIncome) {
+        BigDecimal delta = adjustedOperatingIncome.subtract(reportedOperatingIncome);
+        return reportedNetIncome.add(delta);
     }
 
     private BigDecimal calculateAdjustedBookValueOfEquity(BigDecimal totalStockholdersEquity, BigDecimal researchAsset) {
         return totalStockholdersEquity.add(researchAsset);
     }
 
-    private BigDecimal calculateAdjustedEps(BigDecimal dilutedNetIncome, BigDecimal weightedAverageShsOutDil) {
+    private BigDecimal calculateAdjustedEps(BigDecimal netIncome, BigDecimal weightedAverageShsOutDil) {
         BigDecimal adjustedEps = BigDecimal.ZERO;
         if (weightedAverageShsOutDil.compareTo(BigDecimal.ZERO) != 0) {
-            adjustedEps = dilutedNetIncome.divide(weightedAverageShsOutDil, 4, RoundingMode.HALF_UP);
+            adjustedEps = netIncome.divide(weightedAverageShsOutDil, 4, RoundingMode.HALF_UP);
         }
         return adjustedEps;
     }
