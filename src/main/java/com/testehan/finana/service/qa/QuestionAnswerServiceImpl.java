@@ -36,7 +36,7 @@ public class QuestionAnswerServiceImpl implements QuestionAnswerService {
     }
 
         @Override
-        public void answerQuestion(String stockId, String questionId, org.springframework.web.servlet.mvc.method.annotation.SseEmitter emitter) {
+        public void answerQuestion(String stockId, String questionId, SseEmitter emitter) {
             Optional<QuestionAnswer> existingAnswerOpt = questionAnswerRepository
                     .findByStockIdAndQuestionIdAndPromptVersionAndModel(stockId, questionId, PROMPT_VERSION, llmModel);
     

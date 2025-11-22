@@ -17,6 +17,9 @@ public class AiConfig {
     @Value("${spring.ai.google.genai.chat.options.model}")
     private String modelName;
 
+    @Value("${spring.ai.google.genai.chat.options.google-search-retrieval:false}")
+    private boolean googleSearchRetrieval;
+
     @Bean
     @Primary
     public ChatModel googleGenAiChatModel() {
@@ -25,6 +28,7 @@ public class AiConfig {
                 .defaultOptions(GoogleGenAiChatOptions.builder()
                         .model(modelName)
                         .temperature(0.1)
+                        .googleSearchRetrieval(googleSearchRetrieval)
                         .build())
                 .build();
     }

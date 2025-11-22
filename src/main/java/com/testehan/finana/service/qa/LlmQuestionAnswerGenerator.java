@@ -62,7 +62,7 @@ public class LlmQuestionAnswerGenerator {
             String generationDate = "Generation Date: " + LocalDateTime.now() + "\n\n\n";
             StringBuilder completeAnswer = new StringBuilder(generationDate);
             emitter.send(SseEmitter.event().data(generationDate));
-            llmService.streamLlm(prompt)
+            llmService.streamLlmWithSearch(prompt)
                     .doOnNext(chunk -> {
                         try {
                             emitter.send(SseEmitter.event().data(chunk));
@@ -136,7 +136,7 @@ public class LlmQuestionAnswerGenerator {
             promptParameters.put("company_url", companyOverview.get().getWebsite());
             Prompt prompt = promptTemplate.create(promptParameters);
 
-            String llmAnswer = llmService.callLlm(prompt);
+            String llmAnswer = llmService.callLlmWithSearch(prompt.getContents());
 
             Optional<QuestionAnswer> optionalQuestionAnswer = questionAnswerRepository
                     .findByStockIdAndQuestionIdAndPromptVersionAndModel(stockId, questionId, promptVersion, llmModel);
