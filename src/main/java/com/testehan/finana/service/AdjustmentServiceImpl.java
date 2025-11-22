@@ -165,6 +165,16 @@ public class AdjustmentServiceImpl implements AdjustmentService {
 
                 BigDecimal newReportedEvToEbitda = calculateEvToAdjustedEbitda(newEv, reportedEbitda);
                 latestReport.setReportedEvToEbitda(newReportedEvToEbitda.toString());
+
+                // 4. Update PB Ratios
+                BigDecimal adjustedBookValue = safeParser.parse(latestReport.getAdjustedBookValueOfEquity());
+                BigDecimal reportedBookValue = safeParser.parse(latestReport.getReportedBookValueOfEquity());
+
+                BigDecimal newAdjustedPb = calculatePbRatio(newMarketCap, adjustedBookValue);
+                latestReport.setAdjustedPb(newAdjustedPb.toString());
+
+                BigDecimal newReportedPb = calculatePbRatio(newMarketCap, reportedBookValue);
+                latestReport.setReportedPb(newReportedPb.toString());
             }
 
             financialAdjustmentRepository.save(adjustment);
@@ -196,6 +206,8 @@ public class AdjustmentServiceImpl implements AdjustmentService {
         report.setDate(year0Income.getDate());
 
         data.researchAsset = calculateResearchAsset(data.rd0, data.rd_1, data.rd_2, data.rd_3, data.rd_4);
+        data.brandAsset = calculateBrandAsset(data.mkt0, data.mkt_1, data.mkt_2);
+        report.setBrandAsset(data.brandAsset.toString());
 
         calculateOperatingAndProfitabilityMetrics(report, data);
         calculateEquityAndEarningsMetrics(report, data);
@@ -214,6 +226,8 @@ public class AdjustmentServiceImpl implements AdjustmentService {
             // In a more advanced version, we'd fetch historical prices.
             report.setAdjustedPe("0");
             report.setAdjustedEvToEbitda("0");
+            report.setAdjustedPb("0");
+            report.setReportedPb("0");
         }
 
         return report;
@@ -238,6 +252,10 @@ public class AdjustmentServiceImpl implements AdjustmentService {
         data.netIncome0 = safeParser.parse(year0Income.getNetIncome());
         data.depreciationAndAmortization0 = safeParser.parse(year0Income.getDepreciationAndAmortization());
         data.otherExpenses0 = safeParser.parse(year0Income.getOtherExpenses());
+
+        data.mkt0 = parseMarketingOrSga(incomeReports.get(0));
+        data.mkt_1 = parseMarketingOrSga(incomeReports.get(1));
+        data.mkt_2 = parseMarketingOrSga(incomeReports.get(2));
 
         data.totalDebt = safeParser.parse(balanceSheetReport.getTotalDebt());
         data.totalEquity = safeParser.parse(balanceSheetReport.getTotalEquity());
@@ -267,10 +285,14 @@ public class AdjustmentServiceImpl implements AdjustmentService {
     private void calculateOperatingAndProfitabilityMetrics(FinancialAdjustmentReport report, RdAdjustmentData data) {
         BigDecimal rdAmortization = data.rd_4;
         BigDecimal rdCapitalizationAdjustment = calculateRdCapitalizationAdjustment(data.rd0, rdAmortization);
+
+        // Brand Amortization proxy: 3-year life, so the expense from 2 years ago is fully amortized
+        BigDecimal brandAmortization = data.mkt_2;
+        BigDecimal brandCapitalizationAdjustment = data.mkt0.subtract(brandAmortization);
         
-        // Damodaran Normalization: Add back non-recurring 'Other Expenses' to Operating Income (EBIT)
+        // Damodaran Normalization: Add back non-recurring 'Other Expenses' AND R&D/Brand adjustments
         BigDecimal cleanedEbit = data.ebit0.add(data.otherExpenses0);
-        data.adjustedOperatingIncome = calculateAdjustedOperatingIncome(cleanedEbit, rdCapitalizationAdjustment);
+        data.adjustedOperatingIncome = calculateAdjustedOperatingIncome(cleanedEbit, rdCapitalizationAdjustment.add(brandCapitalizationAdjustment));
 
         report.setAdjustedOperatingIncome(data.adjustedOperatingIncome.toString());
         report.setReportedOperatingIncome(data.ebit0.toString());
@@ -278,9 +300,10 @@ public class AdjustmentServiceImpl implements AdjustmentService {
         BigDecimal investedCapitalReported = calculateInvestedCapitalReported(data.totalDebt, data.totalEquity, data.cashAndCashEquivalents);
         BigDecimal marginalTaxRate = calculateMarginalTaxRate(data.incomeTaxExpense0, data.incomeBeforeTax0);
         
-        // Damodaran Fix: Adjusted Invested Capital = Reported + Research Asset - (Research Asset * Marginal Tax Rate)
-        BigDecimal taxBenefit = data.researchAsset.multiply(marginalTaxRate);
-        BigDecimal adjInvestedCapital = calculateAdjInvestedCapital(investedCapitalReported, data.researchAsset).subtract(taxBenefit);
+        // Damodaran Fix: Adjusted Invested Capital = Reported + Research Asset + Brand Asset - (Deferred Tax on both)
+        BigDecimal totalInvisibleAssets = data.researchAsset.add(data.brandAsset);
+        BigDecimal taxBenefit = totalInvisibleAssets.multiply(marginalTaxRate);
+        BigDecimal adjInvestedCapital = calculateAdjInvestedCapital(investedCapitalReported, totalInvisibleAssets).subtract(taxBenefit);
 
         report.setReportedInvestedCapital(investedCapitalReported.toString());
         report.setAdjustedInvestedCapital(adjInvestedCapital.toString());
@@ -311,9 +334,10 @@ public class AdjustmentServiceImpl implements AdjustmentService {
         report.setAdjustedNetIncome(adjustedNetIncome.toString());
         report.setReportedNetIncome(data.netIncome0.toString());
 
-        // Damodaran Fix: Adjusted Equity = Reported Equity + Research Asset - (Research Asset * Marginal Tax Rate)
-        BigDecimal taxBenefit = data.researchAsset.multiply(data.marginalTaxRate);
-        BigDecimal adjustedBookValueOfEquity = calculateAdjustedBookValueOfEquity(data.totalStockholdersEquity, data.researchAsset).subtract(taxBenefit);
+        // Damodaran Fix: Adjusted Equity = Reported Equity + (Research + Brand Assets) - (Deferred Tax)
+        BigDecimal totalInvisibleAssets = data.researchAsset.add(data.brandAsset);
+        BigDecimal taxBenefit = totalInvisibleAssets.multiply(data.marginalTaxRate);
+        BigDecimal adjustedBookValueOfEquity = calculateAdjustedBookValueOfEquity(data.totalStockholdersEquity, totalInvisibleAssets).subtract(taxBenefit);
         report.setAdjustedBookValueOfEquity(adjustedBookValueOfEquity.toString());
         report.setReportedBookValueOfEquity(data.totalStockholdersEquity.toString());
 
@@ -357,6 +381,22 @@ public class AdjustmentServiceImpl implements AdjustmentService {
 
         report.setReportedEvToEbitda(data.reportedEvToEbitda != null ? data.reportedEvToEbitda.toString() : "0");
 
+        // Price to Book Value Calculations
+        if (data.currentSharePrice != null && data.weightedAverageShsOutDil != null && data.weightedAverageShsOutDil.compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal currentMarketCap = data.currentSharePrice.multiply(data.weightedAverageShsOutDil);
+            BigDecimal adjustedBookValue = safeParser.parse(report.getAdjustedBookValueOfEquity());
+            BigDecimal reportedBookValue = data.totalStockholdersEquity;
+
+            BigDecimal adjustedPb = calculatePbRatio(currentMarketCap, adjustedBookValue);
+            report.setAdjustedPb(adjustedPb.toString());
+
+            BigDecimal reportedPb = calculatePbRatio(currentMarketCap, reportedBookValue);
+            report.setReportedPb(reportedPb.toString());
+        } else {
+            report.setAdjustedPb("0");
+            report.setReportedPb("0");
+        }
+
         // Set fields for future recalculations
         report.setWeightedAverageShsOutDil(data.weightedAverageShsOutDil != null ? data.weightedAverageShsOutDil.toString() : "0");
         report.setTotalDebt(data.totalDebt != null ? data.totalDebt.toString() : "0");
@@ -365,17 +405,35 @@ public class AdjustmentServiceImpl implements AdjustmentService {
 
     private static class RdAdjustmentData {
         BigDecimal rd0, rd_1, rd_2, rd_3, rd_4;
+        BigDecimal mkt0, mkt_1, mkt_2;
         BigDecimal ebit0, reportedEbitda0, revenue0, incomeTaxExpense0, incomeBeforeTax0, interestExpense0, netIncome0, depreciationAndAmortization0, otherExpenses0;
         BigDecimal totalDebt, totalEquity, cashAndCashEquivalents, totalStockholdersEquity;
         BigDecimal stockBasedCompensation, operatingCashFlow, capitalExpenditure, reportedFreeCashFlow0;
         BigDecimal currentSharePrice, marketCap, weightedAverageShsOutDil, reportedEps0;
         BigDecimal reportedRoic, reportedPe, reportedNetDebtToEbitda, reportedSalesToCapital, reportedInterestCoverage, reportedEvToEbitda;
-        BigDecimal researchAsset;
+        BigDecimal researchAsset, brandAsset;
         BigDecimal adjustedOperatingIncome;
         BigDecimal adjInvestedCapital;
         BigDecimal marginalTaxRate;
         BigDecimal adjustedEps;
         BigDecimal adjustedEbitda;
+    }
+
+    private BigDecimal parseMarketingOrSga(IncomeReport report) {
+        BigDecimal marketing = safeParser.parse(report.getSellingAndMarketingExpenses());
+        if (marketing.compareTo(BigDecimal.ZERO) > 0) {
+            return marketing;
+        }
+        // Fallback to 50% of SG&A if marketing is not broken out
+        BigDecimal sga = safeParser.parse(report.getSellingGeneralAndAdministrativeExpenses());
+        return sga.multiply(BigDecimal.valueOf(0.5));
+    }
+
+    private BigDecimal calculateBrandAsset(BigDecimal mkt0, BigDecimal mkt_1, BigDecimal mkt_2) {
+        // 3-year life straight-line: current is 100%, 1 yr ago is 67%, 2 yrs ago is 33%
+        return mkt0.multiply(BigDecimal.valueOf(1.0))
+                .add(mkt_1.multiply(BigDecimal.valueOf(0.67)))
+                .add(mkt_2.multiply(BigDecimal.valueOf(0.33)));
     }
 
     private BigDecimal calculateResearchAsset(BigDecimal rd0, BigDecimal rd_1, BigDecimal rd_2, BigDecimal rd_3, BigDecimal rd_4) {
@@ -485,10 +543,18 @@ public class AdjustmentServiceImpl implements AdjustmentService {
 
     private BigDecimal calculateAdjustedPe(BigDecimal currentSharePrice, BigDecimal adjustedEps) {
         BigDecimal adjustedPe = BigDecimal.ZERO;
-        if (adjustedEps.compareTo(BigDecimal.ZERO) != 0) {
+        if (currentSharePrice != null && adjustedEps != null && adjustedEps.compareTo(BigDecimal.ZERO) != 0) {
             adjustedPe = currentSharePrice.divide(adjustedEps, 4, RoundingMode.HALF_UP);
         }
         return adjustedPe;
+    }
+
+    private BigDecimal calculatePbRatio(BigDecimal marketCap, BigDecimal bookValue) {
+        BigDecimal pbRatio = BigDecimal.ZERO;
+        if (bookValue.compareTo(BigDecimal.ZERO) != 0) {
+            pbRatio = marketCap.divide(bookValue, 4, RoundingMode.HALF_UP);
+        }
+        return pbRatio;
     }
 
     private BigDecimal calculateEnterpriseValue(BigDecimal marketCap, BigDecimal totalDebt, BigDecimal cashAndCashEquivalents) {

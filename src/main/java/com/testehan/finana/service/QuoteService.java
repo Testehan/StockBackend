@@ -34,7 +34,7 @@ public class QuoteService {
     public Mono<GlobalQuote> getLastStockQuote(String symbol) {
         return Mono.defer(() -> {
             Optional<StockQuotes> stockQuotesFromDb = stockQuotesRepository.findBySymbol(symbol);
-            if (stockQuotesFromDb.isPresent() && !stockQuotesFromDb.get().getQuotes().isEmpty() && isRecent(stockQuotesFromDb.get().getLastUpdated(), 100)) {
+            if (stockQuotesFromDb.isPresent() && !stockQuotesFromDb.get().getQuotes().isEmpty() && isRecent(stockQuotesFromDb.get().getLastUpdated(), 10)) {
                 return Mono.just(stockQuotesFromDb.get());
             } else {
                 return fmpService.getHistoricalDividendAdjustedEodPrice(symbol)

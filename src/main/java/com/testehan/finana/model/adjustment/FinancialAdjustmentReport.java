@@ -22,10 +22,12 @@ public class FinancialAdjustmentReport {
     private String reportedNetDebtToEbitda;
     private String reportedEbitToInterest;
     private String reportedEvToEbitda;
+    private String adjustedPb;
 
     // Adjustments
     private String adjustedOperatingIncome;
     private String adjustedInvestedCapital;      // Reported Invested Capital + Research Asset
+    private String brandAsset;                   // Capitalized Marketing/SGA
     private String adjustedRoic;            // The "True" Profitability
     private String adjustedSalesToCapital;          // Efficiency of the "Invisible" engine
     private String adjustedNetIncome;       // For the "Corrected" P/E ratio
@@ -39,6 +41,7 @@ public class FinancialAdjustmentReport {
     private String adjustedEbitToInterest;
     private String adjustedPe;
     private String adjustedEvToEbitda;
+    private String reportedPb;
 
     // Fields for recalculating price-dependent metrics
     private String weightedAverageShsOutDil;
