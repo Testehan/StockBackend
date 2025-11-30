@@ -13,8 +13,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 
 @Service
@@ -35,10 +33,12 @@ public class QuoteService {
         return Mono.defer(() -> {
             Optional<StockQuotes> stockQuotesFromDb = stockQuotesRepository.findBySymbol(symbol);
             if (stockQuotesFromDb.isPresent() && !stockQuotesFromDb.get().getQuotes().isEmpty() && isRecent(stockQuotesFromDb.get().getLastUpdated(), 10)) {
-                return Mono.just(stockQuotesFromDb.get());
+                return Mono.fromCallable(() -> stockQuotesRepository.findLastQuoteBySymbol(symbol))
+                        .flatMap(opt -> opt.map(Mono::just).orElseGet(Mono::empty))
+                        .switchIfEmpty(Mono.error(() -> new RuntimeException("No stock quote found for " + symbol)));
             } else {
                 return fmpService.getHistoricalDividendAdjustedEodPrice(symbol)
-                        .flatMap(globalQuotes -> {
+                        .flatMap(globalQuotes -> Mono.fromCallable(() -> {
                             StockQuotes stockQuotes;
                             if (stockQuotesFromDb.isPresent()) {
                                 stockQuotes = stockQuotesFromDb.get();
@@ -49,16 +49,13 @@ public class QuoteService {
                                 stockQuotes.setQuotes(globalQuotes);
                             }
                             stockQuotes.setLastUpdated(LocalDateTime.now());
-                            return Mono.just(stockQuotesRepository.save(stockQuotes));
-                        });
+                            return stockQuotesRepository.save(stockQuotes);
+                        }))
+                        .flatMap(saved -> Mono.fromCallable(() -> stockQuotesRepository.findLastQuoteBySymbol(symbol))
+                                .flatMap(opt -> opt.map(Mono::just).orElseGet(Mono::empty))
+                                .switchIfEmpty(Mono.error(() -> new RuntimeException("No stock quote found for " + symbol))));
             }
-        }).map(stockQuotes -> {
-            List<GlobalQuote> quotes = stockQuotes.getQuotes();
-            if (quotes != null && !quotes.isEmpty()) {
-                return stockQuotesRepository.findLastQuoteBySymbol(symbol).get();
-            }
-            return null;
-        }).filter(Objects::nonNull);
+        });
     }
 
     public Mono<IndexQuotes> getIndexQuotes(String symbol) {
@@ -68,7 +65,7 @@ public class QuoteService {
                 return Mono.just(indexQuotesFromDb.get());
             } else {
                 return fmpService.getIndexHistoricalData(symbol)
-                        .flatMap(indexDataList -> {
+                        .flatMap(indexDataList -> Mono.fromCallable(() -> {
                             IndexQuotes indexQuotes;
                             if (indexQuotesFromDb.isPresent()) {
                                 indexQuotes = indexQuotesFromDb.get();
@@ -77,10 +74,10 @@ public class QuoteService {
                                 indexQuotes = new IndexQuotes(symbol.toUpperCase(), indexDataList);
                             }
                             indexQuotes.setLastUpdated(LocalDateTime.now());
-                            return Mono.just(indexQuotesRepository.save(indexQuotes));
-                        });
+                            return indexQuotesRepository.save(indexQuotes);
+                        }));
             }
-        });
+        }).switchIfEmpty(Mono.error(() -> new RuntimeException("No index quotes found for " + symbol)));
     }
 
     public Optional<GlobalQuote> getStockQuoteByDate(String symbol, LocalDate date) {

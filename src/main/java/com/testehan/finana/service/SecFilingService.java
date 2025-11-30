@@ -38,7 +38,7 @@ public class SecFilingService {
                         if (existingSecFilings.getLastUpdated() != null &&
                                 ChronoUnit.DAYS.between(existingSecFilings.getLastUpdated(), LocalDateTime.now()) < 30) {
                             LOGGER.info("SEC filings for symbol {} are recent. Skipping fetch.", symbol);
-                            return Mono.empty();
+                            return Mono.just(existingSecFilingsOptional);
                         }
                     }
                     return Mono.just(existingSecFilingsOptional);
@@ -47,7 +47,7 @@ public class SecFilingService {
                         fmpService.getSecFilings(symbol)
                                 .flatMap(secFilingData -> {
                                     if (secFilingData == null) {
-                                        return Mono.empty();
+                                        return Mono.just(existingSecFilingsOptional);
                                     }
 
                                     SecFilingsUrls secFilingsUrls = existingSecFilingsOptional.orElse(new SecFilingsUrls(symbol, new ArrayList<>()));
@@ -60,8 +60,7 @@ public class SecFilingService {
                                         }
                                     }
                                     secFilingsUrls.setLastUpdated(LocalDateTime.now());
-                                    secFilingUrlsRepository.save(secFilingsUrls);
-                                    return Mono.empty();
+                                    return Mono.fromCallable(() -> secFilingUrlsRepository.save(secFilingsUrls));
                                 })
                 )
                 .then();
@@ -72,23 +71,42 @@ public class SecFilingService {
                 .flatMap(secFilingsOptional -> {
                     if (secFilingsOptional.isEmpty()) {
                         LOGGER.warn("No SEC filings found for symbol: {}", symbol);
-                        return Mono.empty();
+                        return Mono.just(false);
                     }
 
                     SecFilingsUrls secFilings = secFilingsOptional.get();
                     Optional<SecFiling> existingSecFilingOptional = secFilingRepository.findById(symbol);
 
-                    // Process 10-K filings
-                    processLatestFiling(secFilings, existingSecFilingOptional, symbol, 
-                            filing -> "10-K".equals(filing.getFormType()) || "20-F".equals(filing.getFormType()),
-                            this::shouldReprocess10K);
+                    List<Mono<Void>> processingMonos = new ArrayList<>();
 
-                    // Process 10-Q filings
-                    processLatestFiling(secFilings, existingSecFilingOptional, symbol,
-                            filing -> "10-Q".equals(filing.getFormType()) || "6-K".equals(filing.getFormType()),
-                            this::shouldReprocess10Q);
+                    Optional<SecFilingUrlData> latest10K = secFilings.getFilings().stream()
+                            .filter(filing -> "10-K".equals(filing.getFormType()) || "20-F".equals(filing.getFormType()))
+                            .max(Comparator.comparing(SecFilingUrlData::getFilingDate));
 
-                    return Mono.empty();
+                    latest10K.ifPresent(filing -> {
+                        if (shouldReprocess10K(existingSecFilingOptional, filing)) {
+                            processingMonos.add(Mono.fromRunnable(() -> 
+                                getAndSaveSecFiling(symbol, filing.getFinalLink(), filing.getFormType(), filing.getFilingDate()))
+                            );
+                        }
+                    });
+
+                    Optional<SecFilingUrlData> latest10Q = secFilings.getFilings().stream()
+                            .filter(filing -> "10-Q".equals(filing.getFormType()) || "6-K".equals(filing.getFormType()))
+                            .max(Comparator.comparing(SecFilingUrlData::getFilingDate));
+
+                    latest10Q.ifPresent(filing -> {
+                        if (shouldReprocess10Q(existingSecFilingOptional, filing)) {
+                            processingMonos.add(Mono.fromRunnable(() -> 
+                                getAndSaveSecFiling(symbol, filing.getFinalLink(), filing.getFormType(), filing.getFilingDate()))
+                            );
+                        }
+                    });
+
+                    if (processingMonos.isEmpty()) {
+                        return Mono.just(true);
+                    }
+                    return Mono.when(processingMonos).then(Mono.just(true));
                 })
                 .then();
     }

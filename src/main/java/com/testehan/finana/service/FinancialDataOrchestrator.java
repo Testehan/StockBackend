@@ -71,23 +71,21 @@ public class FinancialDataOrchestrator {
             Mono<Void> transcriptMono = incomeStatementShared.flatMap(incomeData -> incomeData.getQuarterlyReports().stream()
                     .max(Comparator.comparing(report -> dateUtils.parseDate(report.getDate(), formatter)))
                     .map(report -> earningsService.getEarningsCallTranscript(ticker, dateUtils.getDateQuarter(report.getDate())).then())
-                    .orElse(Mono.empty()));
+                    .orElse(Mono.just(true).then()));
 
-            Mono<Void> ratiosMono = coreFinancials.then(Mono.defer(() ->
-                    financialDataService.getFinancialRatios(ticker)
-                            .doOnNext(data -> {
-                                // These are void/blocking methods, we run them after ratios are ensured
-                                financialDataService.updateFinancialRatiosFromFmp(ticker);
-                                financialDataService.updateTtmFinancialRatios(ticker);
-                            })
-                            .then()
-                            .onErrorResume(e -> {
-                                LOGGER.error("Ratio calculation failed for " + ticker, e);
-                                return Mono.empty();
-                            })
-            ));
+            Mono<Void> ratiosMono = financialDataService.getFinancialRatios(ticker)
+                    .flatMap(data -> {
+                        financialDataService.updateFinancialRatiosFromFmp(ticker);
+                        financialDataService.updateTtmFinancialRatios(ticker);
+                        return Mono.just(true);
+                    })
+                    .onErrorResume(e -> {
+                        LOGGER.error("Ratio calculation failed for " + ticker, e);
+                        return Mono.just(true);
+                    })
+                    .then();
 
-            Mono<Void> adjustmentsMono = Mono.fromRunnable(() -> adjustmentService.getFinancialAdjustments(ticker))
+            Mono<Void> adjustmentsMono = Mono.fromCallable(() -> adjustmentService.getFinancialAdjustments(ticker))
                     .then();
 
             return Mono.when(transcriptMono, ratiosMono, adjustmentsMono);
