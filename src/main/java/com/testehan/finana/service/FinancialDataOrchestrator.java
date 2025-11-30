@@ -74,16 +74,11 @@ public class FinancialDataOrchestrator {
                     .orElse(Mono.just(true).then()));
 
             Mono<Void> ratiosMono = financialDataService.getFinancialRatios(ticker)
-                    .flatMap(data -> {
-                        financialDataService.updateFinancialRatiosFromFmp(ticker);
-                        financialDataService.updateTtmFinancialRatios(ticker);
-                        return Mono.just(true);
-                    })
+                    .then()
                     .onErrorResume(e -> {
                         LOGGER.error("Ratio calculation failed for " + ticker, e);
-                        return Mono.just(true);
-                    })
-                    .then();
+                        return Mono.empty();
+                    });
 
             Mono<Void> adjustmentsMono = Mono.fromCallable(() -> adjustmentService.getFinancialAdjustments(ticker))
                     .then();

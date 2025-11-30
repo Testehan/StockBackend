@@ -1,6 +1,6 @@
 package com.testehan.finana.service;
 
-import com.testehan.finana.model.*;
+import com.testehan.finana.model.CompanyOverview;
 import com.testehan.finana.model.finstatement.*;
 import com.testehan.finana.model.ratio.FinancialRatiosData;
 import com.testehan.finana.model.ratio.FinancialRatiosReport;
@@ -15,6 +15,7 @@ import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -53,14 +54,25 @@ public class FinancialDataService {
 
 
     public Mono<Optional<FinancialRatiosData>> getFinancialRatios(String symbol) {
-        return Mono.fromCallable(() -> financialRatiosRepository.findBySymbol(symbol))
-                .flatMap(existingRatiosData -> {
-                    if (existingRatiosData.isEmpty()) {
-                        return calculateAndSaveRatios(symbol)
-                                .map(Optional::ofNullable);
-                    }
-                    return Mono.just(existingRatiosData);
-                });
+            return Mono.fromCallable(() -> financialRatiosRepository.findBySymbol(symbol))
+                    .flatMap(existingRatiosData -> {
+                        if (existingRatiosData.isEmpty()) {
+                            return calculateAndSaveRatios(symbol)
+                                    .flatMap(data -> {
+                                        updateFmpData(symbol, data);
+                                        return Mono.just(data);
+                                    })
+                                    .map(Optional::of)
+                                    .defaultIfEmpty(Optional.empty());
+                        }
+                        // Data exists - return directly without fetching FMP
+                        return Mono.just(existingRatiosData);
+                    });
+    }
+
+    private void updateFmpData(String ticker, FinancialRatiosData data) {
+        updateFinancialRatiosFromFmp(ticker, data);
+        updateTtmFinancialRatios(ticker, data);
     }
 
     private Mono<FinancialRatiosData> calculateAndSaveRatios(String symbol) {
@@ -106,24 +118,28 @@ public class FinancialDataService {
     {
 
         Map<String, BalanceSheetReport> balanceSheetMap = balanceSheetReports.stream()
-                .collect(Collectors.toMap(BalanceSheetReport::getDate, Function.identity(), (a, b) -> a));
+                .collect(Collectors.toMap(
+                        r -> r.getFiscalYear() + "-" + r.getPeriod(),
+                        Function.identity(), (a, b) -> a));
 
         Map<String, CashFlowReport> cashFlowMap = cashFlowReports.stream()
-                .collect(Collectors.toMap(CashFlowReport::getDate, Function.identity(), (a, b) -> a));
+                .collect(Collectors.toMap(
+                        r -> r.getFiscalYear() + "-" + r.getPeriod(),
+                        Function.identity(), (a, b) -> a));
 
         for (IncomeReport incomeReport : incomeReports) {
-            String fiscalDateEnding = incomeReport.getDate();
+            String key = incomeReport.getFiscalYear() + "-" + incomeReport.getPeriod();
 
             // Find corresponding reports
-            BalanceSheetReport balanceSheet = balanceSheetMap.get(fiscalDateEnding);
-            CashFlowReport cashFlow = cashFlowMap.get(fiscalDateEnding);
+            BalanceSheetReport balanceSheet = balanceSheetMap.get(key);
+            CashFlowReport cashFlow = cashFlowMap.get(key);
 
             if (balanceSheet == null || cashFlow == null) {
                 continue; // Skip if we don't have all required reports
             }
 
             // Get stock price for the report date
-            BigDecimal stockPrice = getStockPriceForDate(symbol, fiscalDateEnding);
+            BigDecimal stockPrice = getStockPriceForDate(symbol, incomeReport.getDate());
 
             FinancialRatiosReport ratios = financialRatiosCalculator.calculateRatios(
                     companyOverview, incomeReport, balanceSheet, cashFlow, stockPrice);
@@ -144,14 +160,16 @@ public class FinancialDataService {
         }
     }
 
-    public void updateTtmFinancialRatios(String ticker) {
+    public void updateTtmFinancialRatios(String ticker, FinancialRatiosData ratiosData) {
+        final FinancialRatiosData dataToUpdate = ratiosData != null ? ratiosData : new FinancialRatiosData();
+        if (dataToUpdate.getSymbol() == null) {
+            dataToUpdate.setSymbol(ticker);
+        }
+        
         fmpService.getFinancialRatiosTtm(ticker)
                 .map(fmpRatios -> {
-                    FinancialRatiosData data = financialRatiosRepository.findBySymbol(ticker).orElse(new FinancialRatiosData());
-                    data.setSymbol(ticker);
-
                     FinancialRatiosReport report = new FinancialRatiosReport();
-                    report.setDate(fmpRatios.getDate());
+                    report.setDate(LocalDateTime.now().toLocalDate().toString());
 
                     if (fmpRatios.getPriceToEarningsRatioTTM() != null) {
                         report.setPeRatio(java.math.BigDecimal.valueOf(fmpRatios.getPriceToEarningsRatioTTM()));
@@ -180,8 +198,8 @@ public class FinancialDataService {
                     if (fmpRatios.getEnterpriseValueMultipleTTM() != null) {
                         report.setEnterpriseValueMultiple(java.math.BigDecimal.valueOf(fmpRatios.getEnterpriseValueMultipleTTM()));
                     }
-                    data.setTtmReport(report);
-                    return data;
+                    dataToUpdate.setTtmReport(report);
+                    return dataToUpdate;
                 })
                 .doOnSuccess(financialRatiosRepository::save)
                 .doOnError(e -> LOGGER.error("Error with TTM financial ratios for " + ticker, e))
@@ -189,28 +207,29 @@ public class FinancialDataService {
     }
 
 
-    public void updateFinancialRatiosFromFmp(String ticker) {
+    public void updateFinancialRatiosFromFmp(String ticker, FinancialRatiosData ratiosData) {
+        final FinancialRatiosData dataToUpdate = ratiosData != null ? ratiosData : new FinancialRatiosData();
+        if (dataToUpdate.getSymbol() == null) {
+            dataToUpdate.setSymbol(ticker);
+        }
+        
         fmpService.getFinancialRatios(ticker)
                 .map(reports -> { // reports is List<FmpRatios>
-                    FinancialRatiosData data = financialRatiosRepository.findBySymbol(ticker).orElse(new FinancialRatiosData());
-
-                    data.setSymbol(ticker);
-                    List<FinancialRatiosReport> annualReports = data.getAnnualReports();
+                    List<FinancialRatiosReport> annualReports = dataToUpdate.getAnnualReports();
                     if (annualReports == null) {
                         annualReports = new ArrayList<>();
-                        data.setAnnualReports(annualReports);
+                        dataToUpdate.setAnnualReports(annualReports);
                     }
 
-                    Map<String, FinancialRatiosReport> reportsByDate = annualReports.stream()
-                            .collect(Collectors.toMap(FinancialRatiosReport::getDate, java.util.function.Function.identity()));
+                    Map<String, FinancialRatiosReport> reportsByYear = annualReports.stream()
+                            .collect(Collectors.toMap(r -> r.getDate() != null ? r.getDate().substring(0, 4) : "", java.util.function.Function.identity(), (a, b) -> a));
 
                     for (FmpRatios fmpRatios : reports) {
-                        FinancialRatiosReport report = reportsByDate.get(fmpRatios.getDate());
+                        String year = fmpRatios.getDate() != null ? fmpRatios.getDate().substring(0, 4) : "";
+                        FinancialRatiosReport report = reportsByYear.get(year);
 
                         if (report == null) {
-                            report = new FinancialRatiosReport();
-                            report.setDate(fmpRatios.getDate());
-                            annualReports.add(report);
+                           continue; // because right now i dont want years with only data from FMP when dealing with ratios
                         }
 
                         if (fmpRatios.getPriceToEarningsRatio() != null) {
@@ -242,7 +261,7 @@ public class FinancialDataService {
                         }
                     }
 
-                    return data;
+                    return dataToUpdate;
                 })
                 .doOnSuccess(financialRatiosRepository::save)
                 .doOnError(e -> LOGGER.error("Error with financial ratios for " + ticker, e))

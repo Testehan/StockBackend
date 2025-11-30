@@ -10,6 +10,7 @@ import com.testehan.finana.repository.CashFlowRepository;
 import com.testehan.finana.repository.IncomeStatementRepository;
 import com.testehan.finana.repository.RevenueGeographicSegmentationRepository;
 import com.testehan.finana.repository.RevenueSegmentationDataRepository;
+import com.testehan.finana.util.data.FmpDataCleaner;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
@@ -42,8 +43,8 @@ public class FinancialStatementService {
                     ).flatMap(tuple -> {
                         IncomeStatementData incomeStatementData = new IncomeStatementData();
                         incomeStatementData.setSymbol(symbol);
-                        incomeStatementData.setAnnualReports(tuple.getT1());
-                        incomeStatementData.setQuarterlyReports(tuple.getT2());
+                        incomeStatementData.setAnnualReports(FmpDataCleaner.cleanIncomeStatements(tuple.getT1()));
+                        incomeStatementData.setQuarterlyReports(FmpDataCleaner.cleanIncomeStatements(tuple.getT2()));
                         return Mono.fromCallable(() -> incomeStatementRepository.save(incomeStatementData));
                     })
                 ))
@@ -63,8 +64,8 @@ public class FinancialStatementService {
                     ).flatMap(tuple -> {
                         BalanceSheetData balanceSheetData = new BalanceSheetData();
                         balanceSheetData.setSymbol(symbol);
-                        balanceSheetData.setAnnualReports(tuple.getT1());
-                        balanceSheetData.setQuarterlyReports(tuple.getT2());
+                        balanceSheetData.setAnnualReports(FmpDataCleaner.cleanBalanceSheets(tuple.getT1()));
+                        balanceSheetData.setQuarterlyReports(FmpDataCleaner.cleanBalanceSheets(tuple.getT2()));
                         return Mono.fromCallable(() -> balanceSheetRepository.save(balanceSheetData));
                     })
                 ))
@@ -84,8 +85,8 @@ public class FinancialStatementService {
                     ).flatMap(tuple -> {
                         CashFlowData cashFlowData = new CashFlowData();
                         cashFlowData.setSymbol(symbol);
-                        cashFlowData.setAnnualReports(tuple.getT1());
-                        cashFlowData.setQuarterlyReports(tuple.getT2());
+                        cashFlowData.setAnnualReports(FmpDataCleaner.cleanCashFlows(tuple.getT1()));
+                        cashFlowData.setQuarterlyReports(FmpDataCleaner.cleanCashFlows(tuple.getT2()));
                         return Mono.fromCallable(() -> cashFlowRepository.save(cashFlowData));
                     })
                 ))
