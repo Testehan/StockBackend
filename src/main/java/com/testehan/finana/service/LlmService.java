@@ -22,7 +22,7 @@ public class LlmService {
     }
 
     public String callLlm(Prompt query) {
-        return chatModel.call(new Prompt(new UserMessage(query.getContents()))).getResult().getOutput().getText();
+        return chatModel.call(query).getResult().getOutput().getText();
     }
 
     public String callLlmWithSearch(String query) {

@@ -6,6 +6,7 @@ import com.testehan.finana.model.valuation.dcf.DcfValuation;
 import com.testehan.finana.model.valuation.dcf.ReverseDcfOutput;
 import com.testehan.finana.model.valuation.dcf.ReverseDcfValuation;
 import com.testehan.finana.model.valuation.growth.GrowthOutput;
+import com.testehan.finana.model.valuation.growth.GrowthUserInputLlmResponse;
 import com.testehan.finana.model.valuation.growth.GrowthValuation;
 import com.testehan.finana.service.valuation.DcfValuationService;
 import com.testehan.finana.service.valuation.GrowthValuationService;
@@ -48,6 +49,10 @@ public class ValuationService {
 
     public List<GrowthValuation> getGrowthCompanyValuationHistory(String ticker) {
         return growthValuationService.getGrowthCompanyValuationHistory(ticker);
+    }
+
+    public GrowthUserInputLlmResponse getGrowthValuationLlmRecommendation(String ticker, String scenario) {
+        return growthValuationService.getGrowthValuationLlmRecommendation(ticker, scenario);
     }
 
     // DCF Valuation Methods

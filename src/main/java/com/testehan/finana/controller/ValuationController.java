@@ -6,6 +6,7 @@ import com.testehan.finana.model.valuation.dcf.DcfValuation;
 import com.testehan.finana.model.valuation.dcf.ReverseDcfOutput;
 import com.testehan.finana.model.valuation.dcf.ReverseDcfValuation;
 import com.testehan.finana.model.valuation.growth.GrowthOutput;
+import com.testehan.finana.model.valuation.growth.GrowthUserInputLlmResponse;
 import com.testehan.finana.model.valuation.growth.GrowthValuation;
 import com.testehan.finana.service.ValuationAlertService;
 import com.testehan.finana.service.ValuationService;
@@ -112,6 +113,11 @@ public class ValuationController {
         return ResponseEntity.ok(data);
     }
 
+
+    @GetMapping("/growth/recommendation/{symbol}/{scenario}")
+    public ResponseEntity<GrowthUserInputLlmResponse> getGrowthValuationLlmRecommendation(@PathVariable String symbol, @PathVariable String scenario) {
+        return ResponseEntity.ok(valuationService.getGrowthValuationLlmRecommendation(symbol.toUpperCase(), scenario));
+    }
 
     @PostMapping("/calculate/growth")
     public ResponseEntity<GrowthOutput> calculateGrowthCompanyValuation(@RequestBody GrowthValuation growthValuation) {

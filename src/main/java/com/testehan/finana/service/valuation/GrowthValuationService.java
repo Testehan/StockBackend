@@ -1,27 +1,29 @@
 package com.testehan.finana.service.valuation;
 
-import com.testehan.finana.model.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.testehan.finana.model.CompanyOverview;
 import com.testehan.finana.model.finstatement.*;
 import com.testehan.finana.model.quote.GlobalQuote;
 import com.testehan.finana.model.valuation.Valuations;
 import com.testehan.finana.model.valuation.growth.*;
 import com.testehan.finana.repository.*;
 import com.testehan.finana.service.FMPService;
+import com.testehan.finana.service.LlmService;
 import com.testehan.finana.service.valuation.growth.GrowthValuationCalculator;
 import com.testehan.finana.util.SafeParser;
+import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.chat.prompt.PromptTemplate;
+import org.springframework.ai.converter.BeanOutputConverter;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
-
-;
 
 @Service
 public class GrowthValuationService extends BaseValuationService {
@@ -29,6 +31,11 @@ public class GrowthValuationService extends BaseValuationService {
     private static final MathContext MC = MathContext.DECIMAL64;
 
     private final GrowthValuationCalculator growthValuationCalculator;
+    private final LlmService llmService;
+    private final ObjectMapper objectMapper;
+
+    @Value("classpath:/prompts/valuation/growth_recommendation_prompt.txt")
+    private Resource growthRecommendationPrompt;
 
     public GrowthValuationService(CompanyOverviewRepository companyOverviewRepository,
                                   StockQuotesRepository stockQuotesRepository,
@@ -38,10 +45,50 @@ public class GrowthValuationService extends BaseValuationService {
                                   ValuationsRepository valuationsRepository,
                                   FMPService fmpService,
                                   SafeParser safeParser,
-                                  GrowthValuationCalculator growthValuationCalculator) {
+                                  GrowthValuationCalculator growthValuationCalculator,
+                                  LlmService llmService,
+                                  ObjectMapper objectMapper) {
         super(companyOverviewRepository, stockQuotesRepository, incomeStatementRepository,
                 balanceSheetRepository, cashFlowRepository, valuationsRepository, fmpService, safeParser);
         this.growthValuationCalculator = growthValuationCalculator;
+        this.llmService = llmService;
+        this.objectMapper = objectMapper;
+    }
+
+    public GrowthUserInputLlmResponse getGrowthValuationLlmRecommendation(String symbol, String scenario) {
+        Optional<CompanyOverview> companyOverview = companyOverviewRepository.findBySymbol(symbol);
+        String companyName = companyOverview.isPresent() ? companyOverview.get().getCompanyName() : symbol;
+        String sector = companyOverview.isPresent() ? companyOverview.get().getSector() : "Unknown";
+        String industry = companyOverview.isPresent() ? companyOverview.get().getIndustry() : "Unknown";
+
+
+        var growthUserInputLlmResponseConverter = new BeanOutputConverter<>(GrowthUserInputLlmResponse.class);
+
+        PromptTemplate promptTemplate = new PromptTemplate(growthRecommendationPrompt);
+        Map<String, Object> promptParameters = new HashMap<>();
+        promptParameters.put("current_date", LocalDateTime.now());
+        promptParameters.put("company_name", companyName);
+        promptParameters.put("ticker", symbol);
+        promptParameters.put("sector", sector);
+        promptParameters.put("industry", industry);
+        promptParameters.put("scenario", scenario);
+        promptParameters.put("format", growthUserInputLlmResponseConverter.getFormat());
+        Prompt prompt = promptTemplate.create(promptParameters);
+        String response = llmService.callLlmWithSearch(prompt.getContents());
+
+        try {
+            // The LLM might return the JSON wrapped in ```json ... ``` blocks
+            String jsonContent = response;
+            if (response.contains("```json")) {
+                jsonContent = response.substring(response.indexOf("```json") + 7, response.lastIndexOf("```"));
+            } else if (response.contains("```")) {
+                jsonContent = response.substring(response.indexOf("```") + 3, response.lastIndexOf("```"));
+            }
+
+            return growthUserInputLlmResponseConverter.convert(jsonContent);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to parse LLM response for growth valuation recommendation", e);
+        }
     }
 
     public GrowthValuation getGrowthCompanyValuationData(String ticker) {
