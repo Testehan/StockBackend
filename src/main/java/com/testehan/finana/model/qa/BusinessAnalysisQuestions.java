@@ -12,6 +12,7 @@ public class BusinessAnalysisQuestions {
             new Question("moat_durability", "How strong and durable is that competitive advantage over time?"),
             new Question("business_lifecycle_stage", "Where is the company in its business lifecycle?"),
             new Question("growth_drivers", "What are the primary drivers of growth going forward?"),
+            new Question("market_opportunity", "What is the size of the total addressable market (TAM), and what is the company's current market share and penetration potential?"),
             new Question("growth_constraints", "What are the main constraints or bottlenecks to that growth?"),
             new Question("key_business_risks", "What are the biggest business risks that could materially impair the company?"),
             new Question("thesis_break_conditions", "What would have to be true for the core investment thesis to break?"),
