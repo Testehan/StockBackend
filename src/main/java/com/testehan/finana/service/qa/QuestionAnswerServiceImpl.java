@@ -35,13 +35,14 @@ public class QuestionAnswerServiceImpl implements QuestionAnswerService {
         this.llmModel = llmModel;
     }
 
-        @Override
-        public void answerQuestion(String stockId, String questionId, SseEmitter emitter) {
-            Optional<QuestionAnswer> existingAnswerOpt = questionAnswerRepository
-                    .findByStockIdAndQuestionIdAndPromptVersionAndModel(stockId, questionId, PROMPT_VERSION, llmModel);
-    
-            if (existingAnswerOpt.isPresent()) {
-                QuestionAnswer questionAnswer = existingAnswerOpt.get();
+    @Override
+    public void answerQuestion(String stockId, String questionId, SseEmitter emitter, boolean regenerate) {
+        Optional<QuestionAnswer> existingAnswerOpt = questionAnswerRepository
+                .findByStockIdAndQuestionIdAndPromptVersionAndModel(stockId, questionId, PROMPT_VERSION, llmModel);
+
+        if (existingAnswerOpt.isPresent()) {
+            QuestionAnswer questionAnswer = existingAnswerOpt.get();
+            if (!regenerate) {
                 if (questionAnswer.getStatus() == QuestionAnswerStatus.COMPLETED) {
                     logger.info("Answer already exists and is completed for stockId: {}, questionId: {}", stockId, questionId);
                     try {
@@ -62,13 +63,14 @@ public class QuestionAnswerServiceImpl implements QuestionAnswerService {
                         emitter.completeWithError(e);
                     }
                     return;
-                } else { // FAILED or other states
-                    logger.info("Retrying answer generation for stockId: {}, questionId: {}", stockId, questionId);
-                    questionAnswer.setStatus(QuestionAnswerStatus.IN_PROGRESS);
-                    questionAnswer.setUpdatedAt(LocalDateTime.now());
-                    questionAnswerRepository.save(questionAnswer);
                 }
-            } else {
+            }
+
+            logger.info("{} answer generation for stockId: {}, questionId: {}", regenerate ? "Regenerating" : "Retrying", stockId, questionId);
+            questionAnswer.setStatus(QuestionAnswerStatus.IN_PROGRESS);
+            questionAnswer.setUpdatedAt(LocalDateTime.now());
+            questionAnswerRepository.save(questionAnswer);
+        } else {
                 logger.info("Creating new QuestionAnswer record for stockId: {}, questionId: {}", stockId, questionId);
                 QuestionAnswer questionAnswer = new QuestionAnswer();
                 questionAnswer.setStockId(stockId);

@@ -31,12 +31,12 @@ public class QuestionsController {
     }
 
     @GetMapping("/answer")
-    public SseEmitter answerQuestion(@RequestParam String stockId, @RequestParam String questionId) {
+    public SseEmitter answerQuestion(@RequestParam String stockId, @RequestParam String questionId, @RequestParam(required = false, defaultValue = "false") boolean regenerate) {
         SseEmitter emitter = new SseEmitter(Long.MAX_VALUE);
 
         executorService.execute(() -> {
             try {
-                questionAnswerService.answerQuestion(stockId.toUpperCase(), questionId, emitter);
+                questionAnswerService.answerQuestion(stockId.toUpperCase(), questionId, emitter, regenerate);
             } catch (Exception ex) {
                 emitter.completeWithError(ex);
             }
