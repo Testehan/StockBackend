@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+import java.time.LocalDateTime;
 import java.util.Objects;
 
 @Service
@@ -45,6 +46,10 @@ public class AlphaVantageService {
                     QuarterlyEarningsTranscript newQuarterlyTranscript = new QuarterlyEarningsTranscript();
                     newQuarterlyTranscript.setQuarter(earningsCallTranscript.getQuarter());
                     newQuarterlyTranscript.setTranscript(earningsCallTranscript.getTranscript());
+                    
+                    if (earningsCallTranscript.getTranscript() != null && !earningsCallTranscript.getTranscript().isEmpty()) {
+                        newQuarterlyTranscript.setLastUpdated(LocalDateTime.now());
+                    }
 
                     return Mono.fromCallable(() -> companyEarningsTranscriptsRepository.findById(symbol))
                             .flatMap(optionalCompanyEarningsTranscripts -> {

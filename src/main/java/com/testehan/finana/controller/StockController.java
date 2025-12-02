@@ -137,6 +137,16 @@ public class StockController {
         return earningsService.getEarningsCallTranscript(symbol, quarter);
     }
 
+    @GetMapping("/earnings-call-transcript/{symbol}/latest")
+    public Mono<QuarterlyEarningsTranscript> getLatestEarningsTranscript(@PathVariable String symbol) {
+        return earningsService.getLatestEarningsTranscript(symbol.toUpperCase());
+    }
+
+    @GetMapping("/earnings-call-transcript/{symbol}/quarters")
+    public Mono<List<String>> getAvailableEarningsQuarters(@PathVariable String symbol) {
+        return earningsService.getAvailableEarningsQuarters(symbol.toUpperCase());
+    }
+
     @DeleteMapping("/delete/{symbol}")
     public Mono<ResponseEntity<Void>> deleteStockData(@PathVariable String symbol) {
         return Mono.fromRunnable(() -> financialDataOrchestrator.deleteFinancialData(symbol.toUpperCase()))

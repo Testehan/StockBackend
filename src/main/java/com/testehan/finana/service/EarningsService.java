@@ -14,8 +14,10 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class EarningsService {
@@ -49,7 +51,7 @@ public class EarningsService {
                             return false;
                         }}).findFirst();
 
-                if (quarterlyTranscript.isPresent()) {
+                if (quarterlyTranscript.isPresent() && dateUtils.isRecent(quarterlyTranscript.get().getLastUpdated(), DateUtils.CACHE_THREE_MONTHS)) {
                     return Mono.just(quarterlyTranscript.get());
                 }
             }
@@ -64,6 +66,52 @@ public class EarningsService {
                             .findFirst()
                             .map(Mono::just)
                             .orElse(Mono.empty()));
+        });
+    }
+
+    public Mono<QuarterlyEarningsTranscript> getLatestEarningsTranscript(String symbol) {
+        return Mono.defer(() -> {
+            Optional<CompanyEarningsTranscripts> earningsCallTranscriptFromDb = companyEarningsTranscriptsRepository.findById(symbol.toUpperCase());
+            if (earningsCallTranscriptFromDb.isPresent()) {
+                List<QuarterlyEarningsTranscript> validTranscripts = earningsCallTranscriptFromDb.get().getTranscripts().stream()
+                        .filter(transcript -> transcript.getQuarter() != null 
+                                && transcript.getTranscript() != null 
+                                && !transcript.getTranscript().isEmpty())
+                        .sorted((a, b) -> b.getQuarter().compareTo(a.getQuarter()))
+                        .collect(Collectors.toList());
+                
+                if (!validTranscripts.isEmpty()) {
+                    return Mono.just(validTranscripts.get(0));
+                }
+            }
+            return Mono.empty();
+        });
+    }
+
+    public Mono<List<String>> getAvailableEarningsQuarters(String symbol) {
+        return Mono.defer(() -> {
+            Optional<CompanyEarningsTranscripts> earningsCallTranscriptFromDb = companyEarningsTranscriptsRepository.findById(symbol.toUpperCase());
+            if (earningsCallTranscriptFromDb.isPresent()) {
+                List<String> existingQuarters = earningsCallTranscriptFromDb.get().getTranscripts().stream()
+                        .map(QuarterlyEarningsTranscript::getQuarter)
+                        .filter(Objects::nonNull)
+                        .distinct()
+                        .sorted()
+                        .collect(Collectors.toList());
+                
+                if (!existingQuarters.isEmpty()) {
+                    String latestQuarter = existingQuarters.get(existingQuarters.size() - 1);
+                    String currentQuarter = dateUtils.getCurrentQuarter();
+                    
+                    if (latestQuarter.compareTo(currentQuarter) < 0) {
+                        List<String> allQuarters = dateUtils.generateQuartersUpToCurrent(latestQuarter);
+                        return Mono.just(allQuarters);
+                    }
+                }
+                
+                return Mono.just(existingQuarters);
+            }
+            return Mono.just(List.of());
         });
     }
 
