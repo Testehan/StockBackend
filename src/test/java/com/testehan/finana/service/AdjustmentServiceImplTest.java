@@ -101,7 +101,7 @@ public class AdjustmentServiceImplTest {
         when(financialAdjustmentRepository.save(any(FinancialAdjustment.class))).thenAnswer(i -> i.getArguments()[0]);
 
         // Execute
-        FinancialAdjustment result = adjustmentService.getFinancialAdjustments(symbol);
+        FinancialAdjustment result = adjustmentService.getFinancialAdjustments(symbol).block();
 
         // Verify
         assertNotNull(result);
@@ -169,7 +169,7 @@ public class AdjustmentServiceImplTest {
         when(companyDataService.getCompanyOverview(symbol)).thenReturn(Mono.just(List.of(overview)));
 
         // Execute
-        FinancialAdjustment result = adjustmentService.getFinancialAdjustments(symbol);
+        FinancialAdjustment result = adjustmentService.getFinancialAdjustments(symbol).block();
 
         // Verify
         assertNotNull(result.getAnnualAdjustments());
@@ -188,7 +188,7 @@ public class AdjustmentServiceImplTest {
         lenient().when(quoteService.getLastStockQuote(symbol)).thenReturn(Mono.empty());
 
 
-        FinancialAdjustment result = adjustmentService.getFinancialAdjustments(symbol);
+        FinancialAdjustment result = adjustmentService.getFinancialAdjustments(symbol).block();
         assertNull(result.getSymbol());
     }
 

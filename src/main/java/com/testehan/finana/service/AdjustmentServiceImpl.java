@@ -3,7 +3,6 @@ package com.testehan.finana.service;
 import com.testehan.finana.model.adjustment.FinancialAdjustment;
 import com.testehan.finana.model.adjustment.FinancialAdjustmentReport;
 import com.testehan.finana.model.finstatement.*;
-import com.testehan.finana.model.quote.GlobalQuote;
 import com.testehan.finana.model.ratio.FinancialRatiosData;
 import com.testehan.finana.model.ratio.FinancialRatiosReport;
 import com.testehan.finana.repository.*;
@@ -11,6 +10,7 @@ import com.testehan.finana.util.SafeParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -47,88 +47,94 @@ public class AdjustmentServiceImpl implements AdjustmentService {
     }
 
     @Override
-    public FinancialAdjustment getFinancialAdjustments(String symbol) {
-        BigDecimal price = getLatestStockPrice(symbol);
+    public Mono<FinancialAdjustment> getFinancialAdjustments(String symbol) {
+        Mono<BigDecimal> priceMono = getLatestStockPrice(symbol);
+        Mono<Optional<IncomeStatementData>> incomeMono = Mono.fromCallable(() -> incomeStatementRepository.findBySymbol(symbol));
+        Mono<Optional<BalanceSheetData>> balanceMono = Mono.fromCallable(() -> balanceSheetRepository.findBySymbol(symbol));
+        Mono<Optional<CashFlowData>> cashMono = Mono.fromCallable(() -> cashFlowRepository.findBySymbol(symbol));
+        Mono<Optional<FinancialRatiosData>> ratiosMono = Mono.fromCallable(() -> financialRatiosRepository.findBySymbol(symbol));
+        Mono<Optional<com.testehan.finana.model.CompanyOverview>> overviewMono = companyDataService.getCompanyOverview(symbol)
+                .map(list -> list.stream().findFirst())
+                .defaultIfEmpty(Optional.empty());
 
-        Optional<IncomeStatementData> incomeStatementDataOptional = incomeStatementRepository.findBySymbol(symbol);
-        Optional<BalanceSheetData> balanceSheetDataOptional = balanceSheetRepository.findBySymbol(symbol);
-        Optional<CashFlowData> cashFlowDataOptional = cashFlowRepository.findBySymbol(symbol);
-        Optional<FinancialRatiosData> financialRatiosDataOptional = financialRatiosRepository.findBySymbol(symbol);
-        Optional<com.testehan.finana.model.CompanyOverview> companyOverviewOptional = companyDataService.getCompanyOverview(symbol).blockOptional()
-                .flatMap(list -> list.stream().findFirst());
+        return Mono.zip(priceMono, incomeMono, balanceMono, cashMono, ratiosMono, overviewMono)
+                .flatMap(tuple -> {
+                    BigDecimal price = tuple.getT1();
+                    Optional<IncomeStatementData> incomeStatementDataOptional = tuple.getT2();
+                    Optional<BalanceSheetData> balanceSheetDataOptional = tuple.getT3();
+                    Optional<CashFlowData> cashFlowDataOptional = tuple.getT4();
+                    Optional<FinancialRatiosData> financialRatiosDataOptional = tuple.getT5();
+                    Optional<com.testehan.finana.model.CompanyOverview> companyOverviewOptional = tuple.getT6();
 
-        if (incomeStatementDataOptional.isEmpty() || incomeStatementDataOptional.get().getAnnualReports() == null ||
-                balanceSheetDataOptional.isEmpty() || balanceSheetDataOptional.get().getAnnualReports() == null ||
-                cashFlowDataOptional.isEmpty() || cashFlowDataOptional.get().getAnnualReports() == null ||
-                financialRatiosDataOptional.isEmpty() ||
-                companyOverviewOptional.isEmpty()) {
-            return new FinancialAdjustment();
-        }
+                    if (incomeStatementDataOptional.isEmpty() || incomeStatementDataOptional.get().getAnnualReports() == null ||
+                            balanceSheetDataOptional.isEmpty() || balanceSheetDataOptional.get().getAnnualReports() == null ||
+                            cashFlowDataOptional.isEmpty() || cashFlowDataOptional.get().getAnnualReports() == null ||
+                            financialRatiosDataOptional.isEmpty() ||
+                            companyOverviewOptional.isEmpty()) {
+                        return Mono.just(new FinancialAdjustment());
+                    }
 
-        List<IncomeReport> annualIncomeReports = incomeStatementDataOptional.get().getAnnualReports().stream()
-                .sorted(Comparator.comparing(IncomeReport::getDate).reversed())
-                .collect(Collectors.toList());
-        List<BalanceSheetReport> annualBalanceSheetReports = balanceSheetDataOptional.get().getAnnualReports();
-        List<CashFlowReport> annualCashFlowReports = cashFlowDataOptional.get().getAnnualReports();
-        List<FinancialRatiosReport> annualRatiosReports = financialRatiosDataOptional.get().getAnnualReports();
+                    List<IncomeReport> annualIncomeReports = incomeStatementDataOptional.get().getAnnualReports().stream()
+                            .sorted(Comparator.comparing(IncomeReport::getDate).reversed())
+                            .collect(Collectors.toList());
+                    List<BalanceSheetReport> annualBalanceSheetReports = balanceSheetDataOptional.get().getAnnualReports();
+                    List<CashFlowReport> annualCashFlowReports = cashFlowDataOptional.get().getAnnualReports();
+                    List<FinancialRatiosReport> annualRatiosReports = financialRatiosDataOptional.get().getAnnualReports();
 
-        if (annualIncomeReports.size() < 5) {
-            return new FinancialAdjustment();
-        }
+                    if (annualIncomeReports.size() < 5) {
+                        return Mono.just(new FinancialAdjustment());
+                    }
 
-        String latestAvailableYear = annualIncomeReports.get(0).getDate().substring(0, 4);
+                    String latestAvailableYear = annualIncomeReports.get(0).getDate().substring(0, 4);
 
-        Optional<FinancialAdjustment> existingAdjustmentOpt = financialAdjustmentRepository.findBySymbol(symbol);
-        if (existingAdjustmentOpt.isPresent()) {
-            FinancialAdjustment existing = existingAdjustmentOpt.get();
-            String lastCalculatedYear = existing.getAnnualAdjustments().stream()
-                    .map(r -> r.getDate().substring(0, 4))
-                    .max(Comparator.naturalOrder())
-                    .orElse("");
+                    return Mono.fromCallable(() -> financialAdjustmentRepository.findBySymbol(symbol))
+                            .flatMap(existingAdjustmentOpt -> {
+                                if (existingAdjustmentOpt.isPresent()) {
+                                    FinancialAdjustment existing = existingAdjustmentOpt.get();
+                                    String lastCalculatedYear = existing.getAnnualAdjustments().stream()
+                                            .map(r -> r.getDate().substring(0, 4))
+                                            .max(Comparator.naturalOrder())
+                                            .orElse("");
 
-            // Smart Refresh: If we have a newer year in the repository than what was last calculated
-            if (latestAvailableYear.compareTo(lastCalculatedYear) <= 0) {
-                if (price != null) {
-                    existing.setLastUpdated(LocalDateTime.now());
-                    updatePriceDependentMetrics(existing, price);
-                }
-                return existing;
-            }
-            // If newer year is available, we fall through and recalculate everything to include the new year(s)
-        }
+                                    if (latestAvailableYear.compareTo(lastCalculatedYear) <= 0) {
+                                        if (price != null && price.compareTo(BigDecimal.ZERO) > 0) {
+                                            existing.setLastUpdated(LocalDateTime.now());
+                                            updatePriceDependentMetrics(existing, price);
+                                        }
+                                        return Mono.just(existing);
+                                    }
+                                }
 
-        // Calculate historical adjustments for all available periods that have 5 years of history
-        List<FinancialAdjustmentReport> allAdjustments = new ArrayList<>();
-        
-        // We iterate through available income reports. For each, we need 5 years of history.
-        // So we can calculate adjustments for index i where i + 4 < annualIncomeReports.size()
-        for (int i = 0; i <= annualIncomeReports.size() - 5; i++) {
-            List<IncomeReport> fiveYearWindow = annualIncomeReports.subList(i, i + 5);
-            String currentYear = fiveYearWindow.get(0).getDate().substring(0, 4);
+                                // Recalculate everything
+                                List<FinancialAdjustmentReport> allAdjustments = new ArrayList<>();
+                                for (int i = 0; i <= annualIncomeReports.size() - 5; i++) {
+                                    List<IncomeReport> fiveYearWindow = annualIncomeReports.subList(i, i + 5);
+                                    String currentYear = fiveYearWindow.get(0).getDate().substring(0, 4);
 
-            Optional<BalanceSheetReport> bsReport = annualBalanceSheetReports.stream()
-                    .filter(r -> r.getDate().startsWith(currentYear)).findFirst();
-            Optional<CashFlowReport> cfReport = annualCashFlowReports.stream()
-                    .filter(r -> r.getDate().startsWith(currentYear)).findFirst();
-            Optional<FinancialRatiosReport> ratioReport = annualRatiosReports.stream()
-                    .filter(r -> r.getDate().startsWith(currentYear)).findFirst();
+                                    Optional<BalanceSheetReport> bsReport = annualBalanceSheetReports.stream()
+                                            .filter(r -> r.getDate().startsWith(currentYear)).findFirst();
+                                    Optional<CashFlowReport> cfReport = annualCashFlowReports.stream()
+                                            .filter(r -> r.getDate().startsWith(currentYear)).findFirst();
+                                    Optional<FinancialRatiosReport> ratioReport = annualRatiosReports.stream()
+                                            .filter(r -> r.getDate().startsWith(currentYear)).findFirst();
 
-            if (bsReport.isPresent() && cfReport.isPresent() && ratioReport.isPresent()) {
-                // Only provide the 'live' price for the very latest year (index 0)
-                BigDecimal priceToUse = (i == 0) ? price : null;
-                FinancialAdjustmentReport report = calculateRdAdjustment(fiveYearWindow, bsReport.get(), cfReport.get(), ratioReport.get(), companyOverviewOptional.get(), priceToUse);
-                if (report.getCalendarYear() > 0) {
-                    allAdjustments.add(report);
-                }
-            }
-        }
+                                    if (bsReport.isPresent() && cfReport.isPresent() && ratioReport.isPresent()) {
+                                        BigDecimal priceToUse = (i == 0 && price.compareTo(BigDecimal.ZERO) > 0) ? price : null;
+                                        FinancialAdjustmentReport report = calculateRdAdjustment(fiveYearWindow, bsReport.get(), cfReport.get(), ratioReport.get(), companyOverviewOptional.get(), priceToUse);
+                                        if (report.getCalendarYear() > 0) {
+                                            allAdjustments.add(report);
+                                        }
+                                    }
+                                }
 
-        FinancialAdjustment financialAdjustment = existingAdjustmentOpt.orElse(new FinancialAdjustment());
-        financialAdjustment.setSymbol(symbol);
-        financialAdjustment.setLastUpdated(LocalDateTime.now());
-        financialAdjustment.setAnnualAdjustments(allAdjustments);
+                                FinancialAdjustment financialAdjustment = existingAdjustmentOpt.orElse(new FinancialAdjustment());
+                                financialAdjustment.setSymbol(symbol);
+                                financialAdjustment.setLastUpdated(LocalDateTime.now());
+                                financialAdjustment.setAnnualAdjustments(allAdjustments);
 
-        return financialAdjustmentRepository.save(financialAdjustment);
+                                return Mono.fromCallable(() -> financialAdjustmentRepository.save(financialAdjustment));
+                            });
+                });
     }
 
     private void updatePriceDependentMetrics(FinancialAdjustment adjustment, BigDecimal price) {
@@ -569,21 +575,23 @@ public class AdjustmentServiceImpl implements AdjustmentService {
         return evToAdjustedEbitda;
     }
 
-    private BigDecimal getLatestStockPrice(String ticker) {
-        try {
-            Optional<GlobalQuote> quoteOpt = quoteService.getLastStockQuote(ticker).blockOptional();
-            if (quoteOpt.isPresent()) {
-                GlobalQuote quote = quoteOpt.get();
-                if (quote.getPrice() != null && !quote.getPrice().isEmpty()) {
-                    return new BigDecimal(quote.getPrice());
-                }
-                if (quote.getAdjClose() != null && !quote.getAdjClose().isEmpty()) {
-                    return new BigDecimal(quote.getAdjClose());
-                }
-            }
-        } catch (Exception e) {
-            LOGGER.warn("    Error getting latest quote for {}: {}", ticker, e.getMessage());
-        }
-        return null;
+    private Mono<BigDecimal> getLatestStockPrice(String ticker) {
+        return quoteService.getLastStockQuote(ticker)
+                .map(quote -> {
+                    if (quote != null) {
+                        if (quote.getPrice() != null && !quote.getPrice().isEmpty()) {
+                            return new BigDecimal(quote.getPrice());
+                        }
+                        if (quote.getAdjClose() != null && !quote.getAdjClose().isEmpty()) {
+                            return new BigDecimal(quote.getAdjClose());
+                        }
+                    }
+                    return BigDecimal.ZERO;
+                })
+                .defaultIfEmpty(BigDecimal.ZERO)
+                .onErrorResume(e -> {
+                    LOGGER.warn("    Error getting latest quote for {}: {}", ticker, e.getMessage());
+                    return Mono.just(BigDecimal.ZERO);
+                });
     }
 }

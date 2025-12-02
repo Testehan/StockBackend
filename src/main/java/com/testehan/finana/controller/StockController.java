@@ -41,8 +41,8 @@ public class StockController {
     }
 
     @GetMapping("/adjustments/{symbol}")
-    public ResponseEntity<FinancialAdjustment> getFinancialAdjustments(@PathVariable String symbol) {
-        return ResponseEntity.ok(adjustmentService.getFinancialAdjustments(symbol.toUpperCase()));
+    public Mono<FinancialAdjustment> getFinancialAdjustments(@PathVariable String symbol) {
+        return adjustmentService.getFinancialAdjustments(symbol.toUpperCase());
     }
 
     @GetMapping("/overview/{symbol}")

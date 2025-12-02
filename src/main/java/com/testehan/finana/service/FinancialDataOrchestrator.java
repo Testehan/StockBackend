@@ -80,7 +80,7 @@ public class FinancialDataOrchestrator {
                         return Mono.empty();
                     });
 
-            Mono<Void> adjustmentsMono = Mono.fromCallable(() -> adjustmentService.getFinancialAdjustments(ticker))
+            Mono<Void> adjustmentsMono = adjustmentService.getFinancialAdjustments(ticker)
                     .then();
 
             return Mono.when(transcriptMono, ratiosMono, adjustmentsMono);
