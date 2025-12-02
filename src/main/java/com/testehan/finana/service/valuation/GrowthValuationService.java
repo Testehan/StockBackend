@@ -74,7 +74,7 @@ public class GrowthValuationService extends BaseValuationService {
         promptParameters.put("scenario", scenario);
         promptParameters.put("format", growthUserInputLlmResponseConverter.getFormat());
         Prompt prompt = promptTemplate.create(promptParameters);
-        String response = llmService.callLlmWithSearch(prompt.getContents());
+        String response = llmService.callLlmWithSearch(prompt.getContents(), "growth_valuation_recommendation", symbol);
 
         try {
             // The LLM might return the JSON wrapped in ```json ... ``` blocks

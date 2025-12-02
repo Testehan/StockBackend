@@ -173,7 +173,7 @@ public class QuestionAnswerServiceImpl implements QuestionAnswerService {
             params.put("format", stockSentimentOutputConverter.getFormat());
             Prompt prompt = promptTemplate.create(params);
 
-            String result = llmService.callLlmWithSearch(prompt.getContents());
+            String result = llmService.callLlmWithSearch(prompt.getContents(), questionId, ticker);
             StockSentiment stockSentiment = stockSentimentOutputConverter.convert(result);
 
             LocalDateTime now = LocalDateTime.now();
