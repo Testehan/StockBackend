@@ -17,8 +17,7 @@ public class StockSentiment {
     private String summary;
     private List<String> catalysts;
     private LocalDateTime date;
-
-    // todo add another array sources ..which will contain the links used in the calculation of the sentiment
+    private List<String> sources;
 
     public String toJson() {
         ObjectMapper mapper = new ObjectMapper();

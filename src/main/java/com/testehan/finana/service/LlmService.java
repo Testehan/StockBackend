@@ -2,6 +2,7 @@ package com.testehan.finana.service;
 
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.google.genai.GoogleGenAiChatOptions;
 import org.springframework.stereotype.Service;
@@ -29,7 +30,8 @@ public class LlmService {
                 .googleSearchRetrieval(true)
                 .temperature(0.2d)
                 .build();
-        return chatModel.call(new Prompt(new UserMessage(query), options)).getResult().getOutput().getText();
+        ChatResponse chatResponse = chatModel.call(new Prompt(new UserMessage(query), options));
+        return chatResponse.getResult().getOutput().getText();
     }
 
     public String callLlmLast(Prompt query) {
