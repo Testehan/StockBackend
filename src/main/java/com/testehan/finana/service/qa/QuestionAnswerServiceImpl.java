@@ -1,17 +1,28 @@
 package com.testehan.finana.service.qa;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.testehan.finana.model.qa.BusinessAnalysisQuestions;
 import com.testehan.finana.model.qa.QuestionAnswer;
 import com.testehan.finana.model.qa.QuestionAnswerStatus;
+import com.testehan.finana.model.qa.StockSentiment;
 import com.testehan.finana.repository.QuestionAnswerRepository;
 import com.testehan.finana.service.LlmService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.chat.prompt.PromptTemplate;
+import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -21,17 +32,23 @@ public class QuestionAnswerServiceImpl implements QuestionAnswerService {
     private static final String PROMPT_VERSION = "v1";
 
     private final QuestionAnswerRepository questionAnswerRepository;
-    private final LlmService llmService; // Keep LlmService for synchronous operations if any, or remove if not needed elsewhere
+    private final LlmService llmService; 
     private final LlmQuestionAnswerGenerator llmQuestionAnswerGenerator;
+    private final ObjectMapper objectMapper;
     private final String llmModel;
+
+    @Value("classpath:/prompts/qa/sentiment_prompt.txt")
+    private Resource sentimentPrompt;
 
     public QuestionAnswerServiceImpl(QuestionAnswerRepository questionAnswerRepository,
                                      LlmService llmService,
                                      LlmQuestionAnswerGenerator llmQuestionAnswerGenerator,
+                                     ObjectMapper objectMapper,
                                      @Value("${spring.ai.google.genai.chat.options.model}") String llmModel) {
         this.questionAnswerRepository = questionAnswerRepository;
         this.llmService = llmService;
         this.llmQuestionAnswerGenerator = llmQuestionAnswerGenerator;
+        this.objectMapper = objectMapper;
         this.llmModel = llmModel;
     }
 
@@ -47,7 +64,7 @@ public class QuestionAnswerServiceImpl implements QuestionAnswerService {
                     logger.info("Answer already exists and is completed for stockId: {}, questionId: {}", stockId, questionId);
                     try {
                         emitter.send(org.springframework.web.servlet.mvc.method.annotation.SseEmitter.event().data(questionAnswer.getAnswer()));
-                        emitter.send(SseEmitter.event().name("COMPLETED").data("")); // Send COMPLETED event
+                        emitter.send(SseEmitter.event().name("COMPLETED").data("")); 
                         emitter.complete();
                     } catch (java.io.IOException e) {
                         emitter.completeWithError(e);
@@ -57,7 +74,7 @@ public class QuestionAnswerServiceImpl implements QuestionAnswerService {
                     logger.info("Answer generation is already in progress for stockId: {}, questionId: {}", stockId, questionId);
                     try {
                         emitter.send(org.springframework.web.servlet.mvc.method.annotation.SseEmitter.event().name("message").data("Answer generation is already in progress."));
-                        emitter.send(SseEmitter.event().name("COMPLETED").data("")); // Send COMPLETED event
+                        emitter.send(SseEmitter.event().name("COMPLETED").data("")); 
                         emitter.complete();
                     } catch (java.io.IOException e) {
                         emitter.completeWithError(e);
@@ -71,23 +88,109 @@ public class QuestionAnswerServiceImpl implements QuestionAnswerService {
             questionAnswer.setUpdatedAt(LocalDateTime.now());
             questionAnswerRepository.save(questionAnswer);
         } else {
-                logger.info("Creating new QuestionAnswer record for stockId: {}, questionId: {}", stockId, questionId);
-                QuestionAnswer questionAnswer = new QuestionAnswer();
-                questionAnswer.setStockId(stockId);
-                questionAnswer.setQuestionId(questionId);
-                questionAnswer.setStatus(QuestionAnswerStatus.IN_PROGRESS);
-                questionAnswer.setModel(llmModel);
-                questionAnswer.setPromptVersion(PROMPT_VERSION);
-                questionAnswer.setCreatedAt(LocalDateTime.now());
-                questionAnswer.setUpdatedAt(LocalDateTime.now());
-                questionAnswerRepository.save(questionAnswer);
+            logger.info("Creating new QuestionAnswer record for stockId: {}, questionId: {}", stockId, questionId);
+            QuestionAnswer questionAnswer = new QuestionAnswer();
+            questionAnswer.setStockId(stockId);
+            questionAnswer.setQuestionId(questionId);
+            questionAnswer.setStatus(QuestionAnswerStatus.IN_PROGRESS);
+            questionAnswer.setModel(llmModel);
+            questionAnswer.setPromptVersion(PROMPT_VERSION);
+            questionAnswer.setCreatedAt(LocalDateTime.now());
+            questionAnswer.setUpdatedAt(LocalDateTime.now());
+            questionAnswerRepository.save(questionAnswer);
+
+        }
+
+        String questionText = BusinessAnalysisQuestions.QUESTIONS.stream()
+                .filter(q -> q.getId().equals(questionId))
+                .map(q -> q.getText())
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Question not found with ID: " + questionId));
+
+        llmQuestionAnswerGenerator.generateAnswerStreaming(stockId, questionId, PROMPT_VERSION, llmModel, questionText, emitter);
+    }
+
+    @Override
+    public StockSentiment getSentiment(String stockId, boolean regenerate) {
+        String ticker = stockId.toUpperCase();
+        String questionId = "sentiment";
+
+        Optional<QuestionAnswer> existingAnswerOpt = questionAnswerRepository
+                .findByStockIdAndQuestionIdAndPromptVersionAndModel(ticker, questionId, PROMPT_VERSION, llmModel);
+
+        QuestionAnswer questionAnswer;
+        if (existingAnswerOpt.isPresent()) {
+            questionAnswer = existingAnswerOpt.get();
+            if (!regenerate) {
+                if (questionAnswer.getStatus() == QuestionAnswerStatus.COMPLETED) {
+                    logger.info("Sentiment already exists and is completed for stockId: {}", ticker);
+                    try {
+                        StockSentiment sentiment = objectMapper.readValue(questionAnswer.getAnswer(), StockSentiment.class);
+                        sentiment.setDate(questionAnswer.getUpdatedAt());
+                        return sentiment;
+                    } catch (JsonProcessingException e) {
+                        logger.error("Error parsing existing sentiment JSON", e);
+                    }
+                } else if (questionAnswer.getStatus() == QuestionAnswerStatus.IN_PROGRESS) {
+                    logger.info("Sentiment generation is already in progress for stockId: {}", ticker);
+                    StockSentiment sentiment = new StockSentiment();
+                    sentiment.setTicker(ticker);
+                    sentiment.setLabel("IN_PROGRESS");
+                    sentiment.setSummary("Sentiment generation is already in progress...");
+                    return sentiment;
+                }
             }
-    
-            String questionText = BusinessAnalysisQuestions.QUESTIONS.stream()
-                    .filter(q -> q.getId().equals(questionId))
-                    .map(q -> q.getText())
-                    .findFirst()
-                    .orElseThrow(() -> new IllegalArgumentException("Question not found with ID: " + questionId));
-    
-            llmQuestionAnswerGenerator.generateAnswerStreaming(stockId, questionId, PROMPT_VERSION, llmModel, questionText, emitter);
-        }}
+            logger.info("{} sentiment generation for stockId: {}", regenerate ? "Regenerating" : "Retrying", ticker);
+            questionAnswer.setStatus(QuestionAnswerStatus.IN_PROGRESS);
+            questionAnswer.setUpdatedAt(LocalDateTime.now());
+            questionAnswerRepository.save(questionAnswer);
+        } else {
+            logger.info("Creating new QuestionAnswer record for sentiment of stockId: {}", ticker);
+            questionAnswer = new QuestionAnswer();
+            questionAnswer.setStockId(ticker);
+            questionAnswer.setQuestionId(questionId);
+            questionAnswer.setStatus(QuestionAnswerStatus.IN_PROGRESS);
+            questionAnswer.setModel(llmModel);
+            questionAnswer.setPromptVersion(PROMPT_VERSION);
+            questionAnswer.setCreatedAt(LocalDateTime.now());
+            questionAnswer.setUpdatedAt(LocalDateTime.now());
+            try {
+                questionAnswer = questionAnswerRepository.save(questionAnswer);
+            } catch (DuplicateKeyException e) {
+                logger.warn("Duplicate key while inserting sentiment record for {}, retrying getSentiment", ticker);
+                return getSentiment(stockId, regenerate);
+            }
+        }
+
+        try {
+            logger.info("Generating sentiment for stockId: {}", ticker);
+            var stockSentimentOutputConverter = new BeanOutputConverter<>(StockSentiment.class);
+
+            PromptTemplate promptTemplate = new PromptTemplate(sentimentPrompt);
+            Map<String, Object> params = new HashMap<>();
+            params.put("ticker", ticker);
+            params.put("current_date", LocalDate.now().toString());
+            params.put("format", stockSentimentOutputConverter.getFormat());
+            Prompt prompt = promptTemplate.create(params);
+
+            String result = llmService.callLlmWithSearch(prompt.getContents());
+            StockSentiment stockSentiment = stockSentimentOutputConverter.convert(result);
+
+            LocalDateTime now = LocalDateTime.now();
+            stockSentiment.setDate(now);
+
+            questionAnswer.setAnswer(stockSentiment.toJson());
+            questionAnswer.setStatus(QuestionAnswerStatus.COMPLETED);
+            questionAnswer.setUpdatedAt(now);
+            questionAnswerRepository.save(questionAnswer);
+
+            return stockSentiment;
+        } catch (Exception e) {
+            logger.error("Error during sentiment generation for {}", ticker, e);
+            questionAnswer.setStatus(QuestionAnswerStatus.FAILED);
+            questionAnswer.setUpdatedAt(LocalDateTime.now());
+            questionAnswerRepository.save(questionAnswer);
+            throw e;
+        }
+    }
+}

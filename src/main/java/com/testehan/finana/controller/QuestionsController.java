@@ -2,6 +2,7 @@ package com.testehan.finana.controller;
 
 import com.testehan.finana.model.qa.BusinessAnalysisQuestions;
 import com.testehan.finana.model.qa.Question;
+import com.testehan.finana.model.qa.StockSentiment;
 import com.testehan.finana.service.qa.QuestionAnswerService;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -43,5 +44,10 @@ public class QuestionsController {
         });
 
         return emitter;
+    }
+
+    @GetMapping("/sentiment")
+    public StockSentiment getSentiment(@RequestParam String stockId, @RequestParam(required = false, defaultValue = "false") boolean regenerate) {
+        return questionAnswerService.getSentiment(stockId.toUpperCase(), regenerate);
     }
 }
