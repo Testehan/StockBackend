@@ -7,6 +7,7 @@ import com.testehan.finana.model.ratio.FinancialRatiosReport;
 import com.testehan.finana.model.ratio.FmpRatios;
 import com.testehan.finana.repository.FinancialRatiosRepository;
 import com.testehan.finana.repository.GeneratedReportRepository;
+import com.testehan.finana.util.DateUtils;
 import com.testehan.finana.util.FinancialRatiosCalculator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,8 +30,6 @@ public class FinancialDataService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(FinancialDataService.class);
 
-
-
     private final FMPService fmpService;
 
     private final CompanyDataService companyDataService;
@@ -40,8 +39,9 @@ public class FinancialDataService {
 
     private final FinancialRatiosCalculator financialRatiosCalculator;
     private final QuoteService quoteService;
+    private final DateUtils dateUtils;
 
-    public FinancialDataService(FMPService fmpService, CompanyDataService companyDataService, FinancialStatementService financialStatementService, FinancialRatiosRepository financialRatiosRepository, GeneratedReportRepository generatedReportRepository, FinancialRatiosCalculator financialRatiosCalculator, QuoteService quoteService) {
+    public FinancialDataService(FMPService fmpService, CompanyDataService companyDataService, FinancialStatementService financialStatementService, FinancialRatiosRepository financialRatiosRepository, GeneratedReportRepository generatedReportRepository, FinancialRatiosCalculator financialRatiosCalculator, QuoteService quoteService, DateUtils dateUtils) {
         this.fmpService = fmpService;
         this.companyDataService = companyDataService;
         this.financialStatementService = financialStatementService;
@@ -49,6 +49,7 @@ public class FinancialDataService {
         this.generatedReportRepository = generatedReportRepository;
         this.financialRatiosCalculator = financialRatiosCalculator;
         this.quoteService = quoteService;
+        this.dateUtils = dateUtils;
     }
 
 
@@ -56,7 +57,8 @@ public class FinancialDataService {
     public Mono<Optional<FinancialRatiosData>> getFinancialRatios(String symbol) {
             return Mono.fromCallable(() -> financialRatiosRepository.findBySymbol(symbol))
                     .flatMap(existingRatiosData -> {
-                        if (existingRatiosData.isEmpty()) {
+
+                        if (existingRatiosData.isEmpty() || !dateUtils.isRecent(existingRatiosData.get().getLastUpdated(),  DateUtils.CACHE_ONE_MONTH)) {
                             return calculateAndSaveRatios(symbol)
                                     .flatMap(data -> {
                                         updateFmpData(symbol, data);
@@ -94,8 +96,7 @@ public class FinancialDataService {
 
             CompanyOverview companyOverview = companyOverviews.getFirst();
 
-            FinancialRatiosData financialRatiosData = financialRatiosRepository.findBySymbol(symbol)
-                    .orElse(new FinancialRatiosData());
+            FinancialRatiosData financialRatiosData = financialRatiosRepository.findBySymbol(symbol).orElse(new FinancialRatiosData());
             financialRatiosData.setSymbol(symbol);
             financialRatiosData.setAnnualReports(new ArrayList<>());
             financialRatiosData.setQuarterlyReports(new ArrayList<>());
@@ -160,12 +161,12 @@ public class FinancialDataService {
         }
     }
 
-    public void updateTtmFinancialRatios(String ticker, FinancialRatiosData ratiosData) {
+    private void updateTtmFinancialRatios(String ticker, FinancialRatiosData ratiosData) {
         final FinancialRatiosData dataToUpdate = ratiosData != null ? ratiosData : new FinancialRatiosData();
         if (dataToUpdate.getSymbol() == null) {
             dataToUpdate.setSymbol(ticker);
         }
-        
+
         fmpService.getFinancialRatiosTtm(ticker)
                 .map(fmpRatios -> {
                     FinancialRatiosReport report = new FinancialRatiosReport();
@@ -199,6 +200,7 @@ public class FinancialDataService {
                         report.setEnterpriseValueMultiple(java.math.BigDecimal.valueOf(fmpRatios.getEnterpriseValueMultipleTTM()));
                     }
                     dataToUpdate.setTtmReport(report);
+                    dataToUpdate.setLastUpdated(LocalDateTime.now());
                     return dataToUpdate;
                 })
                 .doOnSuccess(financialRatiosRepository::save)
@@ -207,12 +209,12 @@ public class FinancialDataService {
     }
 
 
-    public void updateFinancialRatiosFromFmp(String ticker, FinancialRatiosData ratiosData) {
+    private void updateFinancialRatiosFromFmp(String ticker, FinancialRatiosData ratiosData) {
         final FinancialRatiosData dataToUpdate = ratiosData != null ? ratiosData : new FinancialRatiosData();
         if (dataToUpdate.getSymbol() == null) {
             dataToUpdate.setSymbol(ticker);
         }
-        
+
         fmpService.getFinancialRatios(ticker)
                 .map(reports -> { // reports is List<FmpRatios>
                     List<FinancialRatiosReport> annualReports = dataToUpdate.getAnnualReports();
@@ -261,6 +263,7 @@ public class FinancialDataService {
                         }
                     }
 
+                    dataToUpdate.setLastUpdated(LocalDateTime.now());
                     return dataToUpdate;
                 })
                 .doOnSuccess(financialRatiosRepository::save)

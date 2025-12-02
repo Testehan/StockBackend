@@ -6,13 +6,13 @@ import com.testehan.finana.model.quote.IndexQuotes;
 import com.testehan.finana.model.quote.StockQuotes;
 import com.testehan.finana.repository.IndexQuotesRepository;
 import com.testehan.finana.repository.StockQuotesRepository;
+import com.testehan.finana.util.DateUtils;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 
 @Service
@@ -22,17 +22,19 @@ public class QuoteService {
     private final FMPService fmpService;
     private final StockQuotesRepository stockQuotesRepository;
     private final IndexQuotesRepository indexQuotesRepository;
+    private final DateUtils dateUtils;
 
-    public QuoteService(FMPService fmpService, StockQuotesRepository stockQuotesRepository, IndexQuotesRepository indexQuotesRepository) {
+    public QuoteService(FMPService fmpService, StockQuotesRepository stockQuotesRepository, IndexQuotesRepository indexQuotesRepository, DateUtils dateUtils) {
         this.fmpService = fmpService;
         this.stockQuotesRepository = stockQuotesRepository;
         this.indexQuotesRepository = indexQuotesRepository;
+        this.dateUtils = dateUtils;
     }
 
     public Mono<GlobalQuote> getLastStockQuote(String symbol) {
         return Mono.defer(() -> {
             Optional<StockQuotes> stockQuotesFromDb = stockQuotesRepository.findBySymbol(symbol);
-            if (stockQuotesFromDb.isPresent() && !stockQuotesFromDb.get().getQuotes().isEmpty() && isRecent(stockQuotesFromDb.get().getLastUpdated(), 10)) {
+            if (stockQuotesFromDb.isPresent() && !stockQuotesFromDb.get().getQuotes().isEmpty() && dateUtils.isRecent(stockQuotesFromDb.get().getLastUpdated(), DateUtils.CACHE_TEN_MINUTES)) {
                 return Mono.fromCallable(() -> stockQuotesRepository.findLastQuoteBySymbol(symbol))
                         .flatMap(opt -> opt.map(Mono::just).orElseGet(Mono::empty))
                         .switchIfEmpty(Mono.error(() -> new RuntimeException("No stock quote found for " + symbol)));
@@ -61,7 +63,7 @@ public class QuoteService {
     public Mono<IndexQuotes> getIndexQuotes(String symbol) {
         return Mono.defer(() -> {
             Optional<IndexQuotes> indexQuotesFromDb = indexQuotesRepository.findById(symbol.toUpperCase());
-            if (indexQuotesFromDb.isPresent() && isRecent(indexQuotesFromDb.get().getLastUpdated(), 100)) {
+            if (indexQuotesFromDb.isPresent() && dateUtils.isRecent(indexQuotesFromDb.get().getLastUpdated(), DateUtils.CACHE_HOUR_AND_A_HALF)) {
                 return Mono.just(indexQuotesFromDb.get());
             } else {
                 return fmpService.getIndexHistoricalData(symbol)
@@ -114,13 +116,6 @@ public class QuoteService {
 
     public Optional<IndexData> getLastIndexQuote(String symbol) {
         return indexQuotesRepository.findLastQuoteBySymbol(symbol.toUpperCase());
-    }
-
-    private boolean isRecent(LocalDateTime lastUpdated, int minutes) {
-        if (lastUpdated == null) {
-            return false;
-        }
-        return ChronoUnit.MINUTES.between(lastUpdated, LocalDateTime.now()) < minutes;
     }
 
     public void deleteBySymbol(String symbol) {

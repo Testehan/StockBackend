@@ -5,6 +5,7 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
@@ -18,4 +19,5 @@ public class RevenueSegmentationData {
 
     private List<RevenueSegmentationReport> annualReports;
     private List<RevenueSegmentationReport> quarterlyReports;
+    private LocalDateTime lastUpdated;
 }

@@ -5,6 +5,7 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
@@ -17,4 +18,5 @@ public class RevenueGeographicSegmentationData {
     private String symbol;
 
     private List<RevenueGeographicSegmentationReport> reports;
+    private LocalDateTime lastUpdated;
 }

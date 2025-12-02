@@ -3,6 +3,7 @@ package com.testehan.finana.model;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.io.Serializable;
+import java.time.LocalDateTime;
 import java.util.List;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -23,4 +24,7 @@ public class EarningsHistory implements Serializable {
 
     @JsonProperty("quarterlyEarnings")
     private List<QuarterlyEarning> quarterlyEarnings;
+
+    @JsonProperty("lastUpdated")
+    private LocalDateTime lastUpdated;
 }

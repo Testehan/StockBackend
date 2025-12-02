@@ -6,6 +6,7 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
@@ -23,4 +24,6 @@ public class IncomeStatementData {
 
     @JsonProperty("quarterlyReports")
     private List<IncomeReport> quarterlyReports;
+
+    private LocalDateTime lastUpdated;
 }

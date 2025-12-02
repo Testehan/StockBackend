@@ -255,6 +255,7 @@ public class FMPService {
                             .map(this::transformToQuarterlyEarning)
                             .collect(java.util.stream.Collectors.toList());
                     earningsHistory.setQuarterlyEarnings(quarterlyEarnings);
+                    earningsHistory.setLastUpdated(LocalDateTime.now());
                     return earningsHistory;
                 });
     }

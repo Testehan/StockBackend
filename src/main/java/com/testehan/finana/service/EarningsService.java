@@ -7,13 +7,13 @@ import com.testehan.finana.model.filing.QuarterlyEarningsTranscript;
 import com.testehan.finana.repository.CompanyEarningsTranscriptsRepository;
 import com.testehan.finana.repository.EarningsEstimatesRepository;
 import com.testehan.finana.repository.EarningsHistoryRepository;
+import com.testehan.finana.util.DateUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -27,13 +27,15 @@ public class EarningsService {
     private final EarningsHistoryRepository earningsHistoryRepository;
     private final CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository;
     private final EarningsEstimatesRepository earningsEstimatesRepository;
+    private final DateUtils dateUtils;
 
-    public EarningsService(AlphaVantageService alphaVantageService, FMPService fmpService, EarningsHistoryRepository earningsHistoryRepository, CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository, EarningsEstimatesRepository earningsEstimatesRepository) {
+    public EarningsService(AlphaVantageService alphaVantageService, FMPService fmpService, EarningsHistoryRepository earningsHistoryRepository, CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository, EarningsEstimatesRepository earningsEstimatesRepository, DateUtils dateUtils) {
         this.alphaVantageService = alphaVantageService;
         this.fmpService = fmpService;
         this.earningsHistoryRepository = earningsHistoryRepository;
         this.companyEarningsTranscriptsRepository = companyEarningsTranscriptsRepository;
         this.earningsEstimatesRepository = earningsEstimatesRepository;
+        this.dateUtils = dateUtils;
     }
 
     public Mono<QuarterlyEarningsTranscript> getEarningsCallTranscript(String symbol, String quarter) {
@@ -68,7 +70,7 @@ public class EarningsService {
     public Mono<EarningsHistory> getEarningsHistory(String symbol) {
         return Mono.defer(() -> {
             Optional<EarningsHistory> earningsHistoryFromDb = earningsHistoryRepository.findBySymbol(symbol.toUpperCase());
-            if (earningsHistoryFromDb.isPresent()) {
+            if (earningsHistoryFromDb.isPresent() && dateUtils.isRecent(earningsHistoryFromDb.get().getLastUpdated(), DateUtils.CACHE_ONE_WEEK)) {
                 return Mono.just(earningsHistoryFromDb.get());
             } else {
                 return fmpService.fetchEarningsHistory(symbol.toUpperCase())
@@ -80,7 +82,7 @@ public class EarningsService {
     public Mono<EarningsEstimate> getEarningsEstimates(String symbol) {
         return Mono.defer(() -> {
             Optional<EarningsEstimate> earningsEstimateFromDb = earningsEstimatesRepository.findBySymbol(symbol.toUpperCase());
-            if (earningsEstimateFromDb.isPresent() && isRecent(earningsEstimateFromDb.get().getLastUpdated(), 10080)) {
+            if (earningsEstimateFromDb.isPresent() && dateUtils.isRecent(earningsEstimateFromDb.get().getLastUpdated(), DateUtils.CACHE_ONE_WEEK)) {
                 return Mono.just(earningsEstimateFromDb.get());
             } else {
                 return fmpService.fetchAnalystEstimates(symbol.toUpperCase())
@@ -93,13 +95,6 @@ public class EarningsService {
                         });
             }
         });
-    }
-
-    private boolean isRecent(LocalDateTime lastUpdated, int minutes) {
-        if (lastUpdated == null) {
-            return false;
-        }
-        return ChronoUnit.MINUTES.between(lastUpdated, LocalDateTime.now()) < minutes;
     }
 
     public void deleteCompanyEarningsTranscriptsBySymbol(String symbol) {

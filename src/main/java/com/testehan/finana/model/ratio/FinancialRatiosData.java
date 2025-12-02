@@ -4,6 +4,7 @@ import lombok.Data;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
@@ -15,4 +16,5 @@ public class FinancialRatiosData {
     private List<FinancialRatiosReport> annualReports;
     private List<FinancialRatiosReport> quarterlyReports;
     private FinancialRatiosReport ttmReport;
+    private LocalDateTime lastUpdated;
 }
