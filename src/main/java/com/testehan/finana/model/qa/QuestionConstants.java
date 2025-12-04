@@ -40,18 +40,21 @@ public class QuestionConstants {
     public static final List<Question> MUNGER_QUESTIONS = List.of(
             new Question("munger_inversion_death", "If we fast-forward five years and this company's stock has collapsed, what was the single most likely cause of death?"),
             new Question("munger_inversion_competitor_disrupt", "What is the easiest way a competitor could permanently disrupt this business model?"),
+            new Question("munger_capital_needs", "Does the business require heavy ongoing capital infusions (inventory, capex, R&D) just to maintain its position, or does it throw off cash with minimal reinvestment?"),
             new Question("munger_inversion_survival", "Instead of asking how this company succeeds, what must not happen for this company to survive?"),
-            new Question("munger_incentives_executive", "How exactly is the C-suite compensated, and does it encourage long-term value creation or short-term stock pumping?"),
-            new Question("munger_incentives_skin_in_game", "Do the founders or executives have a significant portion of their own net worth tied up in the stock?"),
-            new Question("munger_incentives_sales", "Are the incentives of the company's salespeople aligned with the long-term success of the customer, or are they incentivized to just close the deal and run?"),
+            new Question("munger_management_incentives", "How exactly is the C-suite compensated, and does it encourage long-term value creation or short-term stock pumping?"),
+            new Question("munger_management_skin_in_game", "Do the founders or executives have a significant portion of their own net worth tied up in the stock?"),
+            new Question("munger_sales_incentives", "Are the incentives of the company's salespeople aligned with the long-term success of the customer, or are they incentivized to just close the deal and run?"),
             new Question("munger_lollapalooza_positive", "Is this company currently benefiting from a 'Lollapalooza effect'—a confluence of multiple, unstoppable macro-trends acting heavily in its favor?"),
             new Question("munger_lollapalooza_negative", "Are there multiple negative forces (e.g., rising interest rates + changing consumer habits + new regulations) converging to work against them?"),
             new Question("munger_psychology_habit", "Does the company's product benefit from deep-seated psychological tendencies (like extreme habit, social proof, or FOMO) that make it incredibly painful for customers to quit?"),
-            new Question("munger_psychology_valuation", "Is the current market valuation driven by extreme irrational exuberance or extreme pessimism, rather than the underlying math of the business?"),
             new Question("munger_moat_billion_test", "If you gave a highly competent competitor $10 billion and a decade to aggressively steal this company's market share, could they realistically do it?"),
             new Question("munger_moat_circle_competence", "Is the company staying strictly within its 'Circle of Competence', or are they engaging in 'diworsification' by making acquisitions in industries they don't truly understand?"),
             new Question("munger_avoid_stupidity_complexity", "Is the company relying on highly complex, opaque financial engineering to generate its profits?"),
-            new Question("munger_avoid_stupidity_macro", "Is management trying to aggressively predict complex macroeconomic factors (like interest rates or commodity prices), or are they just focusing on making the core business resilient?")
+            new Question("munger_avoid_stupidity_macro", "Is management trying to aggressively predict complex macroeconomic factors (like interest rates or commodity prices), or are they just focusing on making the core business resilient?"),
+            new Question("munger_management_trustworthy", "Is management honest, rational, and trustworthy—or do we see any signs of questionable character, promotion of hype, or self-dealing?"),
+            new Question("munger_valuation_margin_safety", "Is there a substantial margin of safety between the current price and a conservative estimate of intrinsic value, even in pessimistic scenarios?"),
+            new Question("munger_valuation_psychology", "Is the current market valuation driven by extreme irrational exuberance or extreme pessimism, rather than the underlying math of the business?")
     );
 
     public static final List<Question> LYNCH_QUESTIONS = List.of(
@@ -71,6 +74,21 @@ public class QuestionConstants {
             new Question("lynch_management_di_worsification", "Is management engaging in 'diworsification' by blowing their cash on foolish acquisitions in industries they know nothing about?")
     );
 
+    public static final List<Question> GARDNER_QUESTIONS = List.of(
+            new Question("gardner_top_dog_industry", "Is this company the undisputed 'top dog' and first mover in a highly important, rapidly emerging industry?"),
+            new Question("gardner_top_dog_new_industry", "Is the company literally creating a new industry that didn't exist 5 years ago, or completely redefining an old one?"),
+            new Question("gardner_top_dog_thanos_snap", "If you removed this company from the world today, would consumers notice and care deeply?"),
+            new Question("gardner_visionary_founder", "Is the company still led by its visionary, passionate founder?"),
+            new Question("gardner_visionary_culture", "Does the company have a phenomenal workplace culture that attracts the absolute best engineers and talent in the world?"),
+            new Question("gardner_visionary_skin_in_game", "Does leadership have a massive amount of 'skin in the game' (high insider ownership)?"),
+            new Question("gardner_consumer_appeal", "Does the company have immense consumer appeal, creating a product or service that customers actively rave about to their friends?"),
+            new Question("gardner_consumer_word_of_mouth", "Does the word-of-mouth marketing for this product drastically reduce the amount of money the company has to spend on traditional advertising?"),
+            new Question("gardner_contrarian_overvalued", "Is this stock widely considered to be brutally 'overvalued' by traditional Wall Street analysts and financial media?"),
+            new Question("gardner_contrarian_advantage", "Does the company possess a sustainable advantage (patents, visionary leadership, or sheer business momentum) that the market is currently underestimating?"),
+            new Question("gardner_momentum_price_appreciation", "Has the stock already shown strong, historical price appreciation?"),
+            new Question("gardner_momentum_business_momentum", "Is the company demonstrating extreme business momentum (hyper-growth in revenue), even if they are intentionally losing money on the bottom line to capture market share?")
+    );
+
     public static final List<Question> EARNINGS_TRANSCRIPT_QUESTIONS = List.of(
             new Question("transcript_30_seconds_summary", "The 30-Second Summary"),
             new Question("transcript_evasion_tracker", "The Evasion Tracker"),
@@ -83,6 +101,7 @@ public class QuestionConstants {
             case "buffett" -> BUFFETT_QUESTIONS;
             case "munger" -> MUNGER_QUESTIONS;
             case "lynch" -> LYNCH_QUESTIONS;
+            case "gardner" -> GARDNER_QUESTIONS;
             default -> List.of();
         };
     }
@@ -97,6 +116,9 @@ public class QuestionConstants {
         if (findInList(LYNCH_QUESTIONS, questionId).isPresent()) {
             return Optional.of("Peter Lynch");
         }
+        if (findInList(GARDNER_QUESTIONS, questionId).isPresent()) {
+            return Optional.of("David Gardner");
+        }
         return Optional.empty();
     }
 
@@ -104,6 +126,7 @@ public class QuestionConstants {
         return findInList(BUFFETT_QUESTIONS, questionId)
                 .or(() -> findInList(MUNGER_QUESTIONS, questionId))
                 .or(() -> findInList(LYNCH_QUESTIONS, questionId))
+                .or(() -> findInList(GARDNER_QUESTIONS, questionId))
                 .or(() -> findInList(BUSINESS_ANALYSIS_QUESTIONS, questionId))
                 .or(() -> findInList(EARNINGS_TRANSCRIPT_QUESTIONS, questionId));
     }
