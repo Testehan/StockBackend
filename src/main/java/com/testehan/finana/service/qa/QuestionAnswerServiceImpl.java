@@ -2,12 +2,13 @@ package com.testehan.finana.service.qa;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.testehan.finana.model.qa.BusinessAnalysisQuestions;
 import com.testehan.finana.model.qa.QuestionAnswer;
 import com.testehan.finana.model.qa.QuestionAnswerStatus;
+import com.testehan.finana.model.qa.QuestionConstants;
 import com.testehan.finana.model.qa.StockSentiment;
 import com.testehan.finana.repository.QuestionAnswerRepository;
 import com.testehan.finana.service.LlmService;
+import com.testehan.finana.service.TranscriptAnalysisService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.prompt.Prompt;
@@ -34,6 +35,7 @@ public class QuestionAnswerServiceImpl implements QuestionAnswerService {
     private final QuestionAnswerRepository questionAnswerRepository;
     private final LlmService llmService; 
     private final LlmQuestionAnswerGenerator llmQuestionAnswerGenerator;
+    private final TranscriptAnalysisService transcriptAnalysisService;
     private final ObjectMapper objectMapper;
     private final String llmModel;
 
@@ -43,17 +45,30 @@ public class QuestionAnswerServiceImpl implements QuestionAnswerService {
     public QuestionAnswerServiceImpl(QuestionAnswerRepository questionAnswerRepository,
                                      LlmService llmService,
                                      LlmQuestionAnswerGenerator llmQuestionAnswerGenerator,
+                                     TranscriptAnalysisService transcriptAnalysisService,
                                      ObjectMapper objectMapper,
                                      @Value("${spring.ai.google.genai.chat.options.model}") String llmModel) {
         this.questionAnswerRepository = questionAnswerRepository;
         this.llmService = llmService;
         this.llmQuestionAnswerGenerator = llmQuestionAnswerGenerator;
+        this.transcriptAnalysisService = transcriptAnalysisService;
         this.objectMapper = objectMapper;
         this.llmModel = llmModel;
     }
 
     @Override
-    public void answerQuestion(String stockId, String questionId, SseEmitter emitter, boolean regenerate) {
+    public void answerQuestion(String stockId, String questionId, String additionalInformation, SseEmitter emitter, boolean regenerate) {
+        boolean isTranscriptQuestion = QuestionConstants.EARNINGS_TRANSCRIPT_QUESTIONS.stream()
+                .anyMatch(q -> q.getId().equals(questionId));
+
+        if (isTranscriptQuestion) {
+            answerTranscriptQuestion(stockId, questionId, additionalInformation, emitter);
+        } else {
+            answerBusinessAnalysisQuestion(stockId, questionId, emitter, regenerate);
+        }
+    }
+
+    private void answerBusinessAnalysisQuestion(String stockId, String questionId, SseEmitter emitter, boolean regenerate) {
         Optional<QuestionAnswer> existingAnswerOpt = questionAnswerRepository
                 .findByStockIdAndQuestionIdAndPromptVersionAndModel(stockId, questionId, PROMPT_VERSION, llmModel);
 
@@ -98,16 +113,19 @@ public class QuestionAnswerServiceImpl implements QuestionAnswerService {
             questionAnswer.setCreatedAt(LocalDateTime.now());
             questionAnswer.setUpdatedAt(LocalDateTime.now());
             questionAnswerRepository.save(questionAnswer);
-
         }
 
-        String questionText = BusinessAnalysisQuestions.QUESTIONS.stream()
+        String questionText = QuestionConstants.BUSINESS_ANALYSIS_QUESTIONS.stream()
                 .filter(q -> q.getId().equals(questionId))
                 .map(q -> q.getText())
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Question not found with ID: " + questionId));
 
         llmQuestionAnswerGenerator.generateAnswerStreaming(stockId, questionId, PROMPT_VERSION, llmModel, questionText, emitter);
+    }
+
+    private void answerTranscriptQuestion(String stockId, String questionId, String additionalInformation, SseEmitter emitter) {
+        transcriptAnalysisService.analyzeTranscript(stockId, questionId, additionalInformation, emitter);
     }
 
     @Override

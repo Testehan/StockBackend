@@ -1,6 +1,6 @@
 package com.testehan.finana.controller;
 
-import com.testehan.finana.model.qa.BusinessAnalysisQuestions;
+import com.testehan.finana.model.qa.QuestionConstants;
 import com.testehan.finana.model.qa.Question;
 import com.testehan.finana.model.qa.StockSentiment;
 import com.testehan.finana.service.qa.QuestionAnswerService;
@@ -26,18 +26,26 @@ public class QuestionsController {
         this.executorService = executorService;
     }
 
-    @GetMapping()
-    public List<Question> getQuestions() {
-        return BusinessAnalysisQuestions.QUESTIONS;
+    @GetMapping("/business")
+    public List<Question> getBusinessAnalysisQuestions() {
+        return QuestionConstants.BUSINESS_ANALYSIS_QUESTIONS;
+    }
+
+    @GetMapping("/transcript")
+    public List<Question> getEarningTranscriptQuestions() {
+        return QuestionConstants.EARNINGS_TRANSCRIPT_QUESTIONS;
     }
 
     @GetMapping("/answer")
-    public SseEmitter answerQuestion(@RequestParam String stockId, @RequestParam String questionId, @RequestParam(required = false, defaultValue = "false") boolean regenerate) {
+    public SseEmitter answerQuestion(@RequestParam String stockId, @RequestParam String questionId, 
+            @RequestParam(required = false, defaultValue = "false") boolean regenerate,
+            @RequestParam(required = false) String additionalInformation) {
+        
         SseEmitter emitter = new SseEmitter(Long.MAX_VALUE);
 
         executorService.execute(() -> {
             try {
-                questionAnswerService.answerQuestion(stockId.toUpperCase(), questionId, emitter, regenerate);
+                questionAnswerService.answerQuestion(stockId.toUpperCase(), questionId, additionalInformation, emitter, regenerate);
             } catch (Exception ex) {
                 emitter.completeWithError(ex);
             }

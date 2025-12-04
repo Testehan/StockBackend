@@ -2,9 +2,9 @@ package com.testehan.finana.model.qa;
 
 import java.util.List;
 
-public class BusinessAnalysisQuestions {
+public class QuestionConstants {
 
-    public static final List<Question> QUESTIONS = List.of(
+    public static final List<Question> BUSINESS_ANALYSIS_QUESTIONS = List.of(
             new Question("revenue_model", "How does this company make money?"),
             new Question("customer_profile_and_motivation", "Who are the company’s customers, and why do they buy the product or service?"),
             new Question("problem_criticality", "What problem does the company solve, and how critical is that problem for customers?"),
@@ -17,5 +17,12 @@ public class BusinessAnalysisQuestions {
             new Question("key_business_risks", "What are the biggest business risks that could materially impair the company?"),
             new Question("thesis_break_conditions", "What would have to be true for the core investment thesis to break?"),
             new Question("silver_bullet", "If the company had a ‘silver bullet,’ which competitor would it most want to use it against?")
+    );
+
+    public static final List<Question> EARNINGS_TRANSCRIPT_QUESTIONS = List.of(
+            new Question("transcript_30_seconds_summary", "The 30-Second Summary"),
+            new Question("transcript_evasion_tracker", "The Evasion Tracker"),
+            new Question("transcript_buzzword_context_counter", "Buzzword Context Counter"),
+            new Question("transcript_tone_shift_indicator", "Tone Shift Indicator")
     );
 }
