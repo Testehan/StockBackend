@@ -1,6 +1,7 @@
 package com.testehan.finana.service.qa;
 
 import com.testehan.finana.model.CompanyOverview;
+import com.testehan.finana.model.qa.Question;
 import com.testehan.finana.model.qa.QuestionAnswer;
 import com.testehan.finana.model.qa.QuestionAnswerStatus;
 import com.testehan.finana.model.qa.QuestionConstants;
@@ -20,9 +21,11 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static com.testehan.finana.model.qa.QuestionConstants.isDamodaranQuestion;
 import static com.testehan.finana.model.qa.QuestionConstants.isGuruQuestion;
 
 @Service
@@ -70,6 +73,16 @@ public class LlmQuestionAnswerGenerator {
             if (isGuruQuestion) {
                 promptParameters.put("guru_name", QuestionConstants.getGuruNameForQuestion(questionId).orElse(""));
                 promptParameters.put("current_date", java.time.LocalDate.now().toString());
+                
+                // Add rolling context for Damodaran sequential questions
+                if (isDamodaranQuestion(questionId)) {
+                    String previousContext = buildDamodaranContext(stockId, questionId, llmModel);
+                    promptParameters.put("previous_context", previousContext);
+                    logger.info("Built context for Damodaran question {} with {} previous answers", 
+                                questionId, countPreviousAnswers(stockId, questionId, llmModel));
+                } else {
+                    promptParameters.put("previous_context", "This is an independent question. No previous context needed.");
+                }
             }
             Prompt prompt = promptTemplate.create(promptParameters);
 
@@ -176,5 +189,59 @@ public class LlmQuestionAnswerGenerator {
                 questionAnswerRepository.save(questionAnswer);
             });
         }
+    }
+
+    private String buildDamodaranContext(String stockId, String currentQuestionId, String llmModel) {
+        int currentIndex = QuestionConstants.getDamodaranQuestionIndex(currentQuestionId);
+        
+        if (currentIndex <= 0) {
+            return "None. This is the first step.";
+        }
+        
+        List<Question> damodaranQuestions = QuestionConstants.DAMODARAN_QUESTIONS;
+        StringBuilder context = new StringBuilder();
+        
+        for (int i = 0; i < currentIndex; i++) {
+            String prevQuestionId = damodaranQuestions.get(i).getId();
+            Optional<QuestionAnswer> prevAnswerOpt = questionAnswerRepository
+                    .findByStockIdAndQuestionIdAndPromptVersionAndModel(stockId, prevQuestionId, "v1", llmModel);
+            
+            if (prevAnswerOpt.isPresent() && prevAnswerOpt.get().getStatus() == QuestionAnswerStatus.COMPLETED) {
+                context.append("Q").append(i + 1).append(": ")
+                       .append(damodaranQuestions.get(i).getText())
+                       .append("\nA: ")
+                       .append(prevAnswerOpt.get().getAnswer())
+                       .append("\n\n");
+            }
+        }
+        
+        return context.length() > 0 ? context.toString() : "None. Previous answers not available yet. Please answer based on general valuation principles.";
+    }
+
+    private int countPreviousAnswers(String stockId, String currentQuestionId, String llmModel) {
+        int currentIndex = QuestionConstants.getDamodaranQuestionIndex(currentQuestionId);
+        if (currentIndex <= 0) return 0;
+        
+        List<Question> damodaranQuestions = QuestionConstants.DAMODARAN_QUESTIONS;
+        int count = 0;
+        
+        for (int i = 0; i < currentIndex; i++) {
+            String prevQuestionId = damodaranQuestions.get(i).getId();
+            Optional<QuestionAnswer> prevAnswerOpt = questionAnswerRepository
+                    .findByStockIdAndQuestionIdAndPromptVersionAndModel(stockId, prevQuestionId, "v1", llmModel);
+            
+            if (prevAnswerOpt.isPresent() && prevAnswerOpt.get().getStatus() == QuestionAnswerStatus.COMPLETED) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    // TODO i think this may be removed..
+    private String truncateAnswer(String answer) {
+        if (answer == null || answer.length() <= 500) {
+            return answer;
+        }
+        return answer.substring(0, 500) + "... [truncated]";
     }
 }

@@ -89,6 +89,25 @@ public class QuestionConstants {
             new Question("gardner_momentum_business_momentum", "Is the company demonstrating extreme business momentum (hyper-growth in revenue), even if they are intentionally losing money on the bottom line to capture market share?")
     );
 
+    public static final List<Question> DAMODARAN_QUESTIONS = List.of(
+            new Question("damodaran_business_story", "1. First, tell me the fundamental business story of this company. What does it actually do, who are its customers, how does it make money today, and what is the plausible narrative for its future growth over the next 5–10 years? Be honest about what we know and what we don't."),
+            new Question("damodaran_revenue_growth", "2. What is a realistic, defensible revenue growth rate for this company over the next 5 years and then in the stable growth phase? Base it on market size, competitive position, and historical trends — don't be optimistic just because the market is."),
+            new Question("damodaran_operating_margins", "3. What operating margins can this company sustainably achieve in the high-growth phase and in stable growth? Explain the competitive and efficiency drivers that support (or constrain) those margins."),
+            new Question("damodaran_reinvestment_roic", "4. How much reinvestment (capex + change in working capital) will be required to deliver the growth you just described? What Return on Invested Capital (ROIC) is realistic for this business, and why?"),
+            new Question("damodaran_risk_discount_rate", "5. What is the appropriate cost of capital (or cost of equity) for valuing this company right now? Walk me through the key risk factors, beta, country risk if any, and your final discount rate."),
+            new Question("damodaran_free_cash_flows", "6. Based on the growth, margins, and reinvestment assumptions above, what do you expect the free cash flows to the firm (or equity) to look like over the next 5–10 years? Show the key numbers, not just a summary."),
+            new Question("damodaran_terminal_value", "7. Now let's talk about the terminal value. What stable growth rate, reinvestment rate, and exit assumptions are you using, and why are they consistent with the economics of a mature version of this business?"),
+            new Question("damodaran_intrinsic_value", "8. Putting the pieces together, what is your best-estimate intrinsic value per share (or enterprise value) for this company today using a DCF? Give me both your base-case number and the key drivers behind it."),
+            new Question("damodaran_scenario_analysis", "9. Run three quick scenarios — base case (what you just gave), optimistic, and pessimistic. How much does the value change in each case, and what are the biggest swing factors?"),
+            new Question("damodaran_margin_safety", "10. Given your intrinsic value estimate, is the current market price providing a sufficient margin of safety? Be specific: how much upside or downside do you see, and under what conditions would you actually buy (or sell) this stock?"),
+            new Question("damodaran_price_vs_value", "11. Right now, is the market pricing this stock based on fundamentals or on hype/exuberance/fear? In Damodaran terms, is the stock undervalued, fairly valued, or overvalued relative to its story and numbers?"),
+            new Question("damodaran_key_risks", "12. What are the two or three biggest risks or assumptions that could make this entire valuation wrong? Be brutally honest — what could break the story?"),
+            new Question("damodaran_competitive_moat", "13. How strong and durable is this company's competitive advantage? How will it affect long-term margins and growth, and what could erode it?"),
+            new Question("damodaran_consistency_check", "14. Do all the pieces of this valuation story hang together logically? If the growth is high, do the reinvestment and ROIC numbers make sense? If the margins are high, is the competitive position defensible? Flag any inconsistencies."),
+            new Question("damodaran_revisit_trigger", "15. What new information or change in fundamentals would cause you to materially revise this valuation upward or downward? In other words, what would make you change your mind?"),
+            new Question("damodaran_final_judgment", "16. Finally, in your own words as a valuation professor: would you buy this stock today at the current price? Why or why not? Keep it concise but rigorous.")
+    );
+
     public static final List<Question> EARNINGS_TRANSCRIPT_QUESTIONS = List.of(
             new Question("transcript_30_seconds_summary", "The 30-Second Summary"),
             new Question("transcript_evasion_tracker", "The Evasion Tracker"),
@@ -102,6 +121,7 @@ public class QuestionConstants {
             case "munger" -> MUNGER_QUESTIONS;
             case "lynch" -> LYNCH_QUESTIONS;
             case "gardner" -> GARDNER_QUESTIONS;
+            case "damodaran" -> DAMODARAN_QUESTIONS;
             default -> List.of();
         };
     }
@@ -119,6 +139,9 @@ public class QuestionConstants {
         if (findInList(GARDNER_QUESTIONS, questionId).isPresent()) {
             return Optional.of("David Gardner");
         }
+        if (findInList(DAMODARAN_QUESTIONS, questionId).isPresent()) {
+            return Optional.of("Aswath Damodaran");
+        }
         return Optional.empty();
     }
 
@@ -127,6 +150,7 @@ public class QuestionConstants {
                 .or(() -> findInList(MUNGER_QUESTIONS, questionId))
                 .or(() -> findInList(LYNCH_QUESTIONS, questionId))
                 .or(() -> findInList(GARDNER_QUESTIONS, questionId))
+                .or(() -> findInList(DAMODARAN_QUESTIONS, questionId))
                 .or(() -> findInList(BUSINESS_ANALYSIS_QUESTIONS, questionId))
                 .or(() -> findInList(EARNINGS_TRANSCRIPT_QUESTIONS, questionId));
     }
@@ -139,6 +163,29 @@ public class QuestionConstants {
 
     public static boolean isGuruQuestion(String questionId) {
         return !getGuruNameForQuestion(questionId).isEmpty();
+    }
+
+    public static final List<String> SEQUENTIAL_GURUS = List.of("damodaran");
+
+    public static boolean isSequentialGuru(String guruName) {
+        return SEQUENTIAL_GURUS.contains(guruName.toLowerCase());
+    }
+
+    public static boolean isDamodaranQuestion(String questionId) {
+        return questionId.startsWith("damodaran_");
+    }
+
+    public static int getDamodaranQuestionIndex(String questionId) {
+        for (int i = 0; i < DAMODARAN_QUESTIONS.size(); i++) {
+            if (DAMODARAN_QUESTIONS.get(i).getId().equals(questionId)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    public static boolean isFirstDamodaranQuestion(String questionId) {
+        return "damodaran_business_story".equals(questionId);
     }
 
     private static Optional<Question> findInList(List<Question> questions, String questionId) {
