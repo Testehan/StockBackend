@@ -6,6 +6,7 @@ import com.testehan.finana.model.qa.StockSentiment;
 import com.testehan.finana.service.qa.QuestionAnswerService;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -34,6 +35,11 @@ public class QuestionsController {
     @GetMapping("/transcript")
     public List<Question> getEarningTranscriptQuestions() {
         return QuestionConstants.EARNINGS_TRANSCRIPT_QUESTIONS;
+    }
+
+    @GetMapping("/guru/{guruName}")
+    public List<Question> getGuruQuestions(@PathVariable String guruName) {
+        return QuestionConstants.getGuruQuestions(guruName);
     }
 
     @GetMapping("/answer")

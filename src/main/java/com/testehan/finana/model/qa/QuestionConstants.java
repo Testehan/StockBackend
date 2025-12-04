@@ -1,14 +1,15 @@
 package com.testehan.finana.model.qa;
 
 import java.util.List;
+import java.util.Optional;
 
 public class QuestionConstants {
 
     public static final List<Question> BUSINESS_ANALYSIS_QUESTIONS = List.of(
             new Question("revenue_model", "How does this company make money?"),
-            new Question("customer_profile_and_motivation", "Who are the company’s customers, and why do they buy the product or service?"),
+            new Question("customer_profile_and_motivation", "Who are the company's customers, and why do they buy the product or service?"),
             new Question("problem_criticality", "What problem does the company solve, and how critical is that problem for customers?"),
-            new Question("competitive_advantage", "What is the company’s competitive advantage (moat), if any?"),
+            new Question("competitive_advantage", "What is the company's competitive advantage (moat), if any?"),
             new Question("moat_durability", "How strong and durable is that competitive advantage over time?"),
             new Question("business_lifecycle_stage", "Where is the company in its business lifecycle?"),
             new Question("growth_drivers", "What are the primary drivers of growth going forward?"),
@@ -16,7 +17,58 @@ public class QuestionConstants {
             new Question("growth_constraints", "What are the main constraints or bottlenecks to that growth?"),
             new Question("key_business_risks", "What are the biggest business risks that could materially impair the company?"),
             new Question("thesis_break_conditions", "What would have to be true for the core investment thesis to break?"),
-            new Question("silver_bullet", "If the company had a ‘silver bullet,’ which competitor would it most want to use it against?")
+            new Question("silver_bullet", "If the company had a 'silver bullet,' which competitor would it most want to use it against?")
+    );
+
+    public static final List<Question> BUFFETT_QUESTIONS = List.of(
+            new Question("buffet_predictable_economics", "Can I confidently predict what the economics of this business will look like in 10 or 20 years?"),
+            new Question("buffet_no_genius_required", "Does this company require a genius to run it?"),
+            new Question("buffet_no_tech_disruption", "Is the company subject to rapid technological change or disruption?"),
+            new Question("buffet_pricing_power", "If the company raised its prices by 10% tomorrow, would they lose significant market share to competitors?"),
+            new Question("buffet_must_have_product", "Does the company provide a product or service that people feel they must have, regardless of the economic climate?"),
+            new Question("buffet_inflation_resistant", "Can this business grow its earnings during periods of high inflation without needing massive amounts of additional capital?"),
+            new Question("buffet_toll_bridge", "Is this company an unregulated 'toll bridge'?"),
+            new Question("buffet_share_of_mind", "Does the company possess a 'Share of Mind' rather than just a 'Share of Market'?"),
+            new Question("buffet_capital_light", "Does the business require massive, ongoing capital expenditures just to stay competitive?"),
+            new Question("buffet_candid_management", "Does management communicate candidly with shareholders, freely admitting mistakes in their annual letters rather than just highlighting successes?"),
+            new Question("buffet_no_institutional_imperative", "Does management resist the 'Institutional Imperative'?"),
+            new Question("buffet_rational_capital_allocation", "Does management have a proven track record of rational capital allocation?"),
+            new Question("buffet_holding_period", "If the stock market were to close tomorrow and not reopen for five years, would I be perfectly happy holding this business?"),
+            new Question("buffet_long_term_purchase", "Am I buying this because I think the stock will go up next month, or because I want to own a piece of this specific business?")
+    );
+
+    public static final List<Question> MUNGER_QUESTIONS = List.of(
+            new Question("munger_inversion_death", "If we fast-forward five years and this company's stock has collapsed, what was the single most likely cause of death?"),
+            new Question("munger_inversion_competitor_disrupt", "What is the easiest way a competitor could permanently disrupt this business model?"),
+            new Question("munger_inversion_survival", "Instead of asking how this company succeeds, what must not happen for this company to survive?"),
+            new Question("munger_incentives_executive", "How exactly is the C-suite compensated, and does it encourage long-term value creation or short-term stock pumping?"),
+            new Question("munger_incentives_skin_in_game", "Do the founders or executives have a significant portion of their own net worth tied up in the stock?"),
+            new Question("munger_incentives_sales", "Are the incentives of the company's salespeople aligned with the long-term success of the customer, or are they incentivized to just close the deal and run?"),
+            new Question("munger_lollapalooza_positive", "Is this company currently benefiting from a 'Lollapalooza effect'—a confluence of multiple, unstoppable macro-trends acting heavily in its favor?"),
+            new Question("munger_lollapalooza_negative", "Are there multiple negative forces (e.g., rising interest rates + changing consumer habits + new regulations) converging to work against them?"),
+            new Question("munger_psychology_habit", "Does the company's product benefit from deep-seated psychological tendencies (like extreme habit, social proof, or FOMO) that make it incredibly painful for customers to quit?"),
+            new Question("munger_psychology_valuation", "Is the current market valuation driven by extreme irrational exuberance or extreme pessimism, rather than the underlying math of the business?"),
+            new Question("munger_moat_billion_test", "If you gave a highly competent competitor $10 billion and a decade to aggressively steal this company's market share, could they realistically do it?"),
+            new Question("munger_moat_circle_competence", "Is the company staying strictly within its 'Circle of Competence', or are they engaging in 'diworsification' by making acquisitions in industries they don't truly understand?"),
+            new Question("munger_avoid_stupidity_complexity", "Is the company relying on highly complex, opaque financial engineering to generate its profits?"),
+            new Question("munger_avoid_stupidity_macro", "Is management trying to aggressively predict complex macroeconomic factors (like interest rates or commodity prices), or are they just focusing on making the core business resilient?")
+    );
+
+    public static final List<Question> LYNCH_QUESTIONS = List.of(
+            new Question("lynch_invest_what_you_know_mall", "If I walked through a shopping mall or talked to professionals in my industry, would I see people enthusiastically adopting this company's product?"),
+            new Question("lynch_invest_what_you_know_explain", "Could I easily explain exactly how this company makes money to an 11-year-old using crayons?"),
+            new Question("lynch_invest_what_you_know_fraction", "Is the company's product uniquely responsible for its success, or is it just a tiny fraction of a massive conglomerate's overall revenue?"),
+            new Question("lynch_six_categories_type", "Which of the 'Six Categories' (Fast Growers, Stalwarts, Slow Growers, Cyclicals, Turnarounds, Asset Plays) does this company fall into?"),
+            new Question("lynch_six_categories_expectations", "Are my expectations aligned with the reality of this company's category?"),
+            new Question("lynch_six_categories_expansion", "If this is a 'Fast Grower', are they successfully duplicating a proven formula in new cities/markets, or are they just running out of room to expand?"),
+            new Question("lynch_boring_disagreeable_product", "Does this company do something incredibly boring, dull, or disagreeable (like waste management, pest control, oil recycling, or funeral homes)?"),
+            new Question("lynch_boring_disagreeable_wall_street", "Is the company largely ignored by major Wall Street analysts and under-owned by institutional investors?"),
+            new Question("lynch_boring_disagreeable_rumor", "Is there a widespread, unfounded rumor or stigma depressing the stock price that doesn't actually affect the underlying business?"),
+            new Question("lynch_garp_peg_ratio", "Is the company's P/E ratio equal to or less than its historical growth rate? (PEG ratio)"),
+            new Question("lynch_garp_inventory", "Are inventories piling up faster than sales are growing?"),
+            new Question("lynch_garp_balance_sheet", "Does the company have a 'fortress' balance sheet with enough net cash to survive a sudden industry recession without going bankrupt?"),
+            new Question("lynch_management_insider_buying", "Are the company's insiders (executives and directors) aggressively buying shares of their own stock on the open market?"),
+            new Question("lynch_management_di_worsification", "Is management engaging in 'diworsification' by blowing their cash on foolish acquisitions in industries they know nothing about?")
     );
 
     public static final List<Question> EARNINGS_TRANSCRIPT_QUESTIONS = List.of(
@@ -25,4 +77,50 @@ public class QuestionConstants {
             new Question("transcript_buzzword_context_counter", "Buzzword Context Counter"),
             new Question("transcript_tone_shift_indicator", "Tone Shift Indicator")
     );
+
+    public static List<Question> getGuruQuestions(String guruName) {
+        return switch (guruName.toLowerCase()) {
+            case "buffett" -> BUFFETT_QUESTIONS;
+            case "munger" -> MUNGER_QUESTIONS;
+            case "lynch" -> LYNCH_QUESTIONS;
+            default -> List.of();
+        };
+    }
+
+    public static Optional<String> getGuruNameForQuestion(String questionId) {
+        if (findInList(BUFFETT_QUESTIONS, questionId).isPresent()) {
+            return Optional.of("Warren Buffett");
+        }
+        if (findInList(MUNGER_QUESTIONS, questionId).isPresent()) {
+            return Optional.of("Charlie Munger");
+        }
+        if (findInList(LYNCH_QUESTIONS, questionId).isPresent()) {
+            return Optional.of("Peter Lynch");
+        }
+        return Optional.empty();
+    }
+
+    public static Optional<Question> findQuestionById(String questionId) {
+        return findInList(BUFFETT_QUESTIONS, questionId)
+                .or(() -> findInList(MUNGER_QUESTIONS, questionId))
+                .or(() -> findInList(LYNCH_QUESTIONS, questionId))
+                .or(() -> findInList(BUSINESS_ANALYSIS_QUESTIONS, questionId))
+                .or(() -> findInList(EARNINGS_TRANSCRIPT_QUESTIONS, questionId));
+    }
+
+    public static String getQuestionText(String questionId) {
+        return findQuestionById(questionId)
+                .map(Question::getText)
+                .orElseThrow(() -> new IllegalArgumentException("Question not found with ID: " + questionId));
+    }
+
+    public static boolean isGuruQuestion(String questionId) {
+        return !getGuruNameForQuestion(questionId).isEmpty();
+    }
+
+    private static Optional<Question> findInList(List<Question> questions, String questionId) {
+        return questions.stream()
+                .filter(q -> q.getId().equals(questionId))
+                .findFirst();
+    }
 }

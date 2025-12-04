@@ -3,6 +3,7 @@ package com.testehan.finana.service.qa;
 import com.testehan.finana.model.CompanyOverview;
 import com.testehan.finana.model.qa.QuestionAnswer;
 import com.testehan.finana.model.qa.QuestionAnswerStatus;
+import com.testehan.finana.model.qa.QuestionConstants;
 import com.testehan.finana.repository.CompanyOverviewRepository;
 import com.testehan.finana.repository.QuestionAnswerRepository;
 import com.testehan.finana.service.LlmService;
@@ -22,6 +23,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
+import static com.testehan.finana.model.qa.QuestionConstants.isGuruQuestion;
+
 @Service
 public class LlmQuestionAnswerGenerator {
 
@@ -34,6 +37,9 @@ public class LlmQuestionAnswerGenerator {
     @Value("classpath:/prompts/qa/questions_prompt.txt")
     private Resource questionPrompt;
 
+    @Value("classpath:/prompts/qa/guru_prompt.txt")
+    private Resource guruPrompt;
+
     public LlmQuestionAnswerGenerator(LlmService llmService, CompanyOverviewRepository companyOverviewRepository, QuestionAnswerRepository questionAnswerRepository) {
         this.llmService = llmService;
         this.companyOverviewRepository = companyOverviewRepository;
@@ -41,8 +47,11 @@ public class LlmQuestionAnswerGenerator {
     }
 
     @Async
-    public void generateAnswerStreaming(String stockId, String questionId, String promptVersion, String llmModel, String questionText, SseEmitter emitter) {
-        logger.info("Starting streaming answer generation for stockId: {}, questionId: {}", stockId, questionId);
+    public void generateAnswerStreaming(String stockId, String questionId, String promptVersion, String llmModel, SseEmitter emitter) {
+        String questionText = QuestionConstants.getQuestionText(questionId);
+        boolean isGuruQuestion = isGuruQuestion(questionId);
+
+        logger.info("Starting streaming answer generation for stockId: {}, questionId: {}, isGuru: {}", stockId, questionId, isGuruQuestion);
         try {
             Optional<CompanyOverview> companyOverview = companyOverviewRepository.findBySymbol(stockId);
             if (companyOverview.isEmpty()){
@@ -51,12 +60,17 @@ public class LlmQuestionAnswerGenerator {
                 return;
             }
 
-            PromptTemplate promptTemplate = new PromptTemplate(questionPrompt);
+            Resource promptToUse = isGuruQuestion ? guruPrompt : questionPrompt;
+            PromptTemplate promptTemplate = new PromptTemplate(promptToUse);
             Map<String, Object> promptParameters = new HashMap<>();
 
             promptParameters.put("question", questionText);
             promptParameters.put("company_name", companyOverview.get().getCompanyName());
             promptParameters.put("company_url", companyOverview.get().getWebsite());
+            if (isGuruQuestion) {
+                promptParameters.put("guru_name", QuestionConstants.getGuruNameForQuestion(questionId).orElse(""));
+                promptParameters.put("current_date", java.time.LocalDate.now().toString());
+            }
             Prompt prompt = promptTemplate.create(promptParameters);
 
             String generationDate = "Generation Date: " + LocalDateTime.now() + "\n\n\n";

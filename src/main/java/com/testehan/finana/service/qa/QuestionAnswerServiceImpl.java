@@ -115,13 +115,7 @@ public class QuestionAnswerServiceImpl implements QuestionAnswerService {
             questionAnswerRepository.save(questionAnswer);
         }
 
-        String questionText = QuestionConstants.BUSINESS_ANALYSIS_QUESTIONS.stream()
-                .filter(q -> q.getId().equals(questionId))
-                .map(q -> q.getText())
-                .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Question not found with ID: " + questionId));
-
-        llmQuestionAnswerGenerator.generateAnswerStreaming(stockId, questionId, PROMPT_VERSION, llmModel, questionText, emitter);
+        llmQuestionAnswerGenerator.generateAnswerStreaming(stockId, questionId, PROMPT_VERSION, llmModel, emitter);
     }
 
     private void answerTranscriptQuestion(String stockId, String questionId, String additionalInformation, SseEmitter emitter) {
