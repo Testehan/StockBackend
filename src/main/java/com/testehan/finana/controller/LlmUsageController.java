@@ -12,9 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,23 +31,25 @@ public class LlmUsageController {
     public Page<LlmUsage> getUsage(
             @RequestParam(required = false) String symbol,
             @RequestParam(required = false) String operationType,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime toDate,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
 
         PageRequest pageRequest = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "timestamp"));
 
-        if (symbol != null && fromDate != null && toDate != null) {
-            return llmUsageRepository.findBySymbolAndTimestampBetween(
-                    symbol, fromDate.atStartOfDay(), toDate.atTime(LocalTime.MAX), pageRequest);
+        if (symbol != null && operationType != null && fromDate != null && toDate != null) {
+            return llmUsageRepository.findBySymbolAndOperationTypeAndTimestampBetween(symbol, operationType, fromDate, toDate, pageRequest);
+        } else if (symbol != null && operationType != null) {
+            return llmUsageRepository.findBySymbolAndOperationType(symbol, operationType, pageRequest);
+        } else if (symbol != null && fromDate != null && toDate != null) {
+            return llmUsageRepository.findBySymbolAndTimestampBetween(symbol, fromDate, toDate, pageRequest);
         } else if (symbol != null) {
             return llmUsageRepository.findBySymbol(symbol, pageRequest);
         } else if (operationType != null) {
             return llmUsageRepository.findByOperationType(operationType, pageRequest);
         } else if (fromDate != null && toDate != null) {
-            return llmUsageRepository.findByTimestampBetween(
-                    fromDate.atStartOfDay(), toDate.atTime(LocalTime.MAX), pageRequest);
+            return llmUsageRepository.findByTimestampBetween(fromDate, toDate, pageRequest);
         }
 
         return llmUsageRepository.findAll(pageRequest);
@@ -59,11 +59,11 @@ public class LlmUsageController {
     public Map<String, Object> getSummary(
             @RequestParam(required = false) String symbol,
             @RequestParam(required = false) String operationType,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate) {
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime toDate) {
 
-        LocalDateTime from = fromDate != null ? fromDate.atStartOfDay() : LocalDateTime.of(2000, 1, 1, 0, 0);
-        LocalDateTime to = toDate != null ? toDate.atTime(LocalTime.MAX) : LocalDateTime.now();
+        LocalDateTime from = fromDate != null ? fromDate : LocalDateTime.of(2000, 1, 1, 0, 0);
+        LocalDateTime to = toDate != null ? toDate : LocalDateTime.now();
 
         List<LlmUsage> usages;
         if (symbol != null) {

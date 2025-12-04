@@ -13,5 +13,7 @@ public interface LlmUsageRepository extends MongoRepository<LlmUsage, String> {
     Page<LlmUsage> findByOperationType(String operationType, Pageable pageable);
     Page<LlmUsage> findByTimestampBetween(LocalDateTime from, LocalDateTime to, Pageable pageable);
     Page<LlmUsage> findBySymbolAndTimestampBetween(String symbol, LocalDateTime from, LocalDateTime to, Pageable pageable);
+    Page<LlmUsage> findBySymbolAndOperationType(String symbol, String operationType, Pageable pageable);
+    Page<LlmUsage> findBySymbolAndOperationTypeAndTimestampBetween(String symbol, String operationType, LocalDateTime from, LocalDateTime to, Pageable pageable);
     List<LlmUsage> findByTimestampBetween(LocalDateTime from, LocalDateTime to);
 }
