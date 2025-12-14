@@ -1,10 +1,13 @@
 package com.testehan.finana.service;
 
+import com.testehan.finana.service.mcp.StockDataTools;
+import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.google.genai.GoogleGenAiChatOptions;
+import org.springframework.ai.support.ToolCallbacks;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
@@ -13,10 +16,20 @@ public class LlmService {
 
     private final ChatModel chatModel;
     private final LlmCostService llmCostService;
+    private final ChatClient chatClientWithTools;
 
-    public LlmService(ChatModel chatModel, LlmCostService llmCostService) {
+    public LlmService(ChatModel chatModel, LlmCostService llmCostService, ChatClient.Builder chatClientBuilder) {
         this.chatModel = chatModel;
         this.llmCostService = llmCostService;
+        
+        GoogleGenAiChatOptions options = GoogleGenAiChatOptions.builder()
+                .temperature(0.1)
+                .googleSearchRetrieval(false)
+                .build();
+        
+        this.chatClientWithTools = chatClientBuilder
+                .defaultOptions(options)
+                .build();
     }
 
     public String callLlm(String query) {
@@ -44,7 +57,10 @@ public class LlmService {
             throw e;
         }
     }
-
+// TODO When this is called for getting the sentiment analysis.. you should try and see if you can get the urls that the
+//  call uses during the googleSearchRetrieval from the response metadata...and then put those in the sentiment object.
+//  ..instead of getting the URLS in the generated reponse..which is making the total cost higher...right now it is at
+//  about 7 cents per sentiment call...
     public String callLlmWithSearch(String query, String operationType, String stockTicker) {
         try {
             var options = GoogleGenAiChatOptions.builder()
@@ -104,5 +120,37 @@ public class LlmService {
                     llmCostService.logUsage(operationType, symbol, e.getMessage());
                     return Flux.empty();
                 });
+    }
+
+    public String callLlmWithTools(String question, StockDataTools stockDataTools, String operationType, String stockTicker) {
+        String systemPrompt = """
+            You are a financial analyst assistant. When the user asks about a stock,
+            you must use the available tools to fetch data from the database.
+            Extract the stock ticker from the question and use appropriate tools.
+            Then provide a clear answer based on the data.
+            """;
+
+        var toolCallbacks = ToolCallbacks.from(stockDataTools);
+
+//        ChatMemory chatMemory = MessageWindowChatMemory.builder()
+//                .chatMemoryRepository(new InMemoryChatMemoryRepository())
+//                .maxMessages(100).build();
+//        String chatId = "user-123";
+
+        try {
+            var chatResponse = chatClientWithTools.prompt()
+                    .system(systemPrompt)
+                    .user(question)
+                    .advisors()
+                    .toolCallbacks(toolCallbacks)
+                    .call()
+                    .chatResponse();
+            
+            llmCostService.logUsage(chatResponse, operationType, stockTicker);
+            return chatResponse.getResult().getOutput().getText();
+        } catch (Exception e) {
+            llmCostService.logUsage(operationType, stockTicker, e.getMessage());
+            throw e;
+        }
     }
 }

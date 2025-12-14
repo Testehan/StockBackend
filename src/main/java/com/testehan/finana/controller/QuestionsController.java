@@ -5,11 +5,8 @@ import com.testehan.finana.model.qa.Question;
 import com.testehan.finana.model.qa.StockSentiment;
 import com.testehan.finana.service.qa.QuestionAnswerService;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
@@ -63,5 +60,11 @@ public class QuestionsController {
     @GetMapping("/sentiment")
     public StockSentiment getSentiment(@RequestParam String stockId, @RequestParam(required = false, defaultValue = "false") boolean regenerate) {
         return questionAnswerService.getSentiment(stockId.toUpperCase(), regenerate);
+    }
+
+    @PostMapping
+    public ResponseEntity<String> queryStock(@RequestBody String question) {
+        String answer = questionAnswerService.queryStock(question);
+        return ResponseEntity.ok(answer);
     }
 }

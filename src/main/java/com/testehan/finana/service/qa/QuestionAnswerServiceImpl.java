@@ -9,6 +9,7 @@ import com.testehan.finana.model.qa.StockSentiment;
 import com.testehan.finana.repository.QuestionAnswerRepository;
 import com.testehan.finana.service.LlmService;
 import com.testehan.finana.service.TranscriptAnalysisService;
+import com.testehan.finana.service.mcp.StockDataTools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.prompt.Prompt;
@@ -36,6 +37,7 @@ public class QuestionAnswerServiceImpl implements QuestionAnswerService {
     private final LlmService llmService; 
     private final LlmQuestionAnswerGenerator llmQuestionAnswerGenerator;
     private final TranscriptAnalysisService transcriptAnalysisService;
+    private final StockDataTools stockDataTools;
     private final ObjectMapper objectMapper;
     private final String llmModel;
 
@@ -46,12 +48,14 @@ public class QuestionAnswerServiceImpl implements QuestionAnswerService {
                                      LlmService llmService,
                                      LlmQuestionAnswerGenerator llmQuestionAnswerGenerator,
                                      TranscriptAnalysisService transcriptAnalysisService,
+                                     StockDataTools stockDataTools,
                                      ObjectMapper objectMapper,
                                      @Value("${spring.ai.google.genai.chat.options.model}") String llmModel) {
         this.questionAnswerRepository = questionAnswerRepository;
         this.llmService = llmService;
         this.llmQuestionAnswerGenerator = llmQuestionAnswerGenerator;
         this.transcriptAnalysisService = transcriptAnalysisService;
+        this.stockDataTools = stockDataTools;
         this.objectMapper = objectMapper;
         this.llmModel = llmModel;
     }
@@ -204,5 +208,10 @@ public class QuestionAnswerServiceImpl implements QuestionAnswerService {
             questionAnswerRepository.save(questionAnswer);
             throw e;
         }
+    }
+
+    @Override
+    public String queryStock(String question) {
+        return llmService.callLlmWithTools(question, stockDataTools, "stock_query", "dynamic");
     }
 }

@@ -138,7 +138,7 @@ public class LlmCostService {
             return 0;
         }
         var usage = response.getMetadata().getUsage();
-        if (usage == null) {
+        if (usage == null || !(usage instanceof GoogleGenAiUsage)) {
             return 0;
         }
         return ((GoogleGenAiUsage)usage).getCachedContentTokenCount() != null ? ((GoogleGenAiUsage)usage).getCachedContentTokenCount() : 0;
