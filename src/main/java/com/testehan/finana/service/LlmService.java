@@ -1,26 +1,35 @@
 package com.testehan.finana.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.testehan.finana.service.mcp.StockDataTools;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.google.genai.GoogleGenAiChatOptions;
-import org.springframework.ai.support.ToolCallbacks;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
+
+import java.util.HashMap;
+import java.util.Map;
 
 @Service
 public class LlmService {
 
+    private static final Logger logger = LoggerFactory.getLogger(LlmService.class);
+
     private final ChatModel chatModel;
     private final LlmCostService llmCostService;
     private final ChatClient chatClientWithTools;
+    private final ObjectMapper objectMapper;
 
-    public LlmService(ChatModel chatModel, LlmCostService llmCostService, ChatClient.Builder chatClientBuilder) {
+    public LlmService(ChatModel chatModel, LlmCostService llmCostService, ChatClient.Builder chatClientBuilder, ObjectMapper objectMapper) {
         this.chatModel = chatModel;
         this.llmCostService = llmCostService;
+        this.objectMapper = objectMapper;
         
         GoogleGenAiChatOptions options = GoogleGenAiChatOptions.builder()
                 .temperature(0.1)
@@ -130,23 +139,29 @@ public class LlmService {
             Then provide a clear answer based on the data.
             """;
 
-        var toolCallbacks = ToolCallbacks.from(stockDataTools);
-
-//        ChatMemory chatMemory = MessageWindowChatMemory.builder()
-//                .chatMemoryRepository(new InMemoryChatMemoryRepository())
-//                .maxMessages(100).build();
-//        String chatId = "user-123";
-
         try {
+            Map<String, Object> toolContext = new HashMap<>();
+            Map<String, String> tickerHolder = new HashMap<>();
+            toolContext.put("ticker_holder", tickerHolder);
+            
             var chatResponse = chatClientWithTools.prompt()
                     .system(systemPrompt)
                     .user(question)
-                    .advisors()
-                    .toolCallbacks(toolCallbacks)
+                    .tools(stockDataTools)
+                    .options(GoogleGenAiChatOptions.builder()
+                            .temperature(0.1)
+                            .googleSearchRetrieval(false)
+                            .toolContext(toolContext)
+                            .build())
+                    .toolContext(toolContext)
                     .call()
                     .chatResponse();
-            
-            llmCostService.logUsage(chatResponse, operationType, stockTicker);
+
+            // Extract ticker from tool calls in memory
+            var extractedTicker = tickerHolder.get("ticker");
+            String tickerToLog = extractedTicker != null ? extractedTicker.toString() : stockTicker;
+
+            llmCostService.logUsage(chatResponse, operationType, tickerToLog);
             return chatResponse.getResult().getOutput().getText();
         } catch (Exception e) {
             llmCostService.logUsage(operationType, stockTicker, e.getMessage());
