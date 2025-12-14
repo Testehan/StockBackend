@@ -122,7 +122,16 @@ public class EarningsService {
                 return Mono.just(earningsHistoryFromDb.get());
             } else {
                 return fmpService.fetchEarningsHistory(symbol.toUpperCase())
-                        .flatMap(earningsHistory -> Mono.just(earningsHistoryRepository.save(earningsHistory)));
+                        .flatMap(earningsHistory -> Mono.just(earningsHistoryRepository.save(earningsHistory)))
+                        .onErrorResume(e -> {
+                            if (earningsHistoryFromDb.isPresent()) {
+                                LOGGER.warn("API call failed for earnings history of {}. Falling back to cached data from {}.", 
+                                            symbol, earningsHistoryFromDb.get().getLastUpdated());
+                                return Mono.just(earningsHistoryFromDb.get());
+                            }
+                            LOGGER.error("API call failed for earnings history of {} and no cached data available.", symbol);
+                            return Mono.error(e);
+                        });
             }
         });
     }
@@ -140,6 +149,15 @@ public class EarningsService {
                             earningsEstimate.setEstimates(estimates);
                             earningsEstimate.setLastUpdated(LocalDateTime.now());
                             return Mono.just(earningsEstimatesRepository.save(earningsEstimate));
+                        })
+                        .onErrorResume(e -> {
+                            if (earningsEstimateFromDb.isPresent()) {
+                                LOGGER.warn("API call failed for earnings estimates of {}. Falling back to cached data from {}.", 
+                                            symbol, earningsEstimateFromDb.get().getLastUpdated());
+                                return Mono.just(earningsEstimateFromDb.get());
+                            }
+                            LOGGER.error("API call failed for earnings estimates of {} and no cached data available.", symbol);
+                            return Mono.error(e);
                         });
             }
         });

@@ -7,6 +7,8 @@ import com.testehan.finana.model.quote.StockQuotes;
 import com.testehan.finana.repository.IndexQuotesRepository;
 import com.testehan.finana.repository.StockQuotesRepository;
 import com.testehan.finana.util.DateUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
@@ -17,6 +19,7 @@ import java.util.Optional;
 
 @Service
 public class QuoteService {
+    private static final Logger LOGGER = LoggerFactory.getLogger(QuoteService.class);
     private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     private final FMPService fmpService;
@@ -40,22 +43,42 @@ public class QuoteService {
                         .switchIfEmpty(Mono.error(() -> new RuntimeException("No stock quote found for " + symbol)));
             } else {
                 return fmpService.getHistoricalDividendAdjustedEodPrice(symbol)
-                        .flatMap(globalQuotes -> Mono.fromCallable(() -> {
-                            StockQuotes stockQuotes;
-                            if (stockQuotesFromDb.isPresent()) {
-                                stockQuotes = stockQuotesFromDb.get();
-                                stockQuotes.setQuotes(globalQuotes);
-                            } else {
-                                stockQuotes = new StockQuotes();
-                                stockQuotes.setSymbol(symbol.toUpperCase());
-                                stockQuotes.setQuotes(globalQuotes);
+                        .flatMap(globalQuotes -> {
+                            if (globalQuotes == null || globalQuotes.isEmpty()) {
+                                LOGGER.warn("API returned empty quotes for {}. Keeping existing cached data.", symbol);
+                                if (stockQuotesFromDb.isPresent() && !stockQuotesFromDb.get().getQuotes().isEmpty()) {
+                                    return Mono.fromCallable(() -> stockQuotesRepository.findLastQuoteBySymbol(symbol))
+                                            .flatMap(opt -> opt.map(Mono::just).orElseGet(Mono::empty));
+                                }
+                                return Mono.error(() -> new RuntimeException("No stock quote found for " + symbol));
                             }
-                            stockQuotes.setLastUpdated(LocalDateTime.now());
-                            return stockQuotesRepository.save(stockQuotes);
-                        }))
+                            return Mono.fromCallable(() -> {
+                                StockQuotes stockQuotes;
+                                if (stockQuotesFromDb.isPresent()) {
+                                    stockQuotes = stockQuotesFromDb.get();
+                                    stockQuotes.setQuotes(globalQuotes);
+                                } else {
+                                    stockQuotes = new StockQuotes();
+                                    stockQuotes.setSymbol(symbol.toUpperCase());
+                                    stockQuotes.setQuotes(globalQuotes);
+                                }
+                                stockQuotes.setLastUpdated(LocalDateTime.now());
+                                return stockQuotesRepository.save(stockQuotes);
+                            });
+                        })
                         .flatMap(saved -> Mono.fromCallable(() -> stockQuotesRepository.findLastQuoteBySymbol(symbol))
                                 .flatMap(opt -> opt.map(Mono::just).orElseGet(Mono::empty))
-                                .switchIfEmpty(Mono.error(() -> new RuntimeException("No stock quote found for " + symbol))));
+                                .switchIfEmpty(Mono.error(() -> new RuntimeException("No stock quote found for " + symbol))))
+                        .onErrorResume(e -> {
+                            if (stockQuotesFromDb.isPresent() && !stockQuotesFromDb.get().getQuotes().isEmpty()) {
+                                LOGGER.warn("Failed to update quotes for {}. Returning latest cached quote from {}.", 
+                                            symbol, stockQuotesFromDb.get().getLastUpdated());
+                                return Mono.fromCallable(() -> stockQuotesRepository.findLastQuoteBySymbol(symbol))
+                                        .flatMap(opt -> opt.map(Mono::just).orElseGet(Mono::empty));
+                            }
+                            LOGGER.error("Failed to get quotes for {} and no cached data available.", symbol);
+                            return Mono.error(e);
+                        });
             }
         });
     }
@@ -67,17 +90,35 @@ public class QuoteService {
                 return Mono.just(indexQuotesFromDb.get());
             } else {
                 return fmpService.getIndexHistoricalData(symbol)
-                        .flatMap(indexDataList -> Mono.fromCallable(() -> {
-                            IndexQuotes indexQuotes;
-                            if (indexQuotesFromDb.isPresent()) {
-                                indexQuotes = indexQuotesFromDb.get();
-                                indexQuotes.setQuotes(indexDataList);
-                            } else {
-                                indexQuotes = new IndexQuotes(symbol.toUpperCase(), indexDataList);
+                        .flatMap(indexDataList -> {
+                            if (indexDataList == null || indexDataList.isEmpty()) {
+                                LOGGER.warn("API returned empty index quotes for {}. Keeping existing cached data.", symbol);
+                                if (indexQuotesFromDb.isPresent()) {
+                                    return Mono.just(indexQuotesFromDb.get());
+                                }
+                                return Mono.error(() -> new RuntimeException("No index quotes found for " + symbol));
                             }
-                            indexQuotes.setLastUpdated(LocalDateTime.now());
-                            return indexQuotesRepository.save(indexQuotes);
-                        }));
+                            return Mono.fromCallable(() -> {
+                                IndexQuotes indexQuotes;
+                                if (indexQuotesFromDb.isPresent()) {
+                                    indexQuotes = indexQuotesFromDb.get();
+                                    indexQuotes.setQuotes(indexDataList);
+                                } else {
+                                    indexQuotes = new IndexQuotes(symbol.toUpperCase(), indexDataList);
+                                }
+                                indexQuotes.setLastUpdated(LocalDateTime.now());
+                                return indexQuotesRepository.save(indexQuotes);
+                            });
+                        })
+                        .onErrorResume(e -> {
+                            if (indexQuotesFromDb.isPresent()) {
+                                LOGGER.warn("Failed to update index quotes for {}. Returning cached data from {}.", 
+                                            symbol, indexQuotesFromDb.get().getLastUpdated());
+                                return Mono.just(indexQuotesFromDb.get());
+                            }
+                            LOGGER.error("Failed to get index quotes for {} and no cached data available.", symbol);
+                            return Mono.error(e);
+                        });
             }
         }).switchIfEmpty(Mono.error(() -> new RuntimeException("No index quotes found for " + symbol)));
     }

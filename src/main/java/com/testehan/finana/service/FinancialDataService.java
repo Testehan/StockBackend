@@ -203,8 +203,14 @@ public class FinancialDataService {
                     dataToUpdate.setLastUpdated(LocalDateTime.now());
                     return dataToUpdate;
                 })
-                .doOnSuccess(financialRatiosRepository::save)
-                .doOnError(e -> LOGGER.error("Error with TTM financial ratios for " + ticker, e))
+                .doOnSuccess(data -> {
+                    if (data != null) {
+                        financialRatiosRepository.save(data);
+                    }
+                })
+                .doOnError(e -> {
+                    LOGGER.warn("API call failed for TTM financial ratios of {}. Keeping existing data.", ticker);
+                })
                 .subscribe();
     }
 
@@ -266,8 +272,14 @@ public class FinancialDataService {
                     dataToUpdate.setLastUpdated(LocalDateTime.now());
                     return dataToUpdate;
                 })
-                .doOnSuccess(financialRatiosRepository::save)
-                .doOnError(e -> LOGGER.error("Error with financial ratios for " + ticker, e))
+                .doOnSuccess(data -> {
+                    if (data != null) {
+                        financialRatiosRepository.save(data);
+                    }
+                })
+                .doOnError(e -> {
+                    LOGGER.warn("API call failed for financial ratios of {}. Keeping existing data.", ticker);
+                })
                 .subscribe();
     }
 

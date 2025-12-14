@@ -5,6 +5,8 @@ import org.springframework.data.domain.Pageable;
 import com.testehan.finana.model.CompanyOverview;
 import com.testehan.finana.repository.CompanyOverviewRepository;
 import com.testehan.finana.util.DateUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
@@ -14,6 +16,8 @@ import java.util.Optional;
 
 @Service
 public class CompanyDataService {
+    private static final Logger LOGGER = LoggerFactory.getLogger(CompanyDataService.class);
+    
     private final FMPService fmpService;
     private final CompanyOverviewRepository companyOverviewRepository;
     private final DateUtils dateUtils;
@@ -25,27 +29,40 @@ public class CompanyDataService {
     }
 
     public Mono<List<CompanyOverview>> getCompanyOverview(String symbol) {
-        return Mono.fromCallable(() -> companyOverviewRepository.findBySymbol(symbol.toUpperCase()))
-                .flatMap(opt -> {
-                    if (opt.isPresent() && dateUtils.isRecent(opt.get().getLastUpdated(), DateUtils.CACHE_ONE_WEEK)) {
-                        return Mono.just(List.of(opt.get()));
-                    }
-                    return Mono.empty();
-                })
-                .switchIfEmpty(Mono.defer(() ->
-                    Mono.fromCallable(() -> companyOverviewRepository.findBySymbol(symbol.toUpperCase()))
-                            .flatMap(existingOpt -> 
-                                fmpService.getCompanyOverview(symbol.toUpperCase(), existingOpt)
-                                        .flatMap(overview -> 
-                                            Mono.fromCallable(() -> companyOverviewRepository.save(overview))
-                                                .map(saved -> List.of(saved))
-                                        )
-                            )
-                ))
-                .onErrorResume(DuplicateKeyException.class, e ->
-                    Mono.fromCallable(() -> companyOverviewRepository.findBySymbol(symbol.toUpperCase()))
-                            .flatMap(opt -> opt.map(overview -> Mono.just(List.of(overview))).orElseGet(Mono::empty))
-                );
+        return Mono.defer(() -> 
+            Mono.fromCallable(() -> companyOverviewRepository.findBySymbol(symbol.toUpperCase()))
+        ).flatMap(existingOpt -> {
+            if (existingOpt.isPresent() && dateUtils.isRecent(existingOpt.get().getLastUpdated(), DateUtils.CACHE_ONE_WEEK)) {
+                return Mono.just(List.of(existingOpt.get()));
+            }
+            
+            // Try to refresh from API
+            return fmpService.getCompanyOverview(symbol.toUpperCase(), existingOpt)
+                    .flatMap(overview -> 
+                        Mono.fromCallable(() -> companyOverviewRepository.save(overview))
+                            .map(saved -> List.of(saved))
+                    )
+                    .onErrorResume(e -> {
+                        if (existingOpt.isPresent()) {
+                            LOGGER.warn("API call failed for company overview of {}. Falling back to cached data from {}.", 
+                                        symbol, existingOpt.get().getLastUpdated());
+                            return Mono.just(List.of(existingOpt.get()));
+                        }
+                        LOGGER.error("API call failed for company overview of {} and no cached data available.", symbol);
+                        return Mono.error(e);
+                    });
+        }).switchIfEmpty(Mono.defer(() -> {
+            // No existing data, try to fetch from API
+            return fmpService.getCompanyOverview(symbol.toUpperCase(), Optional.empty())
+                    .flatMap(overview -> 
+                        Mono.fromCallable(() -> companyOverviewRepository.save(overview))
+                            .map(saved -> List.of(saved))
+                    )
+                    .onErrorResume(e -> {
+                        LOGGER.error("API call failed for company overview of {} and no cached data available.", symbol);
+                        return Mono.error(e);
+                    });
+        }));
     }
 
     public Page<CompanyOverview> findAllCompanyOverview(Pageable pageable) {

@@ -50,7 +50,7 @@ public class FMPService {
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<List<GlobalQuote>>() {})
                 .onErrorResume(e -> {
-                    LOGGER.error("Error fetching historical dividend adjusted EOD price for symbol: " + symbol, e);
+                    LOGGER.error("Error fetching historical dividend adjusted EOD price for symbol: " + symbol);
                     return Mono.just(java.util.Collections.<GlobalQuote>emptyList());
                 });
     }
@@ -88,7 +88,7 @@ public class FMPService {
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<List<IndexData>>() {})
                 .onErrorResume(e -> {
-                    LOGGER.error("Error fetching index historical data for symbol: " + symbol, e);
+                    LOGGER.error("Error fetching index historical data for symbol: " + symbol);
                     return Mono.just(java.util.Collections.<IndexData>emptyList());
                 });
     }

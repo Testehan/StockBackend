@@ -12,6 +12,8 @@ import com.testehan.finana.repository.RevenueGeographicSegmentationRepository;
 import com.testehan.finana.repository.RevenueSegmentationDataRepository;
 import com.testehan.finana.util.DateUtils;
 import com.testehan.finana.util.data.FmpDataCleaner;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
@@ -20,6 +22,8 @@ import java.time.LocalDateTime;
 
 @Service
 public class FinancialStatementService {
+    private static final Logger LOGGER = LoggerFactory.getLogger(FinancialStatementService.class);
+    
     private final FMPService fmpService;
     private final IncomeStatementRepository incomeStatementRepository;
     private final BalanceSheetRepository balanceSheetRepository;
@@ -54,10 +58,15 @@ public class FinancialStatementService {
                 incomeStatementData.setQuarterlyReports(FmpDataCleaner.cleanIncomeStatements(tuple.getT2()));
                 incomeStatementData.setLastUpdated(LocalDateTime.now());
                 return Mono.fromCallable(() -> incomeStatementRepository.save(incomeStatementData));
-            }).onErrorResume(DuplicateKeyException.class, e ->
-                Mono.fromCallable(() -> incomeStatementRepository.findBySymbol(symbol.toUpperCase()))
-                        .flatMap(opt -> opt.map(Mono::just).orElseGet(Mono::empty))
-            );
+            }).onErrorResume(e -> {
+                if (existing.isPresent()) {
+                    LOGGER.warn("API call failed for income statements of {}. Falling back to cached data from {}.", 
+                                symbol, existing.get().getLastUpdated());
+                    return Mono.just(existing.get());
+                }
+                LOGGER.error("API call failed for income statements of {} and no cached data available.", symbol);
+                return Mono.error(e);
+            });
         });
     }
 
@@ -77,10 +86,15 @@ public class FinancialStatementService {
                 balanceSheetData.setQuarterlyReports(FmpDataCleaner.cleanBalanceSheets(tuple.getT2()));
                 balanceSheetData.setLastUpdated(LocalDateTime.now());
                 return Mono.fromCallable(() -> balanceSheetRepository.save(balanceSheetData));
-            }).onErrorResume(DuplicateKeyException.class, e ->
-                Mono.fromCallable(() -> balanceSheetRepository.findBySymbol(symbol.toUpperCase()))
-                        .flatMap(opt -> opt.map(Mono::just).orElseGet(Mono::empty))
-            );
+            }).onErrorResume(e -> {
+                if (existing.isPresent()) {
+                    LOGGER.warn("API call failed for balance sheet of {}. Falling back to cached data from {}.", 
+                                symbol, existing.get().getLastUpdated());
+                    return Mono.just(existing.get());
+                }
+                LOGGER.error("API call failed for balance sheet of {} and no cached data available.", symbol);
+                return Mono.error(e);
+            });
         });
     }
 
@@ -100,10 +114,15 @@ public class FinancialStatementService {
                 cashFlowData.setQuarterlyReports(FmpDataCleaner.cleanCashFlows(tuple.getT2()));
                 cashFlowData.setLastUpdated(LocalDateTime.now());
                 return Mono.fromCallable(() -> cashFlowRepository.save(cashFlowData));
-            }).onErrorResume(DuplicateKeyException.class, e ->
-                Mono.fromCallable(() -> cashFlowRepository.findBySymbol(symbol.toUpperCase()))
-                        .flatMap(opt -> opt.map(Mono::just).orElseGet(Mono::empty))
-            );
+            }).onErrorResume(e -> {
+                if (existing.isPresent()) {
+                    LOGGER.warn("API call failed for cash flow of {}. Falling back to cached data from {}.", 
+                                symbol, existing.get().getLastUpdated());
+                    return Mono.just(existing.get());
+                }
+                LOGGER.error("API call failed for cash flow of {} and no cached data available.", symbol);
+                return Mono.error(e);
+            });
         });
     }
 
@@ -121,10 +140,15 @@ public class FinancialStatementService {
                         data.setLastUpdated(LocalDateTime.now());
                         return Mono.fromCallable(() -> revenueSegmentationDataRepository.save(data));
                     })
-                    .onErrorResume(DuplicateKeyException.class, e ->
-                        Mono.fromCallable(() -> revenueSegmentationDataRepository.findBySymbol(symbol.toUpperCase()))
-                                .flatMap(opt -> opt.map(Mono::just).orElseGet(Mono::empty))
-                    );
+                    .onErrorResume(e -> {
+                        if (existing.isPresent()) {
+                            LOGGER.warn("API call failed for revenue segmentation of {}. Falling back to cached data from {}.", 
+                                        symbol, existing.get().getLastUpdated());
+                            return Mono.just(existing.get());
+                        }
+                        LOGGER.error("API call failed for revenue segmentation of {} and no cached data available.", symbol);
+                        return Mono.error(e);
+                    });
         });
     }
 
@@ -142,10 +166,15 @@ public class FinancialStatementService {
                         data.setLastUpdated(LocalDateTime.now());
                         return Mono.fromCallable(() -> revenueGeographicSegmentationRepository.save(data));
                     })
-                    .onErrorResume(DuplicateKeyException.class, e ->
-                        Mono.fromCallable(() -> revenueGeographicSegmentationRepository.findBySymbol(symbol.toUpperCase()))
-                                .flatMap(opt -> opt.map(Mono::just).orElseGet(Mono::empty))
-                    );
+                    .onErrorResume(e -> {
+                        if (existing.isPresent()) {
+                            LOGGER.warn("API call failed for revenue geographic segmentation of {}. Falling back to cached data from {}.", 
+                                        symbol, existing.get().getLastUpdated());
+                            return Mono.just(existing.get());
+                        }
+                        LOGGER.error("API call failed for revenue geographic segmentation of {} and no cached data available.", symbol);
+                        return Mono.error(e);
+                    });
         });
     }
 

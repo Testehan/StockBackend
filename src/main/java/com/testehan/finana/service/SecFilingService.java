@@ -62,6 +62,15 @@ public class SecFilingService {
                                     secFilingsUrls.setLastUpdated(LocalDateTime.now());
                                     return Mono.fromCallable(() -> secFilingUrlsRepository.save(secFilingsUrls));
                                 })
+                                .onErrorResume(e -> {
+                                    if (existingSecFilingsOptional.isPresent()) {
+                                        LOGGER.warn("API call failed for SEC filings of {}. Keeping existing data from {}.", 
+                                                    symbol, existingSecFilingsOptional.get().getLastUpdated());
+                                        return Mono.just(existingSecFilingsOptional.get());
+                                    }
+                                    LOGGER.error("API call failed for SEC filings of {} and no cached data available.", symbol);
+                                    return Mono.empty();
+                                })
                 )
                 .then();
     }
