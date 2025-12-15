@@ -1,9 +1,9 @@
 package com.testehan.finana.controller;
 
-import com.testehan.deepresearch.model.JobResponse;
 import com.testehan.deepresearch.model.JobStatusResponse;
-import com.testehan.deepresearch.model.ResearchRequest;
+import com.testehan.finana.model.reporting.DeepResearchReport;
 import com.testehan.finana.service.DeepResearchService;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
@@ -17,13 +17,15 @@ public class DeepResearchController {
         this.deepResearchService = deepResearchService;
     }
 
-    @PostMapping
-    public Mono<JobResponse> createResearch(@RequestBody String stockTicker) {
-        return deepResearchService.createResearch(stockTicker);
-    }
-
-    @GetMapping("/{jobId}")
-    public Mono<JobStatusResponse> getResearchStatus(@PathVariable String jobId) {
-        return deepResearchService.getResearchStatus(jobId);
+    @GetMapping("/{stockTicker}")
+    public Mono<ResponseEntity<?>> getResearch(@PathVariable String stockTicker) {
+        return deepResearchService.getResearchReport(stockTicker)
+                .map(report -> {
+                    if (report != null) {
+                        return ResponseEntity.ok(report);
+                    } else {
+                        return ResponseEntity.ok().body("No deep research report found for " + stockTicker.toUpperCase());
+                    }
+                });
     }
 }
