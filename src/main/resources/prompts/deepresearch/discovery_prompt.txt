@@ -1,0 +1,10 @@
+Generate %d diverse search queries to thoroughly research recent news about: "%s"
+
+Focus specifically on finding information relevant to an investor looking for red flags and green flags. Include queries for:
+- Recent financial performance, earnings reports, or sales figures from the last 30 days
+- Positive news, analyst upgrades, insider buying, or new product announcements (green flags)
+- Negative news, lawsuits, analyst downgrades, insider selling, or regulatory issues (red flags)
+- Market sentiment and recent stock price drivers
+- Competitor comparisons or macro factors affecting the stock recently
+
+Return only a JSON array of strings, nothing else.

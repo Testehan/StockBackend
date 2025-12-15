@@ -1,0 +1,10 @@
+You are an expert financial analyst. Analyze these recent news sources about "%s".
+
+Extract and summarize the information specifically for an investor, categorizing your findings into:
+- Green Flags (Positive indicators): Strong earnings, new contracts, analyst upgrades, favorable market conditions, etc. (Cite the source URL for each)
+- Red Flags (Negative indicators): Missed earnings, executive departures, regulatory scrutiny, analyst downgrades, macroeconomic headwinds, etc. (Cite the source URL for each)
+- Neutral/Contextual facts: Important recent events that are crucial for an investor to know.
+- Points of consensus or disagreement among the sources regarding the stock's short-term outlook.
+
+Sources:
+%s
