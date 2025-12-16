@@ -1,6 +1,7 @@
 package com.testehan.finana.service;
 
 import com.testehan.deepresearch.model.JobResponse;
+import com.testehan.deepresearch.model.ResearchJob.JobStatus;
 import com.testehan.deepresearch.model.JobStatusResponse;
 import com.testehan.deepresearch.model.ResearchJob;
 import com.testehan.deepresearch.model.ResearchReport;
@@ -81,7 +82,7 @@ public class DeepResearchService {
                         report.setJobId(response.jobId());
                         report.setStockTicker(stockTicker.toUpperCase());
                         report.setTopic(response.topic());
-                        report.setStatus(response.status());
+                        report.setStatus(response.status().toString());
                         report.setCreatedAt(LocalDateTime.now());
                         deepResearchReportRepository.save(report);
                         LOGGER.info("Saved initial deep research report record for jobId: {}", response.jobId());
@@ -96,7 +97,7 @@ public class DeepResearchService {
     public Mono<JobStatusResponse> getJobStatus(String jobId) {
         return Mono.fromCallable(() -> deepResearchReportRepository.findById(jobId))
                 .flatMap(optionalReport -> {
-                    if (optionalReport.isPresent() && "COMPLETED".equals(optionalReport.get().getStatus())) {
+                    if (optionalReport.isPresent() && JobStatus.COMPLETED.toString().equals(optionalReport.get().getStatus())) {
                         DeepResearchReport dbReport = optionalReport.get();
                         ResearchReport researchReport = dbReport.getReport();
                         if (researchReport != null) {
@@ -108,7 +109,7 @@ public class DeepResearchService {
                                     researchReport.sources(),
                                     researchReport.diagnostics()
                             );
-                            return Mono.just(new JobStatusResponse(dbReport.getStatus(), result, null));
+                            return Mono.just(new JobStatusResponse(JobStatus.fromValue(dbReport.getStatus()).toString(), result, null));
                         }
                         return fetchStatusFromExternalService(jobId, dbReport);
                     } else {
@@ -124,9 +125,9 @@ public class DeepResearchService {
                 .retrieve()
                 .bodyToMono(JobStatusResponse.class)
                 .doOnNext(response -> {
-                    if ("COMPLETED".equals(response.status())) {
+                    if (JobStatus.COMPLETED.toString().equals(response.status())) {
                         saveCompletedReport(jobId, response, existingReport);
-                    } else if ("FAILED".equals(response.status())) {
+                    } else if (JobStatus.FAILED.toString().equals(response.status())) {
                         updateFailedReport(jobId, response, existingReport);
                     }
                 })
@@ -136,7 +137,7 @@ public class DeepResearchService {
     private void saveCompletedReport(String jobId, JobStatusResponse response, DeepResearchReport existingReport) {
         DeepResearchReport dbReport = existingReport != null ? existingReport : new DeepResearchReport();
         dbReport.setJobId(jobId);
-        dbReport.setStatus(response.status());
+        dbReport.setStatus(response.status().toString());
 
         ResearchJob.JobResult jobResult = response.result();
         if (jobResult != null) {
@@ -161,7 +162,7 @@ public class DeepResearchService {
 
     private void updateFailedReport(String jobId, JobStatusResponse response, DeepResearchReport existingReport) {
         if (existingReport != null) {
-            existingReport.setStatus(response.status());
+            existingReport.setStatus(response.status().toString());
             deepResearchReportRepository.save(existingReport);
             LOGGER.info("Updated status to FAILED for jobId: {}", jobId);
         }
