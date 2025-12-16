@@ -20,7 +20,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.util.List;
 
 @RestController
-@RequestMapping("/stock/valuation")
+@RequestMapping("/stocks/valuation")
 public class ValuationController {
 
     private static final Logger logger = LoggerFactory.getLogger(ValuationController.class);
