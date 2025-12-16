@@ -15,10 +15,10 @@ import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 @Service
 public class TranscriptAnalysisService {
@@ -97,7 +97,7 @@ public class TranscriptAnalysisService {
             return null;
         }
 
-        transcripts.sort((a, b) -> b.getQuarter().compareTo(a.getQuarter()));
+        transcripts.sort(Comparator.comparing(QuarterlyEarningsTranscript::getQuarter, Comparator.nullsLast(Comparator.reverseOrder())));
 
         QuarterlyEarningsTranscript targetTranscript = findTargetTranscript(transcripts, quarter);
         if (targetTranscript == null) {

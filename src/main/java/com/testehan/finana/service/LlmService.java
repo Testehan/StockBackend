@@ -9,6 +9,7 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.google.genai.GoogleGenAiChatOptions;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
@@ -21,12 +22,19 @@ public class LlmService {
     private static final Logger logger = LoggerFactory.getLogger(LlmService.class);
 
     private final ChatModel chatModel;
+    private final ChatClient ollamaChatClient;
     private final LlmCostService llmCostService;
     private final ChatClient chatClientWithTools;
 
-    public LlmService(ChatModel chatModel, LlmCostService llmCostService, ChatClient.Builder chatClientBuilder) {
+    public LlmService(
+            @Qualifier("googleGenAiChatModel") ChatModel chatModel,
+            ChatClient.Builder chatClientBuilder,
+            LlmCostService llmCostService) {
         this.chatModel = chatModel;
         this.llmCostService = llmCostService;
+        
+        // This ChatClient will use the auto-configured Ollama model via spring.ai.model.chat.type=ollama
+        this.ollamaChatClient = chatClientBuilder.build();
         
         GoogleGenAiChatOptions options = GoogleGenAiChatOptions.builder()
                 .temperature(0.1)
@@ -164,5 +172,43 @@ public class LlmService {
             llmCostService.logUsage(operationType, stockTicker, e.getMessage());
             throw e;
         }
+    }
+
+    // ==================== Ollama Methods ====================
+    // These methods use the local Ollama model for testing purposes (no cost tracking)
+    // Using ChatClient which is auto-configured via spring.ai.model.chat.type=ollama
+
+    public String callLlmWithOllama(String query) {
+        return callLlmWithOllama(query, "ollama_development", "ollama_development");
+    }
+
+    public String callLlmWithOllama(String query, String operationType, String stockTicker) {
+        try {
+            String response = ollamaChatClient.prompt(query).call().content();
+            logger.info("Ollama call completed for operation: {}, symbol: {}", operationType, stockTicker);
+            return response;
+        } catch (Exception e) {
+            logger.error("Ollama call failed for operation: {}, symbol: {}, error: {}", operationType, stockTicker, e.getMessage());
+            throw e;
+        }
+    }
+
+    public String callLlmWithOllama(Prompt query, String operationType, String stockTicker) {
+        try {
+            String response = ollamaChatClient.prompt(query).call().content();
+            logger.info("Ollama call completed for operation: {}, symbol: {}", operationType, stockTicker);
+            return response;
+        } catch (Exception e) {
+            logger.error("Ollama call failed for operation: {}, symbol: {}, error: {}", operationType, stockTicker, e.getMessage());
+            throw e;
+        }
+    }
+
+    public Flux<String> streamLlmWithOllama(Prompt prompt, String operationType, String stockTicker) {
+        return ollamaChatClient.prompt(prompt)
+                .stream()
+                .content()
+                .doOnComplete(() -> logger.info("Ollama stream completed for operation: {}, symbol: {}", operationType, stockTicker))
+                .doOnError(e -> logger.error("Ollama stream failed for operation: {}, symbol: {}, error: {}", operationType, stockTicker, e.getMessage()));
     }
 }

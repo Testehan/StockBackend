@@ -29,7 +29,7 @@ public class MultipleRisksCalculator {
     private final SecFilingRepository secFilingRepository;
     private final LlmService llmService;
     private final ApplicationEventPublisher eventPublisher;
-
+// todo maybe i should also add here the latest q&a with analysts and investors from db..
     @Value("classpath:/prompts/negatives_prompt.txt")
     private Resource multipleNegativesPrompt;
 

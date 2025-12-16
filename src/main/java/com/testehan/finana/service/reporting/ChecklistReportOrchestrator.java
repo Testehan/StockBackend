@@ -119,11 +119,13 @@ public class ChecklistReportOrchestrator {
                 .doOnSuccess(v -> {
                     eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Financial data check complete."));
                     ReportGenerator generator = reportGenerators.get(reportType);
-                    try {
-                        generator.generate(ticker, reportType, sseEmitter);
-                    } catch (Exception e) {
-                        eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, e));
-                    }
+                    checklistExecutor.execute(() -> {
+                        try {
+                            generator.generate(ticker, reportType, sseEmitter);
+                        } catch (Exception e) {
+                            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, e));
+                        }
+                    });
                 })
                 .doOnError(error -> {
                     eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, error));

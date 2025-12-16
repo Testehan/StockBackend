@@ -1,9 +1,9 @@
 package com.testehan.finana.config;
 
-import com.testehan.finana.model.reporting.ReportItem;
 import com.testehan.finana.model.llm.responses.FerolMoatAnalysisLlmResponse;
 import com.testehan.finana.model.llm.responses.FerolNegativesAnalysisLlmResponse;
 import com.testehan.finana.model.llm.responses.TAMScoreExplanationResponse;
+import com.testehan.finana.model.reporting.ReportItem;
 import com.testehan.finana.service.reporting.calc.ReportItemCalculator;
 import com.testehan.finana.service.reporting.calc.negatives.CurrencyRiskCalculator;
 import com.testehan.finana.service.reporting.calc.negatives.DilutionRiskCalculator;

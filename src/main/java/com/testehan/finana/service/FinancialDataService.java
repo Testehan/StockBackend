@@ -5,6 +5,7 @@ import com.testehan.finana.model.finstatement.*;
 import com.testehan.finana.model.ratio.FinancialRatiosData;
 import com.testehan.finana.model.ratio.FinancialRatiosReport;
 import com.testehan.finana.model.ratio.FmpRatios;
+import com.testehan.finana.model.ratio.FmpRatiosTtm;
 import com.testehan.finana.repository.FinancialRatiosRepository;
 import com.testehan.finana.repository.GeneratedReportRepository;
 import com.testehan.finana.util.DateUtils;
@@ -168,6 +169,7 @@ public class FinancialDataService {
         }
 
         fmpService.getFinancialRatiosTtm(ticker)
+                .filter(fmpRatios -> hasNonNullValues(fmpRatios))
                 .map(fmpRatios -> {
                     FinancialRatiosReport report = new FinancialRatiosReport();
                     report.setDate(LocalDateTime.now().toLocalDate().toString());
@@ -210,6 +212,9 @@ public class FinancialDataService {
                 })
                 .doOnError(e -> {
                     LOGGER.warn("API call failed for TTM financial ratios of {}. Keeping existing data.", ticker);
+                    if (ratiosData != null) {
+                        financialRatiosRepository.save(ratiosData);
+                    }
                 })
                 .subscribe();
     }
@@ -289,5 +294,14 @@ public class FinancialDataService {
 
     public boolean hasGeneratedReport(String symbol) {
         return generatedReportRepository.findBySymbol(symbol).isPresent();
+    }
+
+    private boolean hasNonNullValues(FmpRatiosTtm fmpRatios) {
+        if (fmpRatios == null) return false;
+        return fmpRatios.getPriceToEarningsRatioTTM() != null
+                || fmpRatios.getPriceToBookRatioTTM() != null
+                || fmpRatios.getPriceToSalesRatioTTM() != null
+                || fmpRatios.getPriceToFreeCashFlowRatioTTM() != null
+                || fmpRatios.getEnterpriseValueMultipleTTM() != null;
     }
 }
