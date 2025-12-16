@@ -46,7 +46,8 @@ public class DeepResearchService {
 
     public Mono<DeepResearchReport> getResearchReport(String stockTicker) {
         LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
-        return Mono.fromCallable(() -> deepResearchReportRepository.findFirstByStockTickerAndCreatedAtAfterOrderByCreatedAtDesc(stockTicker.toUpperCase(), thirtyDaysAgo))
+        LOGGER.info("Looking for DeepResearchReport with ticker={} and createdAt after {}", stockTicker, thirtyDaysAgo);
+        return Mono.fromCallable(() -> deepResearchReportRepository.findFirstByStockTickerAndCreatedAtAfterOrderByCreatedAtDesc(stockTicker, thirtyDaysAgo))
                 .flatMap(optionalReport -> {
                     if (optionalReport.isPresent()) {
                         return Mono.just(optionalReport.get());
