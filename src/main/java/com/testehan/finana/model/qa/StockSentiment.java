@@ -11,9 +11,9 @@ import java.util.List;
 @Data
 public class StockSentiment {
     private String ticker;
-    private int score;
+    private Integer score;
     private String label;
-    private int sourcesAnalyzed;
+    private Integer sourcesAnalyzed;
     private String summary;
     private List<String> catalysts;
     private LocalDateTime date;

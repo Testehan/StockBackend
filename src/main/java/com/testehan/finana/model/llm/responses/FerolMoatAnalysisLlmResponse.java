@@ -24,7 +24,7 @@ public class FerolMoatAnalysisLlmResponse {
     private Integer moatDirectionScore;
     private String moatDirectionExplanation;
 
-    public FerolMoatAnalysisLlmResponse(int failedOperationScore, String failedExplanation){
+    public FerolMoatAnalysisLlmResponse(Integer failedOperationScore, String failedExplanation){
         this.networkEffectScore = failedOperationScore;
         this.networkEffectExplanation = failedExplanation;
         this.switchingCostsScore= failedOperationScore;

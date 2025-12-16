@@ -30,7 +30,7 @@ public class FerolNegativesAnalysisLlmResponse {
     private Integer antitrustConcernsScore;
     private String antitrustConcernsExplanation;
 
-    public FerolNegativesAnalysisLlmResponse(int failedOperationScore, String failedExplanation){
+    public FerolNegativesAnalysisLlmResponse(Integer failedOperationScore, String failedExplanation){
         this.accountingIrregularitiesScore = failedOperationScore;
         this.accountingIrregularitiesExplanation = failedExplanation;
 

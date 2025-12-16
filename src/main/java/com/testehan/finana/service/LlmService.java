@@ -1,6 +1,5 @@
 package com.testehan.finana.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.testehan.finana.service.mcp.StockDataTools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,12 +23,10 @@ public class LlmService {
     private final ChatModel chatModel;
     private final LlmCostService llmCostService;
     private final ChatClient chatClientWithTools;
-    private final ObjectMapper objectMapper;
 
-    public LlmService(ChatModel chatModel, LlmCostService llmCostService, ChatClient.Builder chatClientBuilder, ObjectMapper objectMapper) {
+    public LlmService(ChatModel chatModel, LlmCostService llmCostService, ChatClient.Builder chatClientBuilder) {
         this.chatModel = chatModel;
         this.llmCostService = llmCostService;
-        this.objectMapper = objectMapper;
         
         GoogleGenAiChatOptions options = GoogleGenAiChatOptions.builder()
                 .temperature(0.1)
