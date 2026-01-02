@@ -48,11 +48,11 @@ public class PortfolioController {
                 item.put("purchasePricePerStock", stock.getPurchasePricePerStock());
                 item.put("type", "stock");
 
-                quoteService.getLastStockQuote(stock.getSymbol())
+                quoteService.getLastStockQuote(stock.getSymbol().toUpperCase())
                         .onErrorResume(e -> Mono.empty())
                         .blockOptional()
                         .ifPresentOrElse(
-                                quote -> item.put("currentPrice", quote.getPrice()),
+                                quote -> item.put("currentPrice", quote.getAdjClose()),
                                 () -> item.put("currentPrice", stock.getPurchasePricePerStock())
                         );
 
