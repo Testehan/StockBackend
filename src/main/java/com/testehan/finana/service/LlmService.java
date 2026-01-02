@@ -4,6 +4,7 @@ import com.testehan.finana.service.mcp.StockDataTools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
@@ -25,17 +26,19 @@ public class LlmService {
     private final ChatClient ollamaChatClient;
     private final LlmCostService llmCostService;
     private final ChatClient chatClientWithTools;
+    private final StockDataTools stockDataTools;
 
     public LlmService(
             @Qualifier("googleGenAiChatModel") ChatModel chatModel,
             ChatClient.Builder chatClientBuilder,
-            LlmCostService llmCostService) {
+            LlmCostService llmCostService, StockDataTools stockDataTools) {
         this.chatModel = chatModel;
         this.llmCostService = llmCostService;
         
         // This ChatClient will use the auto-configured Ollama model via spring.ai.model.chat.type=ollama
         this.ollamaChatClient = chatClientBuilder.build();
-        
+        this.stockDataTools = stockDataTools;
+
         GoogleGenAiChatOptions options = GoogleGenAiChatOptions.builder()
                 .temperature(0.1)
                 .googleSearchRetrieval(false)
@@ -136,7 +139,7 @@ public class LlmService {
                 });
     }
 
-    public String callLlmWithTools(String question, StockDataTools stockDataTools, String operationType, String stockTicker) {
+    public String callLlmWithTools(String question, String operationType, String stockTicker) {
         String systemPrompt = """
             You are a financial analyst assistant. When the user asks about a stock,
             you must use the available tools to fetch data from the database.
@@ -225,5 +228,26 @@ public class LlmService {
                 .content()
                 .doOnComplete(() -> logger.info("Ollama stream completed for operation: {}, symbol: {}", operationType, stockTicker))
                 .doOnError(e -> logger.error("Ollama stream failed for operation: {}, symbol: {}, error: {}", operationType, stockTicker, e.getMessage()));
+    }
+
+    public String callLlmWithOllamaAndTools(String systemPrompt, java.util.List<Message> messages) {
+        try {
+            Map<String, Object> toolContext = new HashMap<>();
+            Map<String, String> tickerHolder = new HashMap<>();
+            toolContext.put("ticker_holder", tickerHolder);
+
+            String response = ollamaChatClient.prompt()
+                    .system(systemPrompt)
+                    .messages(messages)
+                    .tools(stockDataTools)
+                    .toolContext(toolContext)
+                    .call()
+                    .content();
+            logger.info("Ollama call with tools and chat memory completed successfully");
+            return response;
+        } catch (Exception e) {
+            logger.error("Ollama call with tools and chat memory failed, error: {}", e.getMessage());
+            throw e;
+        }
     }
 }

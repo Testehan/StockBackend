@@ -71,7 +71,7 @@ public class ChatController {
 
         List<Message> chatHistory = chatMemory.get(conversationId);
 
-        String response = llmService.callLlmWithOllama(fullSystemPrompt, chatHistory);
+        String response = llmService.callLlmWithOllamaAndTools(fullSystemPrompt, chatHistory);
 
         chatMemory.add(conversationId, new AssistantMessage(response));
 
