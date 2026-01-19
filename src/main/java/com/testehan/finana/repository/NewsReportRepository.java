@@ -1,15 +1,15 @@
 package com.testehan.finana.repository;
 
-import com.testehan.finana.model.reporting.NewsReport;
+import com.testehan.finana.model.reporting.NewsReportEntity;
 import org.springframework.data.mongodb.repository.MongoRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
-public interface NewsReportRepository extends MongoRepository<NewsReport, String> {
-    List<NewsReport> findByStockTickerAndCreatedAtAfterOrderByCreatedAtDesc(String stockTicker, LocalDateTime date);
-    Optional<NewsReport> findFirstByStockTickerAndCreatedAtAfterOrderByCreatedAtDesc(String stockTicker, LocalDateTime date);
-    List<NewsReport> findAllByStatus(String status);
-    List<NewsReport> findByCreatedAtBefore(LocalDateTime date);
+public interface NewsReportRepository extends MongoRepository<NewsReportEntity, String> {
+    List<NewsReportEntity> findByStockTickerAndCreatedAtAfterOrderByCreatedAtDesc(String stockTicker, LocalDateTime date);
+    Optional<NewsReportEntity> findFirstByStockTickerAndCreatedAtAfterOrderByCreatedAtDesc(String stockTicker, LocalDateTime date);
+    List<NewsReportEntity> findAllByStatus(String status);
+    List<NewsReportEntity> findByCreatedAtBefore(LocalDateTime date);
 }

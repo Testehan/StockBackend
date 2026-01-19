@@ -2,7 +2,7 @@ package com.testehan.finana.service.periodic;
 
 import com.testehan.deepresearch.model.JobResponse;
 import com.testehan.deepresearch.model.ResearchJob.JobStatus;
-import com.testehan.finana.model.reporting.NewsReport;
+import com.testehan.finana.model.reporting.NewsReportEntity;
 import com.testehan.finana.model.research.ResearchJobRecord;
 import com.testehan.finana.model.user.UserStock;
 import com.testehan.finana.model.user.UserStockStatus;
@@ -48,14 +48,14 @@ public class DeepResearchScheduler {
         // loadRelevantStockTickers();
 
         for (String ticker : tickersToTrack) {
-            List<NewsReport> existingReports = newsReportRepository
+            List<NewsReportEntity> existingReports = newsReportRepository
                     .findByStockTickerAndCreatedAtAfterOrderByCreatedAtDesc(ticker, oneMonthAgo);
 
             if (existingReports.isEmpty()) {
                 LOGGER.info("No recent report found for {}. Triggering new research...", ticker);
                 triggerResearch(ticker);
             } else {
-                NewsReport latestReport = existingReports.get(0);
+                NewsReportEntity latestReport = existingReports.get(0);
                 if (!JobStatus.COMPLETED.toString().equals(latestReport.getStatus())) {
                     LOGGER.info("Report for {} has status {}. Re-triggering...", ticker, latestReport.getStatus());
                     triggerResearch(ticker);

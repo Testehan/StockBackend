@@ -43,6 +43,18 @@ public class DeepResearchController {
                 });
     }
 
+    @GetMapping("/{stockTicker}/earnings")
+    public Mono<ResponseEntity<?>> getEarningsPresentation(@PathVariable String stockTicker) {
+        return deepResearchService.getAllEarningsPresentationReports(stockTicker.toUpperCase())
+                .map(reports -> {
+                    if (reports.isEmpty()) {
+                        return ResponseEntity.ok().body("No earnings presentations found for " + stockTicker.toUpperCase());
+                    } else {
+                        return ResponseEntity.ok(reports);
+                    }
+                });
+    }
+
     @PostMapping("/{stockTicker}/document")
     public Mono<ResponseEntity<String>> uploadDocument(
             @PathVariable String stockTicker,

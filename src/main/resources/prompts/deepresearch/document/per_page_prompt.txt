@@ -38,6 +38,7 @@ Output format (strict JSON):
 Rules:
 - Return ONLY JSON. No explanations, no markdown.
 - Use null for missing fields.
+- Keep numbers in the exact format they are presented (e.g., "615 million", "€4.2B", etc).
 - Preserve original wording exactly when possible.
 - Keep bullet points as concise strings.
 - If structure is unclear, put content into "text_blocks".

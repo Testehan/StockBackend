@@ -2,8 +2,8 @@ package com.testehan.finana.service;
 
 import com.testehan.deepresearch.model.*;
 import com.testehan.deepresearch.model.ResearchJob.JobStatus;
-import com.testehan.finana.model.reporting.EarningsPresentationReport;
-import com.testehan.finana.model.reporting.NewsReport;
+import com.testehan.finana.model.reporting.EarningsPresentationReportEntity;
+import com.testehan.finana.model.reporting.NewsReportEntity;
 import com.testehan.finana.model.research.ResearchJobRecord;
 import com.testehan.finana.repository.EarningsPresentationReportRepository;
 import com.testehan.finana.repository.NewsReportRepository;
@@ -75,7 +75,7 @@ public class DeepResearchService {
         LOGGER.info("Tracking job {} for ticker {} with topic {}", jobId, ticker, topic);
     }
 
-    public Mono<NewsReport> getNewsReport(String stockTicker) {
+    public Mono<NewsReportEntity> getNewsReport(String stockTicker) {
         LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
         LOGGER.info("Looking for NewsReport with ticker={} and createdAt after {}", stockTicker, thirtyDaysAgo);
         return Mono.fromCallable(() -> newsReportRepository.findFirstByStockTickerAndCreatedAtAfterOrderByCreatedAtDesc(stockTicker, thirtyDaysAgo))
@@ -88,8 +88,8 @@ public class DeepResearchService {
                 });
     }
 
-    public Mono<EarningsPresentationReport> getEarningsPresentationReport(String stockTicker) {
-        LOGGER.info("Looking for EarningsPresentationReport with ticker={}", stockTicker);
+    public Mono<EarningsPresentationReportEntity> getEarningsPresentationReport(String stockTicker) {
+        LOGGER.info("Looking for latest EarningsPresentationReport with ticker={}", stockTicker);
         return Mono.fromCallable(() -> earningsPresentationReportRepository.findFirstByStockTickerOrderByCreatedAtDesc(stockTicker))
                 .flatMap(optionalReport -> {
                     if (optionalReport.isPresent()) {
@@ -98,6 +98,11 @@ public class DeepResearchService {
                         return Mono.empty();
                     }
                 });
+    }
+
+    public Mono<List<EarningsPresentationReportEntity>> getAllEarningsPresentationReports(String stockTicker) {
+        LOGGER.info("Looking for all EarningsPresentationReports with ticker={}", stockTicker);
+        return Mono.fromCallable(() -> earningsPresentationReportRepository.findByStockTickerOrderByCreatedAtDesc(stockTicker));
     }
 
     public Mono<JobResponse> triggerNewResearch(String stockTicker) {
@@ -123,7 +128,7 @@ public class DeepResearchService {
                     .retrieve()
                     .bodyToMono(JobResponse.class)
                     .doOnNext(response -> {
-                        NewsReport report = new NewsReport();
+                        NewsReportEntity report = new NewsReportEntity();
                         report.setJobId(response.jobId());
                         report.setStockTicker(stockTicker.toUpperCase());
                         report.setTopic(response.topic());
@@ -165,7 +170,7 @@ public class DeepResearchService {
             return Mono.fromCallable(() -> newsReportRepository.findById(record.getJobId()))
                     .flatMap(optionalReport -> {
                         if (optionalReport.isPresent()) {
-                            NewsReport report = optionalReport.get();
+                            NewsReportEntity report = optionalReport.get();
                             return Mono.just(new JobStatusResponse(record.getStatus(), report.getReport(), null));
                         }
                         return Mono.just(new JobStatusResponse(record.getStatus(), null, null));
@@ -174,7 +179,7 @@ public class DeepResearchService {
             return Mono.fromCallable(() -> earningsPresentationReportRepository.findById(record.getJobId()))
                     .flatMap(optionalReport -> {
                         if (optionalReport.isPresent()) {
-                            EarningsPresentationReport report = optionalReport.get();
+                            EarningsPresentationReportEntity report = optionalReport.get();
                             return Mono.just(new JobStatusResponse(record.getStatus(), report.getReport(), null));
                         }
                         return Mono.just(new JobStatusResponse(record.getStatus(), null, null));
@@ -209,21 +214,21 @@ public class DeepResearchService {
         if (reportResult != null && existingRecord != null) {
             ResearchTopic topic = existingRecord.getTopic();
             if (topic == ResearchTopic.NEWS) {
-                NewsReport newsReport = new NewsReport();
+                NewsReportEntity newsReport = new NewsReportEntity();
                 newsReport.setJobId(jobId);
                 newsReport.setStockTicker(existingRecord.getStockTicker());
                 newsReport.setTopic(topic);
                 newsReport.setStatus(response.status().toString());
-                newsReport.setReport(reportResult);
+                newsReport.setReport((NewsReport) reportResult);
                 newsReport.setCreatedAt(LocalDateTime.now());
                 newsReportRepository.save(newsReport);
             } else if (topic == ResearchTopic.EARNINGS_PRESENTATION) {
-                EarningsPresentationReport earningsReport = new EarningsPresentationReport();
+                EarningsPresentationReportEntity earningsReport = new EarningsPresentationReportEntity();
                 earningsReport.setJobId(jobId);
                 earningsReport.setStockTicker(existingRecord.getStockTicker());
                 earningsReport.setTopic(topic);
                 earningsReport.setStatus(response.status().toString());
-                earningsReport.setReport(reportResult);
+                earningsReport.setReport((EarningsPresentationReport) reportResult);
                 earningsReport.setCreatedAt(LocalDateTime.now());
                 earningsPresentationReportRepository.save(earningsReport);
             }
@@ -264,7 +269,7 @@ public class DeepResearchService {
                     .retrieve()
                     .bodyToMono(JobResponse.class)
                     .doOnNext(response -> {
-                        EarningsPresentationReport report = new EarningsPresentationReport();
+                        EarningsPresentationReportEntity report = new EarningsPresentationReportEntity();
                         report.setJobId(response.jobId());
                         report.setStockTicker(stockTicker.toUpperCase());
                         report.setTopic(response.topic());
