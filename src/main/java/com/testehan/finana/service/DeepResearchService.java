@@ -1,17 +1,20 @@
 package com.testehan.finana.service;
 
-import com.testehan.deepresearch.model.JobResponse;
+import com.testehan.deepresearch.model.*;
 import com.testehan.deepresearch.model.ResearchJob.JobStatus;
-import com.testehan.deepresearch.model.JobStatusResponse;
-import com.testehan.deepresearch.model.ResearchJob;
-import com.testehan.deepresearch.model.ResearchReport;
-import com.testehan.deepresearch.model.ResearchRequest;
-import com.testehan.finana.model.reporting.DeepResearchReport;
-import com.testehan.finana.repository.DeepResearchReportRepository;
+import com.testehan.finana.model.reporting.EarningsPresentationReport;
+import com.testehan.finana.model.reporting.NewsReport;
+import com.testehan.finana.model.research.ResearchJobRecord;
+import com.testehan.finana.repository.EarningsPresentationReportRepository;
+import com.testehan.finana.repository.NewsReportRepository;
+import com.testehan.finana.repository.ResearchJobRecordRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
+import org.springframework.http.MediaType;
+import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StreamUtils;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -20,13 +23,16 @@ import reactor.core.publisher.Mono;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Service
 public class DeepResearchService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(DeepResearchService.class);
     private final WebClient webClient;
-    private final DeepResearchReportRepository deepResearchReportRepository;
+    private final NewsReportRepository newsReportRepository;
+    private final EarningsPresentationReportRepository earningsPresentationReportRepository;
+    private final ResearchJobRecordRepository researchJobRecordRepository;
 
     @Value("classpath:/prompts/deepresearch/discovery_prompt.txt")
     private Resource discoveryPromptResource;
@@ -37,17 +43,54 @@ public class DeepResearchService {
     @Value("classpath:/prompts/deepresearch/compile_report_prompt.txt")
     private Resource compileReportPromptResource;
 
+    @Value("classpath:/prompts/deepresearch/document/per_document_prompt.txt")
+    private Resource perDocumentPromptResource;
+
+    @Value("classpath:/prompts/deepresearch/document/per_page_prompt.txt")
+    private Resource perPagePromptResource;
+
     public DeepResearchService(WebClient.Builder webClientBuilder,
-                               DeepResearchReportRepository deepResearchReportRepository,
+                               NewsReportRepository newsReportRepository,
+                               EarningsPresentationReportRepository earningsPresentationReportRepository,
+                               ResearchJobRecordRepository researchJobRecordRepository,
                                @Value("${deepresearch.base-url}") String baseUrl) {
         this.webClient = webClientBuilder.baseUrl(baseUrl).build();
-        this.deepResearchReportRepository = deepResearchReportRepository;
+        this.newsReportRepository = newsReportRepository;
+        this.earningsPresentationReportRepository = earningsPresentationReportRepository;
+        this.researchJobRecordRepository = researchJobRecordRepository;
     }
 
-    public Mono<DeepResearchReport> getResearchReport(String stockTicker) {
+    public List<ResearchJobRecord> getRunningJobs() {
+        return researchJobRecordRepository.findAllByStatus(JobStatus.RUNNING.toString());
+    }
+
+    public void trackJob(String jobId, String ticker, ResearchTopic topic) {
+        ResearchJobRecord record = new ResearchJobRecord();
+        record.setJobId(jobId);
+        record.setStockTicker(ticker);
+        record.setTopic(topic);
+        record.setStatus(JobStatus.RUNNING.toString());
+        record.setCreatedAt(LocalDateTime.now());
+        researchJobRecordRepository.save(record);
+        LOGGER.info("Tracking job {} for ticker {} with topic {}", jobId, ticker, topic);
+    }
+
+    public Mono<NewsReport> getNewsReport(String stockTicker) {
         LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
-        LOGGER.info("Looking for DeepResearchReport with ticker={} and createdAt after {}", stockTicker, thirtyDaysAgo);
-        return Mono.fromCallable(() -> deepResearchReportRepository.findFirstByStockTickerAndCreatedAtAfterOrderByCreatedAtDesc(stockTicker, thirtyDaysAgo))
+        LOGGER.info("Looking for NewsReport with ticker={} and createdAt after {}", stockTicker, thirtyDaysAgo);
+        return Mono.fromCallable(() -> newsReportRepository.findFirstByStockTickerAndCreatedAtAfterOrderByCreatedAtDesc(stockTicker, thirtyDaysAgo))
+                .flatMap(optionalReport -> {
+                    if (optionalReport.isPresent()) {
+                        return Mono.just(optionalReport.get());
+                    } else {
+                        return Mono.empty();
+                    }
+                });
+    }
+
+    public Mono<EarningsPresentationReport> getEarningsPresentationReport(String stockTicker) {
+        LOGGER.info("Looking for EarningsPresentationReport with ticker={}", stockTicker);
+        return Mono.fromCallable(() -> earningsPresentationReportRepository.findFirstByStockTickerOrderByCreatedAtDesc(stockTicker))
                 .flatMap(optionalReport -> {
                     if (optionalReport.isPresent()) {
                         return Mono.just(optionalReport.get());
@@ -63,9 +106,10 @@ public class DeepResearchService {
             String synthesisPrompt = StreamUtils.copyToString(synthesisPromptResource.getInputStream(), StandardCharsets.UTF_8);
             String compileReportPrompt = StreamUtils.copyToString(compileReportPromptResource.getInputStream(), StandardCharsets.UTF_8);
 
-            String topic = String.format("%s stock news and developments from the last month", stockTicker.toUpperCase());
+            String subject = String.format("%s stock news and developments from the last month", stockTicker.toUpperCase());
             ResearchRequest request = new ResearchRequest(
-                    topic,
+                    ResearchTopic.NEWS,
+                    subject,
                     25,
                     8,
                     discoveryPrompt,
@@ -79,14 +123,15 @@ public class DeepResearchService {
                     .retrieve()
                     .bodyToMono(JobResponse.class)
                     .doOnNext(response -> {
-                        DeepResearchReport report = new DeepResearchReport();
+                        NewsReport report = new NewsReport();
                         report.setJobId(response.jobId());
                         report.setStockTicker(stockTicker.toUpperCase());
                         report.setTopic(response.topic());
                         report.setStatus(response.status().toString());
                         report.setCreatedAt(LocalDateTime.now());
-                        deepResearchReportRepository.save(report);
-                        LOGGER.info("Saved initial deep research report record for jobId: {}", response.jobId());
+                        newsReportRepository.save(report);
+                        trackJob(response.jobId(), stockTicker.toUpperCase(), response.topic());
+                        LOGGER.info("Saved initial news report record for jobId: {}", response.jobId());
                     })
                     .doOnError(error -> LOGGER.error("Error creating research job: {}", error.getMessage()));
         } catch (IOException e) {
@@ -96,30 +141,49 @@ public class DeepResearchService {
     }
 
     public Mono<JobStatusResponse> getJobStatus(String jobId) {
-        return Mono.fromCallable(() -> deepResearchReportRepository.findById(jobId))
-                .flatMap(optionalReport -> {
-                    if (optionalReport.isPresent() && JobStatus.COMPLETED.toString().equals(optionalReport.get().getStatus())) {
-                        DeepResearchReport dbReport = optionalReport.get();
-                        ResearchReport researchReport = dbReport.getReport();
-                        if (researchReport != null) {
-                            ResearchJob.JobResult result = new ResearchJob.JobResult(
-                                    researchReport.executiveSummary(),
-                                    researchReport.keyFindings(),
-                                    researchReport.themes(),
-                                    researchReport.openQuestions(),
-                                    researchReport.sources(),
-                                    researchReport.diagnostics()
-                            );
-                            return Mono.just(new JobStatusResponse(JobStatus.fromValue(dbReport.getStatus()).toString(), result, null));
+        return Mono.fromCallable(() -> researchJobRecordRepository.findById(jobId))
+                .flatMap(optionalRecord -> {
+                    if (optionalRecord.isPresent()) {
+                        ResearchJobRecord record = optionalRecord.get();
+                        String statusStr = record.getStatus();
+                        if (JobStatus.COMPLETED.toString().equals(statusStr)) {
+                            return fetchCompletedReportFromCollection(record);
+                        } else if (JobStatus.FAILED.toString().equals(statusStr)) {
+                            return Mono.just(new JobStatusResponse(statusStr, null, null));
+                        } else {
+                            return fetchStatusFromExternalService(jobId, record);
                         }
-                        return fetchStatusFromExternalService(jobId, dbReport);
                     } else {
-                        return fetchStatusFromExternalService(jobId, optionalReport.orElse(null));
+                        return Mono.empty();
                     }
                 });
     }
 
-    private Mono<JobStatusResponse> fetchStatusFromExternalService(String jobId, DeepResearchReport existingReport) {
+    private Mono<JobStatusResponse> fetchCompletedReportFromCollection(ResearchJobRecord record) {
+        ResearchTopic topic = record.getTopic();
+        if (topic == ResearchTopic.NEWS) {
+            return Mono.fromCallable(() -> newsReportRepository.findById(record.getJobId()))
+                    .flatMap(optionalReport -> {
+                        if (optionalReport.isPresent()) {
+                            NewsReport report = optionalReport.get();
+                            return Mono.just(new JobStatusResponse(record.getStatus(), report.getReport(), null));
+                        }
+                        return Mono.just(new JobStatusResponse(record.getStatus(), null, null));
+                    });
+        } else if (topic == ResearchTopic.EARNINGS_PRESENTATION) {
+            return Mono.fromCallable(() -> earningsPresentationReportRepository.findById(record.getJobId()))
+                    .flatMap(optionalReport -> {
+                        if (optionalReport.isPresent()) {
+                            EarningsPresentationReport report = optionalReport.get();
+                            return Mono.just(new JobStatusResponse(record.getStatus(), report.getReport(), null));
+                        }
+                        return Mono.just(new JobStatusResponse(record.getStatus(), null, null));
+                    });
+        }
+        return Mono.just(new JobStatusResponse(record.getStatus(), null, null));
+    }
+
+    private Mono<JobStatusResponse> fetchStatusFromExternalService(String jobId, ResearchJobRecord existingRecord) {
         LOGGER.info("Fetching research status for jobId: {} from external service", jobId);
         return webClient.get()
                 .uri("/api/research/{jobId}", jobId)
@@ -127,45 +191,93 @@ public class DeepResearchService {
                 .bodyToMono(JobStatusResponse.class)
                 .doOnNext(response -> {
                     if (JobStatus.COMPLETED.toString().equals(response.status())) {
-                        saveCompletedReport(jobId, response, existingReport);
+                        saveCompletedReport(jobId, response, existingRecord);
                     } else if (JobStatus.FAILED.toString().equals(response.status())) {
-                        updateFailedReport(jobId, response, existingReport);
+                        updateFailedReport(jobId, response, existingRecord);
                     }
                 })
                 .doOnError(error -> LOGGER.error("Error getting research status for jobId {}: {}", jobId, error.getMessage()));
     }
 
-    private void saveCompletedReport(String jobId, JobStatusResponse response, DeepResearchReport existingReport) {
-        DeepResearchReport dbReport = existingReport != null ? existingReport : new DeepResearchReport();
-        dbReport.setJobId(jobId);
-        dbReport.setStatus(response.status().toString());
-
-        ResearchJob.JobResult jobResult = response.result();
-        if (jobResult != null) {
-            ResearchReport researchReport = new ResearchReport(
-                    dbReport.getTopic(),
-                    jobResult.executiveSummary(),
-                    jobResult.keyFindings(),
-                    jobResult.themes(),
-                    jobResult.openQuestions(),
-                    jobResult.sources(),
-                    jobResult.diagnostics()
-            );
-            dbReport.setReport(researchReport);
+    private void saveCompletedReport(String jobId, JobStatusResponse response, ResearchJobRecord existingRecord) {
+        if (existingRecord != null) {
+            existingRecord.setStatus(response.status().toString());
+            researchJobRecordRepository.save(existingRecord);
         }
 
-        if (dbReport.getCreatedAt() == null) {
-            dbReport.setCreatedAt(LocalDateTime.now());
+        ReportResult reportResult = response.result();
+        if (reportResult != null && existingRecord != null) {
+            ResearchTopic topic = existingRecord.getTopic();
+            if (topic == ResearchTopic.NEWS) {
+                NewsReport newsReport = new NewsReport();
+                newsReport.setJobId(jobId);
+                newsReport.setStockTicker(existingRecord.getStockTicker());
+                newsReport.setTopic(topic);
+                newsReport.setStatus(response.status().toString());
+                newsReport.setReport(reportResult);
+                newsReport.setCreatedAt(LocalDateTime.now());
+                newsReportRepository.save(newsReport);
+            } else if (topic == ResearchTopic.EARNINGS_PRESENTATION) {
+                EarningsPresentationReport earningsReport = new EarningsPresentationReport();
+                earningsReport.setJobId(jobId);
+                earningsReport.setStockTicker(existingRecord.getStockTicker());
+                earningsReport.setTopic(topic);
+                earningsReport.setStatus(response.status().toString());
+                earningsReport.setReport(reportResult);
+                earningsReport.setCreatedAt(LocalDateTime.now());
+                earningsPresentationReportRepository.save(earningsReport);
+            }
         }
-        deepResearchReportRepository.save(dbReport);
-        LOGGER.info("Saved completed deep research report for jobId: {}", jobId);
+        LOGGER.info("Saved completed research report for jobId: {}", jobId);
     }
 
-    private void updateFailedReport(String jobId, JobStatusResponse response, DeepResearchReport existingReport) {
-        if (existingReport != null) {
-            existingReport.setStatus(response.status().toString());
-            deepResearchReportRepository.save(existingReport);
+    private void updateFailedReport(String jobId, JobStatusResponse response, ResearchJobRecord existingRecord) {
+        if (existingRecord != null) {
+            existingRecord.setStatus(response.status().toString());
+            researchJobRecordRepository.save(existingRecord);
             LOGGER.info("Updated status to FAILED for jobId: {}", jobId);
+        }
+    }
+
+    public Mono<JobResponse> processDocument(byte[] pdfBytes, String stockTicker) {
+        try {
+            String perDocumentPrompt = StreamUtils.copyToString(perDocumentPromptResource.getInputStream(), StandardCharsets.UTF_8);
+            String perPagePrompt = StreamUtils.copyToString(perPagePromptResource.getInputStream(), StandardCharsets.UTF_8);
+
+            var request = new ResearchDocumentRequest(ResearchTopic.EARNINGS_PRESENTATION, perPagePrompt, perDocumentPrompt);
+
+            MultipartBodyBuilder bodyBuilder = new MultipartBodyBuilder();
+            bodyBuilder.part("request", request, MediaType.APPLICATION_JSON);
+
+            ByteArrayResource resource = new ByteArrayResource(pdfBytes) {
+                @Override
+                public String getFilename() {
+                    return stockTicker.toUpperCase() + ".pdf";
+                }
+            };
+            bodyBuilder.part("pdf", resource, MediaType.APPLICATION_PDF);
+
+            return webClient.post()
+                    .uri("/api/research/document")
+                    .contentType(new org.springframework.http.MediaType("multipart", "form-data"))
+                    .bodyValue(bodyBuilder.build())
+                    .retrieve()
+                    .bodyToMono(JobResponse.class)
+                    .doOnNext(response -> {
+                        EarningsPresentationReport report = new EarningsPresentationReport();
+                        report.setJobId(response.jobId());
+                        report.setStockTicker(stockTicker.toUpperCase());
+                        report.setTopic(response.topic());
+                        report.setStatus(response.status().toString());
+                        report.setCreatedAt(LocalDateTime.now());
+                        earningsPresentationReportRepository.save(report);
+                        trackJob(response.jobId(), stockTicker.toUpperCase(), response.topic());
+                        LOGGER.info("Saved initial earnings presentation report record for jobId: {} from document", response.jobId());
+                    })
+                    .doOnError(error -> LOGGER.error("Error processing document: {}", error.getMessage()));
+        } catch (IOException e) {
+            LOGGER.error("Error loading prompts: {}", e.getMessage());
+            return Mono.error(e);
         }
     }
 }

@@ -1,11 +1,12 @@
 package com.testehan.finana.service.periodic;
 
-import com.testehan.deepresearch.model.ResearchJob.JobStatus;
 import com.testehan.deepresearch.model.JobResponse;
-import com.testehan.finana.model.reporting.DeepResearchReport;
+import com.testehan.deepresearch.model.ResearchJob.JobStatus;
+import com.testehan.finana.model.reporting.NewsReport;
+import com.testehan.finana.model.research.ResearchJobRecord;
 import com.testehan.finana.model.user.UserStock;
 import com.testehan.finana.model.user.UserStockStatus;
-import com.testehan.finana.repository.DeepResearchReportRepository;
+import com.testehan.finana.repository.NewsReportRepository;
 import com.testehan.finana.repository.UserStockRepository;
 import com.testehan.finana.service.DeepResearchService;
 import org.slf4j.Logger;
@@ -16,42 +17,30 @@ import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class DeepResearchScheduler {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(DeepResearchScheduler.class);
-
+    // todo USER_ID needs to change to logged in user
     private static final String USER_ID = "dante";
     private final UserStockRepository userStockRepository;
-    private final DeepResearchReportRepository deepResearchReportRepository;
+    private final NewsReportRepository newsReportRepository;
     private final DeepResearchService deepResearchService;
-
-    private final Map<String, String> runningJobs = new ConcurrentHashMap<>();
 
     private final List<String> tickersToTrack = List.of(
             "NET"
     );
 
-    public DeepResearchScheduler(UserStockRepository userStockRepository, DeepResearchReportRepository deepResearchReportRepository,
+    public DeepResearchScheduler(UserStockRepository userStockRepository,
+                                 NewsReportRepository newsReportRepository,
                                  DeepResearchService deepResearchService) {
         this.userStockRepository = userStockRepository;
-        this.deepResearchReportRepository = deepResearchReportRepository;
+        this.newsReportRepository = newsReportRepository;
         this.deepResearchService = deepResearchService;
-        loadRunningJobsFromDb();
     }
 
-    private void loadRunningJobsFromDb() {
-        List<DeepResearchReport> runningReports = deepResearchReportRepository.findAllByStatus(JobStatus.RUNNING.toString());
-        for (DeepResearchReport report : runningReports) {
-            runningJobs.put(report.getJobId(), report.getStockTicker());
-        }
-        LOGGER.info("Loaded {} running jobs from DB", runningJobs.size());
-    }
-
-    @Scheduled(fixedRate = 86_400_000) // every 24 hours
+    //   @Scheduled(fixedRate = 86_400_000) // every 24 hours
     public void checkAndTriggerResearch() {
         LocalDateTime oneMonthAgo = LocalDateTime.now().minusDays(30);
 
@@ -59,14 +48,14 @@ public class DeepResearchScheduler {
         // loadRelevantStockTickers();
 
         for (String ticker : tickersToTrack) {
-            List<DeepResearchReport> existingReports = deepResearchReportRepository
+            List<NewsReport> existingReports = newsReportRepository
                     .findByStockTickerAndCreatedAtAfterOrderByCreatedAtDesc(ticker, oneMonthAgo);
 
             if (existingReports.isEmpty()) {
                 LOGGER.info("No recent report found for {}. Triggering new research...", ticker);
                 triggerResearch(ticker);
             } else {
-                DeepResearchReport latestReport = existingReports.get(0);
+                NewsReport latestReport = existingReports.get(0);
                 if (!JobStatus.COMPLETED.toString().equals(latestReport.getStatus())) {
                     LOGGER.info("Report for {} has status {}. Re-triggering...", ticker, latestReport.getStatus());
                     triggerResearch(ticker);
@@ -79,14 +68,15 @@ public class DeepResearchScheduler {
 
     @Scheduled(fixedRate = 20_000) // every 20 seconds
     public void pollRunningJobs() {
+        List<ResearchJobRecord> runningJobs = deepResearchService.getRunningJobs();
         if (runningJobs.isEmpty()) {
             return;
         }
 
         LOGGER.debug("Polling {} running jobs...", runningJobs.size());
 
-        for (Map.Entry<String, String> entry : runningJobs.entrySet()) {
-            String jobId = entry.getKey();
+        for (ResearchJobRecord record : runningJobs) {
+            String jobId = record.getJobId();
 
             deepResearchService.getJobStatus(jobId)
                     .subscribe(
@@ -94,8 +84,7 @@ public class DeepResearchScheduler {
                                 LOGGER.debug("Status for jobId {}: {}", jobId, response.status());
                                 String statusStr = response.status().toString();
                                 if (JobStatus.COMPLETED.toString().equals(statusStr) || JobStatus.FAILED.toString().equals(statusStr)) {
-                                    runningJobs.remove(jobId);
-                                    LOGGER.info("Job {} finished with status {}. Removed from running jobs.", jobId, response.status());
+                                    LOGGER.info("Job {} finished with status {}.", jobId, response.status());
                                 }
                             },
                             error -> LOGGER.error("Error polling job {}: {}", jobId, error.getMessage())
@@ -109,7 +98,6 @@ public class DeepResearchScheduler {
             responseMono.subscribe(
                     response -> {
                         LOGGER.info("Triggered research for {}. JobId: {}", ticker, response.jobId());
-                        runningJobs.put(response.jobId(), ticker);
                     },
                     error -> LOGGER.error("Error triggering research for {}: {}", ticker, error.getMessage())
             );
