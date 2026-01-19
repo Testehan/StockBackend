@@ -102,7 +102,16 @@ public class DeepResearchService {
 
     public Mono<List<EarningsPresentationReportEntity>> getAllEarningsPresentationReports(String stockTicker) {
         LOGGER.info("Looking for all EarningsPresentationReports with ticker={}", stockTicker);
-        return Mono.fromCallable(() -> earningsPresentationReportRepository.findByStockTickerOrderByCreatedAtDesc(stockTicker));
+        return Mono.fromCallable(() -> earningsPresentationReportRepository
+                .findByStockTickerAndStatusOrderByCreatedAtDesc(stockTicker, JobStatus.COMPLETED.toString()))
+                .map(reports -> reports.stream()
+                        .filter(r -> r.getReport() != null && r.getReport().companyMetadata() != null)
+                        .sorted((a, b) -> {
+                            String periodA = a.getReport().companyMetadata().reportPeriod();
+                            String periodB = b.getReport().companyMetadata().reportPeriod();
+                            return periodB.compareTo(periodA);
+                        })
+                        .toList());
     }
 
     public Mono<JobResponse> triggerNewResearch(String stockTicker) {

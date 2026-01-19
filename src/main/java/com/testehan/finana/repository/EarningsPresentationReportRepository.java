@@ -9,6 +9,7 @@ import java.util.Optional;
 
 @Repository
 public interface EarningsPresentationReportRepository extends MongoRepository<EarningsPresentationReportEntity, String> {
+    List<EarningsPresentationReportEntity> findByStockTickerAndStatusOrderByCreatedAtDesc(String stockTicker, String status);
     List<EarningsPresentationReportEntity> findByStockTickerOrderByCreatedAtDesc(String stockTicker);
     Optional<EarningsPresentationReportEntity> findFirstByStockTickerOrderByCreatedAtDesc(String stockTicker);
     List<EarningsPresentationReportEntity> findAllByStatus(String status);
