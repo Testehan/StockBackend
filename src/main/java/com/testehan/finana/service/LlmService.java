@@ -182,6 +182,21 @@ public class LlmService {
         return callLlmWithOllama(query, "ollama_development", "ollama_development");
     }
 
+    public String callLlmWithOllama(String systemPrompt, java.util.List<org.springframework.ai.chat.messages.Message> messages) {
+        try {
+            String response = ollamaChatClient.prompt()
+                    .system(systemPrompt)
+                    .messages(messages)
+                    .call()
+                    .content();
+            logger.info("Ollama call with system prompt and chat memory completed successfully");
+            return response;
+        } catch (Exception e) {
+            logger.error("Ollama call with system prompt and chat memory failed, error: {}", e.getMessage());
+            throw e;
+        }
+    }
+
     public String callLlmWithOllama(String query, String operationType, String stockTicker) {
         try {
             String response = ollamaChatClient.prompt(query).call().content();
