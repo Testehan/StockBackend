@@ -47,7 +47,7 @@ public class OrganicGrowthRunawayCalculator {
     @Value("classpath:/prompts/organic_growth_runaway_prompt.txt")
     private Resource organicGrowthPrompt;
 
-    public OrganicGrowthRunawayCalculator(CompanyOverviewRepository companyOverviewRepository, SecFilingRepository secFilingRepository, IncomeStatementRepository incomeStatementRepository, BalanceSheetRepository balanceSheetRepository, FinancialRatiosRepository financialRatiosRepository, LlmService llmService, ApplicationEventPublisher eventPublisher, OptionalityCalculator optionalityCalculator, SafeParser safeParser) {
+    public OrganicGrowthRunawayCalculator(CompanyOverviewRepository companyOverviewRepository, SecFilingRepository secFilingRepository, IncomeStatementRepository incomeStatementRepository, FinancialRatiosRepository financialRatiosRepository, LlmService llmService, ApplicationEventPublisher eventPublisher, OptionalityCalculator optionalityCalculator, SafeParser safeParser) {
         this.companyOverviewRepository = companyOverviewRepository;
         this.secFilingRepository = secFilingRepository;
         this.incomeStatementRepository = incomeStatementRepository;
@@ -97,7 +97,7 @@ public class OrganicGrowthRunawayCalculator {
         try {
             eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Sending data to LLM for organic growth runaway analysis..."));
             LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
-            String llmResponse = llmService.callLlm(prompt, "organic_growth_analysis", ticker);
+            String llmResponse = llmService.callLlmWithOllama(prompt, "organic_growth_analysis", ticker);
             eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Received LLM response for organic growth runaway analysis."));
             LlmScoreExplanationResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
 

@@ -153,7 +153,7 @@ public class CapitalAllocationCalculator {
         try {
             eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Sending data to LLM for capital allocation analysis..."));
             LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
-            String llmResponse = llmService.callLlm(prompt, "capital_allocation_analysis", ticker);
+            String llmResponse = llmService.callLlmWithOllama(prompt, "capital_allocation_analysis", ticker);
             eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Received LLM response with capital allocation analysis."));
             LlmScoreExplanationResponse convertedLlmResponse = llmResponseOutputConverter.convert(llmResponse);
 
@@ -164,7 +164,7 @@ public class CapitalAllocationCalculator {
             String errorMessage = "Operation 'calculateCapitalAllocationSkill' failed.";
             LOGGER.error(errorMessage, e);
             eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage, e)));
-            return new ReportItem("capitalAllocationSkill", -10, "Operation 'calculateCapitalAllocationSkill' failed.");
+return new ReportItem("capitalAllocationSkill", -10, "Operation 'calculateCapitalAllocationSkill' failed.");
         }
     }
 

@@ -16,10 +16,13 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 @Service
 public class FerolReportGenerator implements ReportGenerator {
     private static final Logger LOGGER = LoggerFactory.getLogger(FerolReportGenerator.class);
+    private static final long OLLAMA_DELAY_MS = 10000;
 
     private final List<ReportItemCalculator> ferolCalculators;
     private final ChecklistReportPersistenceService checklistReportPersistenceService;
@@ -37,12 +40,27 @@ public class FerolReportGenerator implements ReportGenerator {
     public void generate(String ticker, ReportType reportType, SseEmitter sseEmitter) throws InterruptedException {
         List<ReportItem> checklistReportItems = new ArrayList<>();
 
-        for (ReportItemCalculator calculator : ferolCalculators) {
+        List<ReportItemCalculator> parallelCalculators = ferolCalculators.stream()
+                .filter(ReportItemCalculator::canRunInParallel)
+                .collect(Collectors.toList());
+        List<ReportItemCalculator> sequentialCalculators = ferolCalculators.stream()
+                .filter(c -> !c.canRunInParallel())
+                .collect(Collectors.toList());
+
+        List<CompletableFuture<Collection<ReportItem>>> parallelFutures = parallelCalculators.stream()
+                .map(calculator -> CompletableFuture.supplyAsync(() ->
+                        calculator.calculate(ticker, reportType, sseEmitter)))
+                .collect(Collectors.toList());
+
+        for (CompletableFuture<Collection<ReportItem>> future : parallelFutures) {
+            checklistReportItems.addAll(future.join());
+        }
+
+        for (ReportItemCalculator calculator : sequentialCalculators) {
             Collection<ReportItem> result = calculator.calculate(ticker, reportType, sseEmitter);
             checklistReportItems.addAll(result);
-// todo this is hopefully temporary as i got erros from gemini llm about overusage ...other people complain about this as well
             try {
-                Thread.sleep(10000);
+                Thread.sleep(OLLAMA_DELAY_MS);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }

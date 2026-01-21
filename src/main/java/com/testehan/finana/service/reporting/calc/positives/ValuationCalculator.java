@@ -109,7 +109,7 @@ public class ValuationCalculator {
         try {
             eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Sending data to LLM for valuation analysis..."));
             LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
-            String llmResponse = llmService.callLlm(prompt, "valuation_analysis", ticker);
+            String llmResponse = llmService.callLlmWithOllama(prompt, "valuation_analysis", ticker);
             eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Received LLM response for valuation analysis."));
             LlmScoreExplanationResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
 

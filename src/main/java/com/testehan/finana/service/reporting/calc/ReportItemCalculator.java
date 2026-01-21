@@ -9,4 +9,8 @@ import java.util.Collection;
 @FunctionalInterface
 public interface ReportItemCalculator {
     Collection<ReportItem> calculate(String ticker, ReportType reportType, SseEmitter sseEmitter);
+
+    default boolean canRunInParallel() {
+        return true;
+    }
 }

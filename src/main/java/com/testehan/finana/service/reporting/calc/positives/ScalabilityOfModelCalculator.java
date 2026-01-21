@@ -98,7 +98,7 @@ public class ScalabilityOfModelCalculator {
         try {
             eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Sending data to LLM for scalability of model analysis..."));
             LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
-            String llmResponse = llmService.callLlm(prompt, "scalability_model_analysis", ticker);
+            String llmResponse = llmService.callLlmWithOllama(prompt, "scalability_model_analysis", ticker);
             eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Received LLM response with scalability of model analysis."));
             LlmScoreExplanationResponse convertedLlmResponse = llmResponseOutputConverter.convert(llmResponse);
 

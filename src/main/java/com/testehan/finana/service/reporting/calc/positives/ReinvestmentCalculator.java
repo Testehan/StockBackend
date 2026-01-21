@@ -121,7 +121,7 @@ public class ReinvestmentCalculator {
         try {
             eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Sending data to LLM for reinvestments analysis..."));
             LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
-            String llmResponse = llmService.callLlm(prompt, "reinvestment_capacity_analysis", ticker);
+            String llmResponse = llmService.callLlmWithOllama(prompt, "reinvestment_capacity_analysis", ticker);
             eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Received LLM response for reinvestments analysis."));
             LlmScoreExplanationResponse convertedLlmResponse = llmResponseOutputConverter.convert(llmResponse);
 

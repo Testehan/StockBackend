@@ -82,7 +82,7 @@ public class TopDogCalculator {
         try {
             eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Sending data to LLM for top dog or first mover analysis..."));
             LOGGER.info("Calling LLM with prompt for {}: {}", ticker, prompt);
-            String llmResponse = llmService.callLlm(prompt, "topdog_firstmover_analysis", ticker);
+            String llmResponse = llmService.callLlmWithOllama(prompt, "topdog_firstmover_analysis", ticker);
             eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Received LLM response for top dog or first mover analysis."));
             LlmScoreExplanationResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
 
