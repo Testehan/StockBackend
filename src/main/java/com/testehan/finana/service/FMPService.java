@@ -34,9 +34,13 @@ public class FMPService {
 
     private final WebClient webClient;
 
-    public FMPService() {
-        this.webClient = WebClient.builder()
-                .baseUrl("https://financialmodelingprep.com")
+    public FMPService(WebClient.Builder webClientBuilder) {
+        this(webClientBuilder, "https://financialmodelingprep.com");
+    }
+
+    public FMPService(WebClient.Builder webClientBuilder, String baseUrl) {
+        this.webClient = webClientBuilder
+                .baseUrl(baseUrl)
                 .build();
     }
 
