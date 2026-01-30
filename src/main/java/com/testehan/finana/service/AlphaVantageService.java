@@ -28,7 +28,13 @@ public class AlphaVantageService {
 
     public AlphaVantageService(WebClient.Builder webClientBuilder,
                                CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository) {
-        this.webClient = webClientBuilder.baseUrl("https://www.alphavantage.co").build();
+        this(webClientBuilder, companyEarningsTranscriptsRepository, "https://www.alphavantage.co");
+    }
+
+    public AlphaVantageService(WebClient.Builder webClientBuilder,
+                               CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository,
+                               String baseUrl) {
+        this.webClient = webClientBuilder.baseUrl(baseUrl).build();
         this.companyEarningsTranscriptsRepository = companyEarningsTranscriptsRepository;
     }
 
