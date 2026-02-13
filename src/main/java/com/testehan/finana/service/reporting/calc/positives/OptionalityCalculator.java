@@ -187,8 +187,20 @@ public class OptionalityCalculator {
 
     @NotNull
     public String getLatestEarningsTranscript(String ticker) {
-        var latestQuarter = dateUtils.getDateQuarter(financialDataOrchestrator.getLatestReportedDate(ticker));
-        var latestEarningsTranscript = earningsService.getEarningsCallTranscript(ticker, latestQuarter).block().getTranscript().stream()
+        var latestReportedDate = financialDataOrchestrator.getLatestReportedDate(ticker);
+        if (latestReportedDate == null) {
+            return "No earnings transcript available (no reported date found)";
+        }
+        var latestQuarter = dateUtils.getDateQuarter(latestReportedDate);
+        var transcriptMono = earningsService.getEarningsCallTranscript(ticker, latestQuarter);
+        if (transcriptMono == null) {
+            return "No earnings transcript available for " + latestQuarter;
+        }
+        var transcript = transcriptMono.block();
+        if (transcript == null || transcript.getTranscript() == null) {
+            return "No earnings transcript available for " + latestQuarter;
+        }
+        var latestEarningsTranscript = transcript.getTranscript().stream()
                 .map(t -> t.getSpeaker() + " (" + t.getTitle() + "): " + t.getContent() + " [" + t.getSentiment() + "]")
                 .collect(Collectors.joining("\n"));
         return latestEarningsTranscript;
