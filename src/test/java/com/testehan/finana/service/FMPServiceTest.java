@@ -3,47 +3,49 @@ package com.testehan.finana.service;
 import com.testehan.finana.model.quote.GlobalQuote;
 import com.testehan.finana.model.ratio.FmpRatios;
 import com.testehan.finana.model.ratio.FmpRatiosTtm;
-import okhttp3.mockwebserver.MockResponse;
-import okhttp3.mockwebserver.MockWebServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.reactive.function.client.ClientResponse;
+import org.springframework.web.reactive.function.client.ExchangeFunction;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class FMPServiceTest {
 
-    private MockWebServer mockWebServer;
     private FMPService fmpService;
+    private final AtomicReference<String> nextResponseBody = new AtomicReference<>("[]");
 
     @BeforeEach
-    void setUp() throws IOException {
-        mockWebServer = new MockWebServer();
-        mockWebServer.start();
-
-        WebClient.Builder webClientBuilder = WebClient.builder();
-        fmpService = new FMPService(webClientBuilder, mockWebServer.url("/").toString());
+    void setUp() {
+        ExchangeFunction exchangeFunction = request -> Mono.just(
+                ClientResponse.create(HttpStatus.OK)
+                        .header("Content-Type", "application/json")
+                        .body(nextResponseBody.get())
+                        .build()
+        );
+        WebClient.Builder webClientBuilder = WebClient.builder().exchangeFunction(exchangeFunction);
+        fmpService = new FMPService(webClientBuilder, "http://localhost/");
     }
 
     @AfterEach
-    void tearDown() throws IOException {
-        mockWebServer.shutdown();
+    void tearDown() {
     }
 
     @Test
     void getHistoricalDividendAdjustedEodPrice_returnsData() {
         String symbol = "AAPL";
         String responseBody = "[{\"symbol\":\"AAPL\",\"date\":\"2023-01-01\",\"adjClose\":\"150.0\"}]";
-        mockWebServer.enqueue(new MockResponse()
-                .setBody(responseBody)
-                .addHeader("Content-Type", "application/json"));
+        nextResponseBody.set(responseBody);
 
         Mono<List<GlobalQuote>> result = fmpService.getHistoricalDividendAdjustedEodPrice(symbol);
 
@@ -59,9 +61,7 @@ class FMPServiceTest {
     void getFinancialRatios_returnsData() {
         String symbol = "AAPL";
         String responseBody = "[{\"symbol\":\"AAPL\",\"priceToEarningsRatio\":15.5}]";
-        mockWebServer.enqueue(new MockResponse()
-                .setBody(responseBody)
-                .addHeader("Content-Type", "application/json"));
+        nextResponseBody.set(responseBody);
 
         Mono<List<FmpRatios>> result = fmpService.getFinancialRatios(symbol);
 
@@ -77,9 +77,7 @@ class FMPServiceTest {
     void getFinancialRatiosTtm_returnsData() {
         String symbol = "AAPL";
         String responseBody = "[{\"priceToEarningsRatioTTM\":16.5}]";
-        mockWebServer.enqueue(new MockResponse()
-                .setBody(responseBody)
-                .addHeader("Content-Type", "application/json"));
+        nextResponseBody.set(responseBody);
 
         Mono<FmpRatiosTtm> result = fmpService.getFinancialRatiosTtm(symbol);
 

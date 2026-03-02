@@ -34,6 +34,7 @@ public class FMPService {
 
     private final WebClient webClient;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public FMPService(WebClient.Builder webClientBuilder) {
         this(webClientBuilder, "https://financialmodelingprep.com");
     }
