@@ -232,7 +232,8 @@ public class GrowthValuationService extends BaseValuationService {
         });
 
         // Calculate Market Capitalization
-        if (growthValuationData.getCommonSharesOutstanding().compareTo(BigDecimal.ZERO) != 0 && growthValuationData.getCurrentSharePrice().compareTo(BigDecimal.ZERO) != 0) {
+        if (growthValuationData.getCommonSharesOutstanding() != null && growthValuationData.getCurrentSharePrice() != null &&
+            growthValuationData.getCommonSharesOutstanding().compareTo(BigDecimal.ZERO) != 0 && growthValuationData.getCurrentSharePrice().compareTo(BigDecimal.ZERO) != 0) {
             growthValuationData.setMarketCapitalization(
                     growthValuationData.getCommonSharesOutstanding().multiply(growthValuationData.getCurrentSharePrice(), MathContext.DECIMAL64)
             );

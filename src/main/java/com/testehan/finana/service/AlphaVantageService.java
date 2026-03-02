@@ -26,6 +26,7 @@ public class AlphaVantageService {
 
     private final CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public AlphaVantageService(WebClient.Builder webClientBuilder,
                                CompanyEarningsTranscriptsRepository companyEarningsTranscriptsRepository) {
         this(webClientBuilder, companyEarningsTranscriptsRepository, "https://www.alphavantage.co");

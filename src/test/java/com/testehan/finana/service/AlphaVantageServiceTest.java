@@ -1,20 +1,21 @@
 package com.testehan.finana.service;
 
 import com.testehan.finana.model.filing.CompanyEarningsTranscripts;
-import com.testehan.finana.model.filing.EarningsCallTranscript;
 import com.testehan.finana.repository.CompanyEarningsTranscriptsRepository;
-import okhttp3.mockwebserver.MockResponse;
-import okhttp3.mockwebserver.MockWebServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.reactive.function.client.ClientResponse;
+import org.springframework.web.reactive.function.client.ExchangeFunction;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -23,8 +24,8 @@ import static org.mockito.Mockito.*;
 
 class AlphaVantageServiceTest {
 
-    private MockWebServer mockWebServer;
     private AlphaVantageService alphaVantageService;
+    private final AtomicReference<String> nextResponseBody = new AtomicReference<>("");
 
     @Mock
     private CompanyEarningsTranscriptsRepository repository;
@@ -32,18 +33,20 @@ class AlphaVantageServiceTest {
     private AutoCloseable closeable;
 
     @BeforeEach
-    void setUp() throws IOException {
+    void setUp() {
         closeable = MockitoAnnotations.openMocks(this);
-        mockWebServer = new MockWebServer();
-        mockWebServer.start();
-
-        WebClient.Builder webClientBuilder = WebClient.builder();
-        alphaVantageService = new AlphaVantageService(webClientBuilder, repository, mockWebServer.url("/").toString());
+        ExchangeFunction exchangeFunction = request -> Mono.just(
+                ClientResponse.create(HttpStatus.OK)
+                        .header("Content-Type", "application/json")
+                        .body(nextResponseBody.get())
+                        .build()
+        );
+        WebClient.Builder webClientBuilder = WebClient.builder().exchangeFunction(exchangeFunction);
+        alphaVantageService = new AlphaVantageService(webClientBuilder, repository, "http://localhost/");
     }
 
     @AfterEach
-    void tearDown() throws IOException {
-        mockWebServer.shutdown();
+    void tearDown() {
         try {
             closeable.close();
         } catch (Exception e) {
@@ -57,9 +60,7 @@ class AlphaVantageServiceTest {
         String quarter = "Q1-2023";
         String transcriptContent = "This is a transcript";
         
-        mockWebServer.enqueue(new MockResponse()
-                .setBody("{\"symbol\":\"AAPL\",\"quarter\":\"Q1-2023\",\"transcript\":[{\"content\":\"This is a transcript\"}]}")
-                .addHeader("Content-Type", "application/json"));
+        nextResponseBody.set("{\"symbol\":\"AAPL\",\"quarter\":\"Q1-2023\",\"transcript\":[{\"content\":\"This is a transcript\"}]}");
 
         when(repository.findById(symbol)).thenReturn(Optional.empty());
         when(repository.save(any(CompanyEarningsTranscripts.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -84,9 +85,7 @@ class AlphaVantageServiceTest {
         String symbol = "AAPL";
         String quarter = "Q1-2023";
         
-        mockWebServer.enqueue(new MockResponse()
-                .setBody("{\"symbol\":\"AAPL\",\"quarter\":\"Q1-2023\",\"transcript\":[{\"content\":\"This is a transcript\"}]}")
-                .addHeader("Content-Type", "application/json"));
+        nextResponseBody.set("{\"symbol\":\"AAPL\",\"quarter\":\"Q1-2023\",\"transcript\":[{\"content\":\"This is a transcript\"}]}");
 
         CompanyEarningsTranscripts existing = new CompanyEarningsTranscripts();
         existing.setSymbol(symbol);
