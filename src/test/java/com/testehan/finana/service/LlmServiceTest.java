@@ -13,6 +13,7 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.beans.factory.ObjectProvider;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
@@ -27,6 +28,9 @@ class LlmServiceTest {
 
     @Mock
     private ChatModel chatModel;
+
+    @Mock
+    private ObjectProvider<ChatModel> chatModelProvider;
 
     @Mock
     private ChatClient.Builder chatClientBuilder;
@@ -46,7 +50,8 @@ class LlmServiceTest {
     void setUp() {
         lenient().when(chatClientBuilder.build()).thenReturn(chatClient);
         lenient().when(chatClientBuilder.defaultOptions(any())).thenReturn(chatClientBuilder);
-        llmService = new LlmService(chatModel, chatClientBuilder, llmCostService, stockDataTools);
+        lenient().when(chatModelProvider.getIfAvailable()).thenReturn(chatModel);
+        llmService = new LlmService(chatModelProvider, chatClientBuilder, llmCostService, stockDataTools);
     }
 
     private ChatResponse buildResponse(String text) {

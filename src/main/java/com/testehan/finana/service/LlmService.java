@@ -11,6 +11,7 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.google.genai.GoogleGenAiChatOptions;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
@@ -29,10 +30,10 @@ public class LlmService {
     private final StockDataTools stockDataTools;
 
     public LlmService(
-            @Qualifier("googleGenAiChatModel") ChatModel chatModel,
+            @Qualifier("googleGenAiChatModel") ObjectProvider<ChatModel> chatModelProvider,
             ChatClient.Builder chatClientBuilder,
             LlmCostService llmCostService, StockDataTools stockDataTools) {
-        this.chatModel = chatModel;
+        this.chatModel = chatModelProvider.getIfAvailable();
         this.llmCostService = llmCostService;
         
         // This ChatClient will use the auto-configured Ollama model via spring.ai.model.chat.type=ollama
@@ -54,6 +55,9 @@ public class LlmService {
     }
 
     public String callLlm(String query, String operationType, String stockTicker) {
+        if (chatModel == null) {
+            return callLlmWithOllama(query, operationType, stockTicker);
+        }
         try {
             ChatResponse response = chatModel.call(new Prompt(new UserMessage(query)));
             llmCostService.logUsage(response, operationType, stockTicker);
@@ -65,6 +69,9 @@ public class LlmService {
     }
 
     public String callLlm(Prompt query, String operationType, String stockTicker) {
+        if (chatModel == null) {
+            return callLlmWithOllama(query, operationType, stockTicker);
+        }
         try {
             ChatResponse response = chatModel.call(query);
             llmCostService.logUsage(response, operationType, stockTicker);

@@ -12,10 +12,20 @@ public class ReportItem {
     private Integer score;
     private String explanation;
     private String personalNotes;
+    private String type;
 
     public ReportItem(String name, Integer score, String explanation) {
         this.name = name;
         this.score = score;
         this.explanation = explanation;
+        this.type = name;
+    }
+
+    public String getType() {
+        return type;
+    }
+
+    public void setType(String type) {
+        this.type = type;
     }
 }
