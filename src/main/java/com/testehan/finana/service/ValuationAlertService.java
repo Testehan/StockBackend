@@ -22,13 +22,13 @@ public class ValuationAlertService {
         this.eventListener = eventListener;
     }
 
-    public SseEmitter subscribe(String userId) {
+    public SseEmitter subscribe(String userEmail) {
         SseEmitter emitter = new SseEmitter(Long.MAX_VALUE);
         
-        eventListener.addEmitter(userId, emitter);
-        eventListener.sendInitialAlerts(userId);
+        eventListener.addEmitter(userEmail, emitter);
+        eventListener.sendInitialAlerts(userEmail);
         
-        LOGGER.info("New SSE subscription for user: {}", userId);
+        LOGGER.info("New SSE subscription for user: {}", userEmail);
         
         return emitter;
     }

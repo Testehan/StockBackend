@@ -13,6 +13,8 @@ import com.testehan.finana.service.reporting.ChecklistReportOrchestrator;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -26,15 +28,31 @@ public class ReportingController {
 
     private final ChecklistReportOrchestrator checklistReportOrchestrator;
     private final UserStockRepository userStockRepository;
+    private final JwtDecoder jwtDecoder;
 
-    public ReportingController(ChecklistReportOrchestrator checklistReportOrchestrator, UserStockRepository userStockRepository) {
+    public ReportingController(ChecklistReportOrchestrator checklistReportOrchestrator, 
+                              UserStockRepository userStockRepository,
+                              JwtDecoder jwtDecoder) {
         this.checklistReportOrchestrator = checklistReportOrchestrator;
         this.userStockRepository = userStockRepository;
+        this.jwtDecoder = jwtDecoder;
     }
 
-    @GetMapping(value = "/checklist/{ticker}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter getChecklistReport(@PathVariable String ticker, @RequestParam(defaultValue = "false") boolean recreateReport, @RequestParam ReportType reportType) {
-        return checklistReportOrchestrator.getChecklistReport(ticker.toUpperCase(), recreateReport, reportType);
+    @GetMapping(value = "/checklist-stream/{ticker}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter getChecklistReport(
+            @PathVariable String ticker,
+            @RequestParam(defaultValue = "false") boolean recreateReport,
+            @RequestParam ReportType reportType,
+            @RequestParam String userEmail,
+            @RequestParam String token) {
+        
+        Jwt jwt = jwtDecoder.decode(token);
+        String tokenEmail = jwt.getClaimAsString("email");
+        if (tokenEmail == null || !userEmail.equals(tokenEmail)) {
+            throw new org.springframework.security.access.AccessDeniedException("Unauthorized");
+        }
+        
+        return checklistReportOrchestrator.getChecklistReport(ticker.toUpperCase(), recreateReport, reportType, userEmail);
     }
 
     @PostMapping("/checklist/{symbol}")

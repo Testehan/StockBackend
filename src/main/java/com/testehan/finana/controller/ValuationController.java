@@ -14,6 +14,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -27,10 +29,14 @@ public class ValuationController {
 
     private final ValuationService valuationService;
     private final ValuationAlertService valuationAlertService;
+    private final JwtDecoder jwtDecoder;
 
-    public ValuationController(ValuationService valuationService, ValuationAlertService valuationAlertService) {
+    public ValuationController(ValuationService valuationService, 
+                              ValuationAlertService valuationAlertService,
+                              JwtDecoder jwtDecoder) {
         this.valuationService = valuationService;
         this.valuationAlertService = valuationAlertService;
+        this.jwtDecoder = jwtDecoder;
     }
 
     @GetMapping("/dcf/{symbol}")
@@ -165,9 +171,19 @@ public class ValuationController {
         }
     }
 
-    @GetMapping(value = "/alerts/{userId}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter subscribeToAlerts(@PathVariable String userId) {
-        return valuationAlertService.subscribe(userId);
+    @GetMapping(value = "/alerts-stream/{userId}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter subscribeToAlerts(
+            @PathVariable String userId,
+            @RequestParam String userEmail,
+            @RequestParam String token) {
+        
+        Jwt jwt = jwtDecoder.decode(token);
+        String tokenEmail = jwt.getClaimAsString("email");
+        if (tokenEmail == null || !userEmail.equals(tokenEmail)) {
+            throw new org.springframework.security.access.AccessDeniedException("Unauthorized");
+        }
+        
+        return valuationAlertService.subscribe(userEmail);
     }
 
 }

@@ -68,7 +68,7 @@ public class ChecklistReportOrchestrator {
         this.mongoTemplate = mongoTemplate;
     }
 
-    public SseEmitter getChecklistReport(String ticker, boolean recreateReport, ReportType reportType) {
+    public SseEmitter getChecklistReport(String ticker, boolean recreateReport, ReportType reportType, String userEmail) {
         SseEmitter sseEmitter = new SseEmitter(3600000L); // Timeout set to 1 hour
 
         ReportGenerator generator = reportGenerators.get(reportType);
@@ -78,11 +78,11 @@ public class ChecklistReportOrchestrator {
             return sseEmitter;
         }
 
-        getOrGenerateChecklistReport(ticker, recreateReport, reportType, sseEmitter);
+        getOrGenerateChecklistReport(ticker, recreateReport, reportType, sseEmitter, userEmail);
         return sseEmitter;
     }
 
-    private void getOrGenerateChecklistReport(String ticker, boolean recreateReport, ReportType reportType, SseEmitter sseEmitter) {
+    private void getOrGenerateChecklistReport(String ticker, boolean recreateReport, ReportType reportType, SseEmitter sseEmitter, String userEmail) {
         checklistExecutor.execute(() -> {
             try {
                 if (!recreateReport) {

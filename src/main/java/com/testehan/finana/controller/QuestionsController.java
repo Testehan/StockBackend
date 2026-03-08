@@ -6,6 +6,8 @@ import com.testehan.finana.model.qa.StockSentiment;
 import com.testehan.finana.service.qa.QuestionAnswerService;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -18,10 +20,14 @@ public class QuestionsController {
 
     private final QuestionAnswerService questionAnswerService;
     private final ExecutorService executorService;
+    private final JwtDecoder jwtDecoder;
 
-    public QuestionsController(QuestionAnswerService questionAnswerService, @Qualifier("checklistExecutor") ExecutorService executorService) {
+    public QuestionsController(QuestionAnswerService questionAnswerService, 
+                              @Qualifier("checklistExecutor") ExecutorService executorService,
+                              JwtDecoder jwtDecoder) {
         this.questionAnswerService = questionAnswerService;
         this.executorService = executorService;
+        this.jwtDecoder = jwtDecoder;
     }
 
     @GetMapping("/business")
@@ -39,10 +45,18 @@ public class QuestionsController {
         return QuestionConstants.getGuruQuestions(guruName);
     }
 
-    @GetMapping("/answer")
+    @GetMapping("/answer-stream")
     public SseEmitter answerQuestion(@RequestParam String stockId, @RequestParam String questionId, 
             @RequestParam(required = false, defaultValue = "false") boolean regenerate,
-            @RequestParam(required = false) String additionalInformation) {
+            @RequestParam(required = false) String additionalInformation,
+            @RequestParam String userEmail,
+            @RequestParam String token) {
+        
+        Jwt jwt = jwtDecoder.decode(token);
+        String tokenEmail = jwt.getClaimAsString("email");
+        if (tokenEmail == null || !userEmail.equals(tokenEmail)) {
+            throw new org.springframework.security.access.AccessDeniedException("Unauthorized");
+        }
         
         SseEmitter emitter = new SseEmitter(Long.MAX_VALUE);
 
