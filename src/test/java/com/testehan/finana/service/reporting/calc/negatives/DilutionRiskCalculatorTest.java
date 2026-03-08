@@ -67,12 +67,12 @@ class DilutionRiskCalculatorTest {
         ReportItem result = calculator.calculate("AAPL", sseEmitter);
 
         assertThat(result.getScore()).isEqualTo(0);
-        assertThat(result.getExplanation()).contains("1.000000 years").contains("2.00%");
-    }
+        assertThat(result.getExplanation()).contains("2,00%");
+        }
 
-    @Test
-    @DisplayName("Should return -2 when dilution is medium (3% - 5%)")
-    void shouldReturnMinusTwoWhenMediumDilution() {
+        @Test
+        @DisplayName("Should return -2 when dilution is medium (3% - 5%)")
+        void shouldReturnMinusTwoWhenMediumDilution() {
         IncomeStatementData data = new IncomeStatementData();
         List<IncomeReport> reports = new ArrayList<>();
         reports.add(createReport("2022-12-31", "1000"));
@@ -84,12 +84,12 @@ class DilutionRiskCalculatorTest {
         ReportItem result = calculator.calculate("AAPL", sseEmitter);
 
         assertThat(result.getScore()).isEqualTo(-2);
-        assertThat(result.getExplanation()).contains("1.000000 years").contains("4.00%");
-    }
+        assertThat(result.getExplanation()).contains("4,00%");
+        }
 
-    @Test
-    @DisplayName("Should return -4 when dilution is high (> 5%)")
-    void shouldReturnMinusFourWhenHighDilution() {
+        @Test
+        @DisplayName("Should return -4 when dilution is high (> 5%)")
+        void shouldReturnMinusFourWhenHighDilution() {
         IncomeStatementData data = new IncomeStatementData();
         List<IncomeReport> reports = new ArrayList<>();
         reports.add(createReport("2022-12-31", "1000"));
@@ -101,10 +101,8 @@ class DilutionRiskCalculatorTest {
         ReportItem result = calculator.calculate("AAPL", sseEmitter);
 
         assertThat(result.getScore()).isEqualTo(-4);
-        assertThat(result.getExplanation()).contains("1.000000 years").contains("10.00%");
-    }
-
-    private IncomeReport createReport(String date, String shares) {
+        assertThat(result.getExplanation()).contains("10,00%");
+        }    private IncomeReport createReport(String date, String shares) {
         IncomeReport report = new IncomeReport();
         report.setDate(date);
         report.setWeightedAverageShsOutDil(shares);

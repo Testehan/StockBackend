@@ -60,7 +60,7 @@ class ChecklistReportOrchestratorTest {
     @Test
     void getChecklistReport_invalidType_publishesMessageAndCompletes() {
         String ticker = "AAPL";
-        SseEmitter emitter = orchestrator.getChecklistReport(ticker, false, ReportType.ONE_HUNDRED_BAGGER);
+        SseEmitter emitter = orchestrator.getChecklistReport(ticker, false, ReportType.ONE_HUNDRED_BAGGER, "test@test.com");
         
         assertNotNull(emitter);
         verify(eventPublisher).publishEvent(any());
@@ -75,7 +75,7 @@ class ChecklistReportOrchestratorTest {
         
         when(generatedReportRepository.findBySymbol(ticker)).thenReturn(Optional.of(generatedReport));
 
-        orchestrator.getChecklistReport(ticker, false, ReportType.FEROL);
+        orchestrator.getChecklistReport(ticker, false, ReportType.FEROL, "test@test.com");
 
         verify(generatedReportRepository).findBySymbol(ticker);
         verify(eventPublisher, atLeastOnce()).publishEvent(any());
@@ -87,7 +87,7 @@ class ChecklistReportOrchestratorTest {
         
         when(financialDataOrchestrator.ensureFinancialDataIsPresent(ticker)).thenReturn(reactor.core.publisher.Mono.empty());
 
-        orchestrator.getChecklistReport(ticker, true, ReportType.FEROL);
+        orchestrator.getChecklistReport(ticker, true, ReportType.FEROL, "test@test.com");
 
         verify(financialDataOrchestrator).ensureFinancialDataIsPresent(ticker);
         verify(ferolReportGenerator).generate(eq(ticker), eq(ReportType.FEROL), any(SseEmitter.class));
