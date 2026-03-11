@@ -16,6 +16,7 @@ public class LlmUsage {
     private String model;
     private String operationType;
     private String symbol;
+    private String userEmail;
     private int promptTokens;
     private int completionTokens;
     private int cachedTokens;
