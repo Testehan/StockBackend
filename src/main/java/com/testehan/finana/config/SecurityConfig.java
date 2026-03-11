@@ -1,10 +1,12 @@
 package com.testehan.finana.config;
 
+import com.testehan.finana.filter.QueryParamTokenAuthFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -16,12 +18,18 @@ import java.util.List;
 @EnableWebSecurity
 public class SecurityConfig {
 
+    private final QueryParamTokenAuthFilter queryParamTokenAuthFilter;
+
+    public SecurityConfig(QueryParamTokenAuthFilter queryParamTokenAuthFilter) {
+        this.queryParamTokenAuthFilter = queryParamTokenAuthFilter;
+    }
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             .csrf(csrf -> csrf.disable())
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/actuator/health").permitAll()
                 .requestMatchers("/stocks/reporting/checklist-stream/*").permitAll()
@@ -29,7 +37,8 @@ public class SecurityConfig {
                 .requestMatchers("/stocks/questions/answer-stream").permitAll()
                 .anyRequest().authenticated()
             )
-            .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> {}));
+            .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> {}))
+            .addFilterBefore(queryParamTokenAuthFilter, BearerTokenAuthenticationFilter.class);
 
         return http.build();
     }
