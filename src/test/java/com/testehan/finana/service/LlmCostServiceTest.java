@@ -29,13 +29,16 @@ class LlmCostServiceTest {
     private LlmUsageRepository llmUsageRepository;
 
     @Mock
+    private UserCreditService userCreditService;
+
+    @Mock
     private ChatResponse chatResponse;
 
     private LlmCostService llmCostService;
 
     @BeforeEach
     void setUp() {
-        llmCostService = new LlmCostService(llmUsageRepository);
+        llmCostService = new LlmCostService(llmUsageRepository, userCreditService);
     }
 
     private ChatResponse buildResponse(int promptTokens, int completionTokens, int cachedTokens) {

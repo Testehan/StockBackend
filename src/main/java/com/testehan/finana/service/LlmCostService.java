@@ -30,17 +30,56 @@ public class LlmCostService {
     private static final int MILLION = 1_000_000;
 
     private final LlmUsageRepository llmUsageRepository;
+    private final UserCreditService userCreditService;
 
-    public LlmCostService(LlmUsageRepository llmUsageRepository) {
+    public LlmCostService(LlmUsageRepository llmUsageRepository, UserCreditService userCreditService) {
         this.llmUsageRepository = llmUsageRepository;
+        this.userCreditService = userCreditService;
     }
 
-    public void logUsage(ChatResponse response, String operationType, String symbol) {
+    public void logUsage(String userEmail, ChatResponse response, String operationType, String symbol) {
+        logUsageInternal(userEmail, response, operationType, symbol, null);
+    }
+
+    public void logUsageWithRefund(String userEmail, ChatResponse response, String operationType, String symbol, BigDecimal previousCost) {
+        if (previousCost != null && previousCost.compareTo(BigDecimal.ZERO) > 0) {
+            userCreditService.refundCredit(userEmail, previousCost);
+            LOGGER.info("Refunded ${} to user {} due to call failure", previousCost, userEmail);
+        }
+        logUsageInternal(userEmail, response, operationType, symbol, null);
+    }
+
+    public void logUsageFailure(String userEmail, String operationType, String symbol, String errorMessage) {
+        logUsageInternal(userEmail, null, operationType, symbol, errorMessage);
+    }
+
+    public void logUsageFailure(String userEmail, String operationType, String symbol, String errorMessage, BigDecimal costToRefund) {
+        if (costToRefund != null && costToRefund.compareTo(BigDecimal.ZERO) > 0) {
+            userCreditService.refundCredit(userEmail, costToRefund);
+            LOGGER.info("Refunded ${} to user {} due to call failure", costToRefund, userEmail);
+        }
+        logUsageInternal(userEmail, null, operationType, symbol, errorMessage);
+    }
+
+    private void logUsageInternal(String userEmail, ChatResponse response, String operationType, String symbol, String errorMessage) {
         try {
-            int promptTokens = extractPromptTokens(response);
-            int completionTokens = extractCompletionTokens(response);
-            int cachedTokens = extractCachedTokens(response);
-            BigDecimal cost = calculateCost(promptTokens, completionTokens, cachedTokens);
+            int promptTokens = 0;
+            int completionTokens = 0;
+            int cachedTokens = 0;
+            BigDecimal cost = BigDecimal.ZERO;
+
+            if (response != null) {
+                promptTokens = extractPromptTokens(response);
+                completionTokens = extractCompletionTokens(response);
+                cachedTokens = extractCachedTokens(response);
+                cost = calculateCost(promptTokens, completionTokens, cachedTokens);
+
+                if (userEmail != null && userCreditService.hasEnoughCredit(userEmail, cost)) {
+                    userCreditService.deductCredit(userEmail, cost);
+                } else if (userEmail != null) {
+                    LOGGER.warn("User {} has insufficient credit for cost ${}", userEmail, cost);
+                }
+            }
 
             LlmUsage usage = new LlmUsage();
             usage.setTimestamp(LocalDateTime.now());
@@ -51,7 +90,11 @@ public class LlmCostService {
             usage.setCompletionTokens(completionTokens);
             usage.setCachedTokens(cachedTokens);
             usage.setTotalCostUsd(cost);
-            usage.setSuccess(true);
+            usage.setSuccess(errorMessage == null);
+            usage.setErrorMessage(errorMessage);
+            if (userEmail != null) {
+                usage.setUserEmail(userEmail);
+            }
 
             llmUsageRepository.save(usage);
             LOGGER.info("LLM usage logged: {} | {} | prompt={} completion={} cached={} cost=${}",
@@ -61,28 +104,7 @@ public class LlmCostService {
         }
     }
 
-    public void logUsage(String operationType, String symbol, String errorMessage) {
-        try {
-            LlmUsage usage = new LlmUsage();
-            usage.setTimestamp(LocalDateTime.now());
-            usage.setModel(MODEL);
-            usage.setOperationType(operationType);
-            usage.setSymbol(symbol);
-            usage.setPromptTokens(0);
-            usage.setCompletionTokens(0);
-            usage.setCachedTokens(0);
-            usage.setTotalCostUsd(BigDecimal.ZERO);
-            usage.setSuccess(false);
-            usage.setErrorMessage(errorMessage);
-
-            llmUsageRepository.save(usage);
-            LOGGER.info("LLM usage logged (failure): {} | {} | error={}", operationType, symbol, errorMessage);
-        } catch (Exception e) {
-            LOGGER.error("Failed to log failed LLM usage for {} | {}: {}", operationType, symbol, e.getMessage());
-        }
-    }
-
-    private BigDecimal calculateCost(int promptTokens, int completionTokens, int cachedTokens) {
+    public BigDecimal calculateCost(int promptTokens, int completionTokens, int cachedTokens) {
         BigDecimal promptCost = calculatePromptCost(promptTokens, cachedTokens);
         BigDecimal outputCost = calculateOutputCost(completionTokens);
 
@@ -141,6 +163,6 @@ public class LlmCostService {
         if (usage == null || !(usage instanceof GoogleGenAiUsage)) {
             return 0;
         }
-        return ((GoogleGenAiUsage)usage).getCachedContentTokenCount() != null ? ((GoogleGenAiUsage)usage).getCachedContentTokenCount() : 0;
+        return ((GoogleGenAiUsage) usage).getCachedContentTokenCount() != null ? ((GoogleGenAiUsage) usage).getCachedContentTokenCount() : 0;
     }
 }

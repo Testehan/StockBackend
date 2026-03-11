@@ -1,5 +1,6 @@
 package com.testehan.finana.service;
 
+import com.testehan.finana.exception.InsufficientCreditException;
 import com.testehan.finana.service.mcp.StockDataTools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,9 +13,14 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.google.genai.GoogleGenAiChatOptions;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -26,15 +32,19 @@ public class LlmService {
     private final ChatModel chatModel;
     private final ChatClient ollamaChatClient;
     private final LlmCostService llmCostService;
+    private final UserCreditService userCreditService;
     private final ChatClient chatClientWithTools;
     private final StockDataTools stockDataTools;
 
     public LlmService(
             @Qualifier("googleGenAiChatModel") ObjectProvider<ChatModel> chatModelProvider,
             ChatClient.Builder chatClientBuilder,
-            LlmCostService llmCostService, StockDataTools stockDataTools) {
+            LlmCostService llmCostService, 
+            UserCreditService userCreditService,
+            StockDataTools stockDataTools) {
         this.chatModel = chatModelProvider.getIfAvailable();
         this.llmCostService = llmCostService;
+        this.userCreditService = userCreditService;
         
         // This ChatClient will use the auto-configured Ollama model via spring.ai.model.chat.type=ollama
         this.ollamaChatClient = chatClientBuilder.build();
@@ -55,29 +65,65 @@ public class LlmService {
     }
 
     public String callLlm(String query, String operationType, String stockTicker) {
+        String userEmail = getUserEmailFromContext();
+        checkCredit(userEmail);
+
         if (chatModel == null) {
             return callLlmWithOllama(query, operationType, stockTicker);
         }
         try {
             ChatResponse response = chatModel.call(new Prompt(new UserMessage(query)));
-            llmCostService.logUsage(response, operationType, stockTicker);
+            llmCostService.logUsage(userEmail, response, operationType, stockTicker);
             return response.getResult().getOutput().getText();
         } catch (Exception e) {
-            llmCostService.logUsage(operationType, stockTicker, e.getMessage());
+            llmCostService.logUsageFailure(userEmail, operationType, stockTicker, e.getMessage());
             throw e;
         }
     }
 
+    private void checkCredit(String userEmail) {
+        if (userEmail == null) {
+            throw new InsufficientCreditException("No authenticated user found. Please log in to use this feature.");
+        }
+
+        logger.debug("Checking credit for user: {}", userEmail);
+        if (!userCreditService.hasAnyCredit(userEmail)) {
+            BigDecimal currentCredit = userCreditService.getCredit(userEmail);
+            throw new InsufficientCreditException("Insufficient credit. Current balance: $" + currentCredit);
+        }
+    }
+
+    private String getUserEmailFromContext() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        logger.debug("Authentication in SecurityContext: {}", auth);
+        
+        if (auth == null) {
+            return null;
+        }
+        
+        if (auth instanceof JwtAuthenticationToken jwtAuth) {
+            Jwt jwt = jwtAuth.getToken();
+            String email = jwt.getClaimAsString("email");
+            logger.debug("Extracted email from JWT: {}", email);
+            return email;
+        }
+        
+        logger.debug("Authentication type: {}", auth.getClass().getName());
+        return null;
+    }
+
     public String callLlm(Prompt query, String operationType, String stockTicker) {
+        String userEmail = getUserEmailFromContext();
+        checkCredit(userEmail);
         if (chatModel == null) {
             return callLlmWithOllama(query, operationType, stockTicker);
         }
         try {
             ChatResponse response = chatModel.call(query);
-            llmCostService.logUsage(response, operationType, stockTicker);
+            llmCostService.logUsage(userEmail, response, operationType, stockTicker);
             return response.getResult().getOutput().getText();
         } catch (Exception e) {
-            llmCostService.logUsage(operationType, stockTicker, e.getMessage());
+            llmCostService.logUsageFailure(userEmail, operationType, stockTicker, e.getMessage());
             throw e;
         }
     }
@@ -86,27 +132,31 @@ public class LlmService {
 //  ..instead of getting the URLS in the generated reponse..which is making the total cost higher...right now it is at
 //  about 7 cents per sentiment call...
     public String callLlmWithSearch(String query, String operationType, String stockTicker) {
+        String userEmail = getUserEmailFromContext();
+        checkCredit(userEmail);
         try {
             var options = GoogleGenAiChatOptions.builder()
                     .googleSearchRetrieval(true)
                     .temperature(0.2d)
                     .build();
             ChatResponse response = chatModel.call(new Prompt(new UserMessage(query), options));
-            llmCostService.logUsage(response, operationType, stockTicker);
+            llmCostService.logUsage(userEmail, response, operationType, stockTicker);
             return response.getResult().getOutput().getText();
         } catch (Exception e) {
-            llmCostService.logUsage(operationType, stockTicker, e.getMessage());
+            llmCostService.logUsageFailure(userEmail, operationType, stockTicker, e.getMessage());
             throw e;
         }
     }
 
 
     public Flux<String> streamLlm(Prompt prompt, String operationType, String stockTicker) {
+        String userEmail = getUserEmailFromContext();
+        checkCredit(userEmail);
         return chatModel.stream(prompt)
                 .collectList()
                 .map(responses -> {
                     ChatResponse lastResponse = responses.get(responses.size() - 1);
-                    llmCostService.logUsage(lastResponse, operationType, stockTicker);
+                    llmCostService.logUsage(userEmail, lastResponse, operationType, stockTicker);
                     return responses;
                 })
                 .flatMapMany(responses -> Flux.fromIterable(responses))
@@ -117,12 +167,14 @@ public class LlmService {
                     return "";
                 })
                 .onErrorResume(e -> {
-                    llmCostService.logUsage(operationType, stockTicker, e.getMessage());
+                    llmCostService.logUsageFailure(userEmail, operationType, stockTicker, e.getMessage());
                     return Flux.empty();
                 });
     }
 
     public Flux<String> streamLlmWithSearch(Prompt prompt, String operationType, String symbol) {
+        String userEmail = getUserEmailFromContext();
+        checkCredit(userEmail);
         var options = GoogleGenAiChatOptions.builder()
                 .googleSearchRetrieval(true)
                 .build();
@@ -130,7 +182,7 @@ public class LlmService {
                 .collectList()
                 .map(responses -> {
                     ChatResponse lastResponse = responses.get(responses.size() - 1);
-                    llmCostService.logUsage(lastResponse, operationType, symbol);
+                    llmCostService.logUsage(userEmail, lastResponse, operationType, symbol);
                     return responses;
                 })
                 .flatMapMany(responses -> Flux.fromIterable(responses))
@@ -141,12 +193,14 @@ public class LlmService {
                     return "";
                 })
                 .onErrorResume(e -> {
-                    llmCostService.logUsage(operationType, symbol, e.getMessage());
+                    llmCostService.logUsageFailure(userEmail, operationType, symbol, e.getMessage());
                     return Flux.empty();
                 });
     }
 
     public String callLlmWithTools(String question, String operationType, String stockTicker) {
+        String userEmail = getUserEmailFromContext();
+        checkCredit(userEmail);
         String systemPrompt = """
             You are a financial analyst assistant. When the user asks about a stock,
             you must use the available tools to fetch data from the database.
@@ -158,7 +212,7 @@ public class LlmService {
             Map<String, Object> toolContext = new HashMap<>();
             Map<String, String> tickerHolder = new HashMap<>();
             toolContext.put("ticker_holder", tickerHolder);
-            
+
             var chatResponse = chatClientWithTools.prompt()
                     .system(systemPrompt)
                     .user(question)
@@ -172,14 +226,13 @@ public class LlmService {
                     .call()
                     .chatResponse();
 
-            // Extract ticker from tool calls in memory
             var extractedTicker = tickerHolder.get("ticker");
-            String tickerToLog = extractedTicker != null ? extractedTicker.toString() : stockTicker;
+            String tickerToLog = extractedTicker != null ? extractedTicker : stockTicker;
 
-            llmCostService.logUsage(chatResponse, operationType, tickerToLog);
+            llmCostService.logUsage(userEmail, chatResponse, operationType, tickerToLog);
             return chatResponse.getResult().getOutput().getText();
         } catch (Exception e) {
-            llmCostService.logUsage(operationType, stockTicker, e.getMessage());
+            llmCostService.logUsageFailure(userEmail, operationType, stockTicker, e.getMessage());
             throw e;
         }
     }

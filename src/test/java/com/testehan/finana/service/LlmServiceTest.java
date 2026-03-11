@@ -42,6 +42,9 @@ class LlmServiceTest {
     private LlmCostService llmCostService;
 
     @Mock
+    private UserCreditService userCreditService;
+
+    @Mock
     private StockDataTools stockDataTools;
 
     private LlmService llmService;
@@ -51,7 +54,8 @@ class LlmServiceTest {
         lenient().when(chatClientBuilder.build()).thenReturn(chatClient);
         lenient().when(chatClientBuilder.defaultOptions(any())).thenReturn(chatClientBuilder);
         lenient().when(chatModelProvider.getIfAvailable()).thenReturn(chatModel);
-        llmService = new LlmService(chatModelProvider, chatClientBuilder, llmCostService, stockDataTools);
+        lenient().when(userCreditService.hasAnyCredit(anyString())).thenReturn(true);
+        llmService = new LlmService(chatModelProvider, chatClientBuilder, llmCostService, userCreditService, stockDataTools);
     }
 
     private ChatResponse buildResponse(String text) {
