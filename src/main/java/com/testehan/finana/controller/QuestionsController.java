@@ -1,13 +1,13 @@
 package com.testehan.finana.controller;
 
+import com.testehan.finana.exception.InsufficientCreditException;
 import com.testehan.finana.model.qa.QuestionConstants;
 import com.testehan.finana.model.qa.Question;
 import com.testehan.finana.model.qa.StockSentiment;
 import com.testehan.finana.service.qa.QuestionAnswerService;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.concurrent.DelegatingSecurityContextRunnable;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -20,14 +20,11 @@ public class QuestionsController {
 
     private final QuestionAnswerService questionAnswerService;
     private final ExecutorService executorService;
-    private final JwtDecoder jwtDecoder;
 
-    public QuestionsController(QuestionAnswerService questionAnswerService, 
-                              @Qualifier("checklistExecutor") ExecutorService executorService,
-                              JwtDecoder jwtDecoder) {
+    public QuestionsController(QuestionAnswerService questionAnswerService,
+                              @Qualifier("checklistExecutor") ExecutorService executorService) {
         this.questionAnswerService = questionAnswerService;
         this.executorService = executorService;
-        this.jwtDecoder = jwtDecoder;
     }
 
     @GetMapping("/business")
@@ -46,27 +43,27 @@ public class QuestionsController {
     }
 
     @GetMapping("/answer-stream")
-    public SseEmitter answerQuestion(@RequestParam String stockId, @RequestParam String questionId, 
+    public SseEmitter answerQuestion(@RequestParam String stockId, @RequestParam String questionId,
             @RequestParam(required = false, defaultValue = "false") boolean regenerate,
-            @RequestParam(required = false) String additionalInformation,
-            @RequestParam String userEmail,
-            @RequestParam String token) {
-        
-        Jwt jwt = jwtDecoder.decode(token);
-        String tokenEmail = jwt.getClaimAsString("email");
-        if (tokenEmail == null || !userEmail.equals(tokenEmail)) {
-            throw new org.springframework.security.access.AccessDeniedException("Unauthorized");
-        }
-        
+            @RequestParam(required = false) String additionalInformation) {
+
         SseEmitter emitter = new SseEmitter(Long.MAX_VALUE);
 
-        executorService.execute(() -> {
+        executorService.execute(new DelegatingSecurityContextRunnable(() -> {
             try {
                 questionAnswerService.answerQuestion(stockId.toUpperCase(), questionId, additionalInformation, emitter, regenerate);
+            } catch (InsufficientCreditException ex) {
+                try {
+                    emitter.send(SseEmitter.event().data(ex.getMessage()));
+                    emitter.send(SseEmitter.event().name("COMPLETED").data(""));
+                    emitter.complete();
+                } catch (Exception e) {
+                    emitter.completeWithError(e);
+                }
             } catch (Exception ex) {
                 emitter.completeWithError(ex);
             }
-        });
+        }));
 
         return emitter;
     }

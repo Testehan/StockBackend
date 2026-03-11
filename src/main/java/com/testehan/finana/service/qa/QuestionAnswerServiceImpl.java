@@ -1,6 +1,7 @@
 package com.testehan.finana.service.qa;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.testehan.finana.exception.InsufficientCreditException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.testehan.finana.model.qa.QuestionAnswer;
 import com.testehan.finana.model.qa.QuestionAnswerStatus;
@@ -197,6 +198,10 @@ public class QuestionAnswerServiceImpl implements QuestionAnswerService {
             questionAnswerRepository.save(questionAnswer);
 
             return stockSentiment;
+        } catch (InsufficientCreditException e) {
+            logger.warn("Insufficient credit during sentiment generation for {}: {}", ticker, e.getMessage());
+            questionAnswerRepository.delete(questionAnswer);
+            throw e;
         } catch (Exception e) {
             logger.error("Error during sentiment generation for {}", ticker, e);
             questionAnswer.setStatus(QuestionAnswerStatus.FAILED);

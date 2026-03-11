@@ -1,5 +1,6 @@
 package com.testehan.finana.service.qa;
 
+import com.testehan.finana.exception.InsufficientCreditException;
 import com.testehan.finana.model.CompanyOverview;
 import com.testehan.finana.model.qa.Question;
 import com.testehan.finana.model.qa.QuestionAnswer;
@@ -132,6 +133,18 @@ public class LlmQuestionAnswerGenerator {
                     })
                     .subscribe();
 
+        } catch (InsufficientCreditException e) {
+            logger.warn("Insufficient credit for streaming generation, stockId: {}, questionId: {}: {}", stockId, questionId, e.getMessage());
+            questionAnswerRepository
+                    .findByStockIdAndQuestionIdAndPromptVersionAndModel(stockId, questionId, promptVersion, llmModel)
+                    .ifPresent(questionAnswerRepository::delete);
+            try {
+                emitter.send(SseEmitter.event().data(e.getMessage()));
+                emitter.send(SseEmitter.event().name("COMPLETED").data(""));
+                emitter.complete();
+            } catch (IOException ioEx) {
+                emitter.completeWithError(ioEx);
+            }
         } catch (Exception e) {
             logger.error("Error during streaming answer generation for stockId: {}, questionId: {}: {}", stockId, questionId, e.getMessage());
             emitter.completeWithError(e);
