@@ -16,4 +16,15 @@ public interface LlmUsageRepository extends MongoRepository<LlmUsage, String> {
     Page<LlmUsage> findBySymbolAndOperationType(String symbol, String operationType, Pageable pageable);
     Page<LlmUsage> findBySymbolAndOperationTypeAndTimestampBetween(String symbol, String operationType, LocalDateTime from, LocalDateTime to, Pageable pageable);
     List<LlmUsage> findByTimestampBetween(LocalDateTime from, LocalDateTime to);
+
+    Page<LlmUsage> findByUserEmail(String userEmail, Pageable pageable);
+    Page<LlmUsage> findByUserEmailAndSymbol(String userEmail, String symbol, Pageable pageable);
+    Page<LlmUsage> findByUserEmailAndOperationType(String userEmail, String operationType, Pageable pageable);
+    Page<LlmUsage> findByUserEmailAndTimestampBetween(String userEmail, LocalDateTime from, LocalDateTime to, Pageable pageable);
+    Page<LlmUsage> findByUserEmailAndSymbolAndOperationType(String userEmail, String symbol, String operationType, Pageable pageable);
+    Page<LlmUsage> findByUserEmailAndSymbolAndTimestampBetween(String userEmail, String symbol, LocalDateTime from, LocalDateTime to, Pageable pageable);
+    Page<LlmUsage> findByUserEmailAndSymbolAndOperationTypeAndTimestampBetween(String userEmail, String symbol, String operationType, LocalDateTime from, LocalDateTime to, Pageable pageable);
+    List<LlmUsage> findByUserEmailAndTimestampBetween(String userEmail, LocalDateTime from, LocalDateTime to);
+    List<LlmUsage> findByUserEmailAndSymbolAndTimestampBetween(String userEmail, String symbol, LocalDateTime from, LocalDateTime to);
+    List<LlmUsage> findByUserEmailAndOperationType(String userEmail, String operationType);
 }

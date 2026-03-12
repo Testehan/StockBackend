@@ -6,6 +6,10 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -36,23 +40,24 @@ public class LlmUsageController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
 
+        String userEmail = extractUserEmail();
         PageRequest pageRequest = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "timestamp"));
 
         if (symbol != null && operationType != null && fromDate != null && toDate != null) {
-            return llmUsageRepository.findBySymbolAndOperationTypeAndTimestampBetween(symbol, operationType, fromDate, toDate, pageRequest);
+            return llmUsageRepository.findByUserEmailAndSymbolAndOperationTypeAndTimestampBetween(userEmail, symbol, operationType, fromDate, toDate, pageRequest);
         } else if (symbol != null && operationType != null) {
-            return llmUsageRepository.findBySymbolAndOperationType(symbol, operationType, pageRequest);
+            return llmUsageRepository.findByUserEmailAndSymbolAndOperationType(userEmail, symbol, operationType, pageRequest);
         } else if (symbol != null && fromDate != null && toDate != null) {
-            return llmUsageRepository.findBySymbolAndTimestampBetween(symbol, fromDate, toDate, pageRequest);
+            return llmUsageRepository.findByUserEmailAndSymbolAndTimestampBetween(userEmail, symbol, fromDate, toDate, pageRequest);
         } else if (symbol != null) {
-            return llmUsageRepository.findBySymbol(symbol, pageRequest);
+            return llmUsageRepository.findByUserEmailAndSymbol(userEmail, symbol, pageRequest);
         } else if (operationType != null) {
-            return llmUsageRepository.findByOperationType(operationType, pageRequest);
+            return llmUsageRepository.findByUserEmailAndOperationType(userEmail, operationType, pageRequest);
         } else if (fromDate != null && toDate != null) {
-            return llmUsageRepository.findByTimestampBetween(fromDate, toDate, pageRequest);
+            return llmUsageRepository.findByUserEmailAndTimestampBetween(userEmail, fromDate, toDate, pageRequest);
         }
 
-        return llmUsageRepository.findAll(pageRequest);
+        return llmUsageRepository.findByUserEmail(userEmail, pageRequest);
     }
 
     @GetMapping("/summary")
@@ -62,21 +67,31 @@ public class LlmUsageController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime fromDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime toDate) {
 
+        String userEmail = extractUserEmail();
         LocalDateTime from = fromDate != null ? fromDate : LocalDateTime.of(2000, 1, 1, 0, 0);
         LocalDateTime to = toDate != null ? toDate : LocalDateTime.now();
 
         List<LlmUsage> usages;
         if (symbol != null) {
-            Page<LlmUsage> page = llmUsageRepository.findBySymbolAndTimestampBetween(symbol, from, to, PageRequest.of(0, Integer.MAX_VALUE));
-            usages = page.getContent();
+            usages = llmUsageRepository.findByUserEmailAndSymbolAndTimestampBetween(userEmail, symbol, from, to);
         } else if (operationType != null) {
-            Page<LlmUsage> page = llmUsageRepository.findByOperationType(operationType, PageRequest.of(0, Integer.MAX_VALUE));
-            usages = page.getContent();
+            usages = llmUsageRepository.findByUserEmailAndOperationType(userEmail, operationType);
         } else {
-            usages = llmUsageRepository.findByTimestampBetween(from, to);
+            usages = llmUsageRepository.findByUserEmailAndTimestampBetween(userEmail, from, to);
         }
 
         return calculateSummary(usages);
+    }
+
+    private String extractUserEmail() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth instanceof JwtAuthenticationToken jwtAuth) {
+            String email = jwtAuth.getToken().getClaimAsString("email");
+            if (email != null) {
+                return email;
+            }
+        }
+        throw new AuthenticationCredentialsNotFoundException("No authenticated user or email claim missing from JWT.");
     }
 
     private Map<String, Object> calculateSummary(List<LlmUsage> usages) {

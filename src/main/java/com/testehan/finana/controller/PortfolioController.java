@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/users/{userId}/portfolio")
+@RequestMapping("api/users/{userId}/portfolio")
 public class PortfolioController {
 
     public static final String OTHER_ASSET = "OTHER_ASSET";
