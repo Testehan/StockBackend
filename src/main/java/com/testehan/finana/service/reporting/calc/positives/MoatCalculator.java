@@ -26,6 +26,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import com.testehan.finana.exception.InsufficientCreditException;
 
 @Service
 public class MoatCalculator {
@@ -92,6 +93,10 @@ public class MoatCalculator {
             eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Received LLM response for moat analysis."));
             return ferolLlmResponseOutputConverter.convert(llmResponse);
 
+        } catch (InsufficientCreditException e) {
+            LOGGER.warn("Insufficient credit for operation in {}: {}", ticker, e.getMessage());
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, e));
+            return new FerolMoatAnalysisLlmResponse(-10, "Insufficient credit. Unable to complete analysis.");
         } catch (Exception e) {
             String errorMessage = "Operation 'calculateMoats' failed.";
             LOGGER.error(errorMessage, e);
@@ -145,6 +150,10 @@ public class MoatCalculator {
 
             return new ReportItem("competitiveAdvantageMoat", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
 
+        } catch (InsufficientCreditException e) {
+            LOGGER.warn("Insufficient credit for operation in {}: {}", ticker, e.getMessage());
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, e));
+            return new ReportItem("competitiveAdvantageMoat", -10, "Insufficient credit. Unable to complete analysis.");
         } catch (Exception e) {
             String errorMessage = "Operation 'calculateMoats' failed.";
             LOGGER.error(errorMessage, e);

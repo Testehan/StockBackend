@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.*;
+import com.testehan.finana.exception.InsufficientCreditException;
 
 @Service
 public class MultipleRisksCalculator {
@@ -86,6 +87,10 @@ public class MultipleRisksCalculator {
             eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Received LLM response for moat analysis."));
             return ferolLlmResponseOutputConverter.convert(llmResponse);
 
+        } catch (InsufficientCreditException e) {
+            LOGGER.warn("Insufficient credit for operation in {}: {}", ticker, e.getMessage());
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, e));
+            return new FerolNegativesAnalysisLlmResponse(-10, "Insufficient credit. Unable to complete analysis.");
         } catch (Exception e) {
             String errorMessage = "Operation 'calculateMultipleRisks' failed.";
             LOGGER.error(errorMessage, e);

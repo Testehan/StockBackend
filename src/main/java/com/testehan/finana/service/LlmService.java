@@ -114,9 +114,8 @@ public class LlmService {
             logger.debug("Extracted email from JWT: {}", email);
             return email;
         }
-        
-        logger.debug("Authentication type: {}", auth.getClass().getName());
-        return null;
+
+        return auth.getName();
     }
 
     public String callLlm(Prompt query, String operationType, String stockTicker) {

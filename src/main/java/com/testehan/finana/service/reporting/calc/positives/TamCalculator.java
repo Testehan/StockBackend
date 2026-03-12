@@ -26,6 +26,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.math.BigDecimal;
 import java.util.*;
 import java.util.stream.Collectors;
+import com.testehan.finana.exception.InsufficientCreditException;
 
 @Service
 public class TamCalculator {
@@ -111,6 +112,10 @@ public class TamCalculator {
             eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Received LLM response with TAM analysis."));
              return llmResponseOutputConverter.convert(llmResponse);
 
+        } catch (InsufficientCreditException e) {
+            LOGGER.warn("Insufficient credit for operation in {}: {}", ticker, e.getMessage());
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, e));
+            return new TAMScoreExplanationResponse(-10, "Insufficient credit. Unable to complete analysis.");
         } catch (Exception e) {
             String errorMessage = "Operation 'calculatetotalAddressableMarket' failed.";
             LOGGER.error(errorMessage, e);

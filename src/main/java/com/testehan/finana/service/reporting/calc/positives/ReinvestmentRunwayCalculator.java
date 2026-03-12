@@ -31,6 +31,7 @@ import java.math.RoundingMode;
 import java.text.NumberFormat;
 import java.util.*;
 import java.util.stream.Collectors;
+import com.testehan.finana.exception.InsufficientCreditException;
 
 @Service
 public class ReinvestmentRunwayCalculator {
@@ -139,6 +140,10 @@ public class ReinvestmentRunwayCalculator {
             LlmScoreExplanationResponse convertedLlmResponse = llmResponseOutputConverter.convert(llmResponse);
 
             return new ReportItem("reinvestmentRunway", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
+        } catch (InsufficientCreditException e) {
+            LOGGER.warn("Insufficient credit for operation in {}: {}", ticker, e.getMessage());
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, e));
+            return new ReportItem("reinvestmentRunway", -10, "Insufficient credit. Unable to complete analysis.");
         } catch (Exception e) {
             String errorMessage = "Operation 'calculateReinvestmentRunway' failed.";
             eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, new RuntimeException(errorMessage)));

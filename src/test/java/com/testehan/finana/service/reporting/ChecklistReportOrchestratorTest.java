@@ -6,6 +6,7 @@ import com.testehan.finana.repository.GeneratedReportRepository;
 import com.testehan.finana.repository.UserStockRepository;
 import com.testehan.finana.service.CompanyDataService;
 import com.testehan.finana.service.FinancialDataOrchestrator;
+import com.testehan.finana.service.UserCreditService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
@@ -36,6 +37,7 @@ class ChecklistReportOrchestratorTest {
     @Mock private ApplicationEventPublisher eventPublisher;
     @Mock private ReportGenerator ferolReportGenerator;
     @Mock private MongoTemplate mongoTemplate;
+    @Mock private UserCreditService userCreditService;
 
     @BeforeEach
     void setUp() {
@@ -49,11 +51,12 @@ class ChecklistReportOrchestratorTest {
         }).when(checklistExecutor).execute(any(Runnable.class));
 
         when(ferolReportGenerator.getReportType()).thenReturn(ReportType.FEROL);
+        when(userCreditService.hasAnyCredit(anyString())).thenReturn(true);
         
         orchestrator = new ChecklistReportOrchestrator(
                 financialDataOrchestrator, companyDataService, checklistReportPersistenceService,
                 generatedReportRepository, userStockRepository, checklistExecutor,
-                eventPublisher, List.of(ferolReportGenerator), mongoTemplate
+                eventPublisher, List.of(ferolReportGenerator), mongoTemplate, userCreditService
         );
     }
 

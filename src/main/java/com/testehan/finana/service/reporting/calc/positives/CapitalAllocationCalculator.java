@@ -28,6 +28,7 @@ import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
 import java.util.*;
+import com.testehan.finana.exception.InsufficientCreditException;
 
 @Service
 public class CapitalAllocationCalculator {
@@ -160,6 +161,10 @@ public class CapitalAllocationCalculator {
             return new ReportItem("capitalAllocationSkill",
                     convertedLlmResponse.getScore() + shareScore + debtScore,
                     convertedLlmResponse.getExplanation() + netDebtToEbitdaExplanation + shareCountCagrExplanation);
+        } catch (InsufficientCreditException e) {
+            LOGGER.warn("Insufficient credit for operation in {}: {}", ticker, e.getMessage());
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, e));
+            return new ReportItem("capitalAllocationSkill", -10, "Insufficient credit. Unable to complete analysis.");
         } catch (Exception e) {
             String errorMessage = "Operation 'calculateCapitalAllocationSkill' failed.";
             LOGGER.error(errorMessage, e);

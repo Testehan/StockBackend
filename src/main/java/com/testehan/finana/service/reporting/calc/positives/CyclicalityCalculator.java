@@ -30,6 +30,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import com.testehan.finana.exception.InsufficientCreditException;
 
 @Service
 public class CyclicalityCalculator {
@@ -135,6 +136,10 @@ public class CyclicalityCalculator {
             LlmScoreExplanationResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
 
             return new ReportItem("companyCyclicality", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
+        } catch (InsufficientCreditException e) {
+            LOGGER.warn("Insufficient credit for operation in {}: {}", ticker, e.getMessage());
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, e));
+            return new ReportItem("companyCyclicality", -10, "Insufficient credit. Unable to complete analysis.");
         } catch (Exception e) {
             String errorMessage = "Operation 'calculateCyclicality' failed.";
             LOGGER.error(errorMessage, e);

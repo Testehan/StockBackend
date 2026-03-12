@@ -1,6 +1,7 @@
 package com.testehan.finana.service.reporting.calc.positives;
 
-import com.testehan.finana.model.*;
+import com.testehan.finana.exception.InsufficientCreditException;
+import com.testehan.finana.model.CompanyOverview;
 import com.testehan.finana.model.filing.SecFiling;
 import com.testehan.finana.model.finstatement.*;
 import com.testehan.finana.model.llm.responses.LlmScoreExplanationResponse;
@@ -105,6 +106,10 @@ public class ScalabilityOfModelCalculator {
             return new ReportItem("scalabilityOfModel",
                     convertedLlmResponse.getScore(),
                     convertedLlmResponse.getExplanation());
+        } catch (InsufficientCreditException e) {
+            LOGGER.warn("Insufficient credit for operation in {}: {}", ticker, e.getMessage());
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, e));
+            return new ReportItem("scalabilityOfModel", -10, "Insufficient credit. Unable to complete analysis.");
         } catch (Exception e) {
             String errorMessage = "Operation 'calculateScalabilityOfModel' failed.";
             LOGGER.error(errorMessage, e);

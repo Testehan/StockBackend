@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import com.testehan.finana.exception.InsufficientCreditException;
 
 @Service
 public class TopDogCalculator {
@@ -87,6 +88,10 @@ public class TopDogCalculator {
             LlmScoreExplanationResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
 
             return new ReportItem("topDogFirstMover", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
+        } catch (InsufficientCreditException e) {
+            LOGGER.warn("Insufficient credit for operation in {}: {}", ticker, e.getMessage());
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, e));
+            return new ReportItem("topDogFirstMover", -10, "Insufficient credit. Unable to complete analysis.");
         } catch (Exception e) {
             String errorMessage = "Operation 'calculateTopDogOrFirstMover' failed.";
             LOGGER.error(errorMessage, e);

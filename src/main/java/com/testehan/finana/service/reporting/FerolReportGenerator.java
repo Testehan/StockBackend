@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.security.concurrent.DelegatingSecurityContextExecutor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -17,6 +18,8 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
@@ -42,6 +45,7 @@ public class FerolReportGenerator implements ReportGenerator {
     @Override
     public void generate(String ticker, ReportType reportType, SseEmitter sseEmitter) throws InterruptedException {
         List<ReportItem> checklistReportItems = new ArrayList<>();
+        Executor contextExecutor = new DelegatingSecurityContextExecutor(ForkJoinPool.commonPool());
 
         List<ReportItemCalculator> parallelCalculators = ferolCalculators.stream()
                 .filter(ReportItemCalculator::canRunInParallel)
@@ -51,8 +55,9 @@ public class FerolReportGenerator implements ReportGenerator {
                 .collect(Collectors.toList());
 
         List<CompletableFuture<Collection<ReportItem>>> parallelFutures = parallelCalculators.stream()
-                .map(calculator -> CompletableFuture.supplyAsync(() ->
-                        calculator.calculate(ticker, reportType, sseEmitter)))
+                .map(calculator -> CompletableFuture.supplyAsync(
+                        () -> calculator.calculate(ticker, reportType, sseEmitter),
+                        contextExecutor))
                 .collect(Collectors.toList());
 
         for (CompletableFuture<Collection<ReportItem>> future : parallelFutures) {
@@ -83,4 +88,5 @@ public class FerolReportGenerator implements ReportGenerator {
     public ReportType getReportType() {
         return ReportType.FEROL;
     }
+
 }

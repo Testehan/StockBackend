@@ -4,6 +4,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.AsyncConfigurer;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.security.concurrent.DelegatingSecurityContextExecutorService;
 import org.springframework.security.task.DelegatingSecurityContextAsyncTaskExecutor;
 
 import java.util.concurrent.Executor;
@@ -16,7 +17,7 @@ public class ExecutorConfig implements AsyncConfigurer {
     @Bean(name = "checklistExecutor")
     public ExecutorService checklistExecutor() {
         int coreCount = Runtime.getRuntime().availableProcessors();
-        return Executors.newFixedThreadPool(coreCount * 2);
+        return new DelegatingSecurityContextExecutorService(Executors.newFixedThreadPool(coreCount * 2));
     }
 
     @Override

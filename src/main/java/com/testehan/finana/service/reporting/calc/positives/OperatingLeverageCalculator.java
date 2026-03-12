@@ -30,6 +30,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
+import com.testehan.finana.exception.InsufficientCreditException;
 
 @Service
 public class OperatingLeverageCalculator {
@@ -106,6 +107,10 @@ public class OperatingLeverageCalculator {
             LlmScoreExplanationResponse convertedLlmResponse = ferolLlmResponseOutputConverter.convert(llmResponse);
 
             return new ReportItem("operatingLeverage", convertedLlmResponse.getScore(), convertedLlmResponse.getExplanation());
+        } catch (InsufficientCreditException e) {
+            LOGGER.warn("Insufficient credit for operation in {}: {}", ticker, e.getMessage());
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, e));
+            return new ReportItem("operatingLeverage", -10, "Insufficient credit. Unable to complete analysis.");
         } catch (Exception e) {
             String errorMessage = "Operation 'calculateOperatingLeverage' failed.";
             LOGGER.error(errorMessage, e);

@@ -24,6 +24,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.*;
+import com.testehan.finana.exception.InsufficientCreditException;
 
 @Service
 public class GrowthCurveCalculator {
@@ -109,6 +110,10 @@ public class GrowthCurveCalculator {
             return new ReportItem("earlyGrowthCurveInflection",
                     convertedLlmResponse.getScore(),
                     convertedLlmResponse.getExplanation());
+        } catch (InsufficientCreditException e) {
+            LOGGER.warn("Insufficient credit for operation in {}: {}", ticker, e.getMessage());
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, e));
+            return new ReportItem("earlyGrowthCurveInflection", -10, "Insufficient credit. Unable to complete analysis.");
         } catch (Exception e) {
             String errorMessage = "Operation 'calculateearlyGrowthCurveInflection' failed.";
             LOGGER.error(errorMessage, e);

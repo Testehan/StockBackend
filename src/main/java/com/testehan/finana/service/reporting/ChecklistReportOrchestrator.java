@@ -1,6 +1,7 @@
 package com.testehan.finana.service.reporting;
 
-import com.testehan.finana.model.*;
+import com.testehan.finana.exception.InsufficientCreditException;
+import com.testehan.finana.model.CompanyOverview;
 import com.testehan.finana.model.reporting.*;
 import com.testehan.finana.model.user.UserStock;
 import com.testehan.finana.model.user.UserStockStatus;
@@ -8,6 +9,7 @@ import com.testehan.finana.repository.GeneratedReportRepository;
 import com.testehan.finana.repository.UserStockRepository;
 import com.testehan.finana.service.CompanyDataService;
 import com.testehan.finana.service.FinancialDataOrchestrator;
+import com.testehan.finana.service.UserCreditService;
 import com.testehan.finana.service.reporting.events.CompletionEvent;
 import com.testehan.finana.service.reporting.events.ErrorEvent;
 import com.testehan.finana.service.reporting.events.MessageEvent;
@@ -23,6 +25,9 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Collation;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.security.concurrent.DelegatingSecurityContextRunnable;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -46,6 +51,7 @@ public class ChecklistReportOrchestrator {
     private final ApplicationEventPublisher eventPublisher;
     private final Map<ReportType, ReportGenerator> reportGenerators;
     private final MongoTemplate mongoTemplate;
+    private final UserCreditService userCreditService;
 
     public ChecklistReportOrchestrator(FinancialDataOrchestrator financialDataOrchestrator,
                                        CompanyDataService companyDataService,
@@ -55,7 +61,8 @@ public class ChecklistReportOrchestrator {
                                        @Qualifier("checklistExecutor") Executor checklistExecutor,
                                        ApplicationEventPublisher eventPublisher,
                                        List<ReportGenerator> reportGenerators,
-                                       MongoTemplate mongoTemplate) {
+                                       MongoTemplate mongoTemplate,
+                                       UserCreditService userCreditService) {
         this.financialDataOrchestrator = financialDataOrchestrator;
         this.companyDataService = companyDataService;
         this.checklistReportPersistenceService = checklistReportPersistenceService;
@@ -66,6 +73,7 @@ public class ChecklistReportOrchestrator {
         this.reportGenerators = reportGenerators.stream()
                 .collect(Collectors.toMap(ReportGenerator::getReportType, Function.identity()));
         this.mongoTemplate = mongoTemplate;
+        this.userCreditService = userCreditService;
     }
 
     public SseEmitter getChecklistReport(String ticker, boolean recreateReport, ReportType reportType, String userEmail) {
@@ -104,7 +112,7 @@ public class ChecklistReportOrchestrator {
                     sseEmitter.complete();
                 } else {
                     eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Initiating Checklist report generation for " + ticker + "..."));
-                    generateReport(ticker, reportType, sseEmitter);
+                    generateReport(ticker, reportType, sseEmitter, userEmail);
                 }
             } catch (Exception e) {
                 eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, e));
@@ -112,20 +120,29 @@ public class ChecklistReportOrchestrator {
         });
     }
 
-    private void generateReport(String ticker, ReportType reportType, SseEmitter sseEmitter) {
+    private void generateReport(String ticker, ReportType reportType, SseEmitter sseEmitter, String userEmail) {
+        if (userEmail == null || !userCreditService.hasAnyCredit(userEmail)) {
+            eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter,
+                    new InsufficientCreditException("Insufficient credit. Please add credits to generate reports.")));
+            return;
+        }
+
         eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Ensuring financial data is present..."));
+
+        // Capture before entering the reactive chain — doOnSuccess runs on a Reactor scheduler thread with no SecurityContext.
+        SecurityContext securityContext = SecurityContextHolder.getContext();
 
         financialDataOrchestrator.ensureFinancialDataIsPresent(ticker)
                 .doOnSuccess(v -> {
                     eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Financial data check complete."));
                     ReportGenerator generator = reportGenerators.get(reportType);
-                    checklistExecutor.execute(() -> {
+                    checklistExecutor.execute(new DelegatingSecurityContextRunnable(() -> {
                         try {
                             generator.generate(ticker, reportType, sseEmitter);
                         } catch (Exception e) {
                             eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, e));
                         }
-                    });
+                    }, securityContext));
                 })
                 .doOnError(error -> {
                     eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, error));

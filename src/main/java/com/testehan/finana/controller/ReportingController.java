@@ -13,6 +13,10 @@ import com.testehan.finana.service.reporting.ChecklistReportOrchestrator;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -37,10 +41,21 @@ public class ReportingController {
     public SseEmitter getChecklistReport(
             @PathVariable String ticker,
             @RequestParam(defaultValue = "false") boolean recreateReport,
-            @RequestParam ReportType reportType,
-            @RequestParam String userEmail) {
+            @RequestParam ReportType reportType) {
 
+        String userEmail = extractUserEmail();
         return checklistReportOrchestrator.getChecklistReport(ticker.toUpperCase(), recreateReport, reportType, userEmail);
+    }
+
+    private String extractUserEmail() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth instanceof JwtAuthenticationToken jwtAuth) {
+            String email = jwtAuth.getToken().getClaimAsString("email");
+            if (email != null) {
+                return email;
+            }
+        }
+        throw new AuthenticationCredentialsNotFoundException("No authenticated user or email claim missing from JWT.");
     }
 
     @PostMapping("/checklist/{symbol}")

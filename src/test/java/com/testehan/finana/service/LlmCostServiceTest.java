@@ -35,6 +35,7 @@ class LlmCostServiceTest {
     private ChatResponse chatResponse;
 
     private LlmCostService llmCostService;
+    private static final String USER_EMAIL = "test@example.com";
 
     @BeforeEach
     void setUp() {
@@ -59,7 +60,7 @@ class LlmCostServiceTest {
     @Test
     void logUsage_Success_SmallTokens() {
         buildResponse(1000, 500, 0);
-        llmCostService.logUsage(chatResponse, "sentiment_analysis", "AAPL");
+        llmCostService.logUsage(USER_EMAIL, chatResponse, "sentiment_analysis", "AAPL");
 
         ArgumentCaptor<LlmUsage> captor = ArgumentCaptor.forClass(LlmUsage.class);
         verify(llmUsageRepository).save(captor.capture());
@@ -79,7 +80,7 @@ class LlmCostServiceTest {
     @Test
     void logUsage_WithCachedTokens() {
         buildResponse(50000, 1000, 40000);
-        llmCostService.logUsage(chatResponse, "sentiment_analysis", "MSFT");
+        llmCostService.logUsage(USER_EMAIL, chatResponse, "sentiment_analysis", "MSFT");
 
         ArgumentCaptor<LlmUsage> captor = ArgumentCaptor.forClass(LlmUsage.class);
         verify(llmUsageRepository).save(captor.capture());
@@ -94,7 +95,7 @@ class LlmCostServiceTest {
     @Test
     void logUsage_LargePromptTokens_UsesLargePricing() {
         buildResponse(300000, 500, 0);
-        llmCostService.logUsage(chatResponse, "deep_research", "GOOGL");
+        llmCostService.logUsage(USER_EMAIL, chatResponse, "deep_research", "GOOGL");
 
         ArgumentCaptor<LlmUsage> captor = ArgumentCaptor.forClass(LlmUsage.class);
         verify(llmUsageRepository).save(captor.capture());
@@ -106,7 +107,7 @@ class LlmCostServiceTest {
     @Test
     void logUsage_LargeCompletionTokens_UsesLargePricing() {
         buildResponse(1000, 300000, 0);
-        llmCostService.logUsage(chatResponse, "deep_research", "GOOGL");
+        llmCostService.logUsage(USER_EMAIL, chatResponse, "deep_research", "GOOGL");
 
         ArgumentCaptor<LlmUsage> captor = ArgumentCaptor.forClass(LlmUsage.class);
         verify(llmUsageRepository).save(captor.capture());
@@ -117,7 +118,7 @@ class LlmCostServiceTest {
 
     @Test
     void logUsage_NullResponse_HandlesGracefully() {
-        llmCostService.logUsage((ChatResponse) null, "sentiment_analysis", "AAPL");
+        llmCostService.logUsage(USER_EMAIL, (ChatResponse) null, "sentiment_analysis", "AAPL");
 
         ArgumentCaptor<LlmUsage> captor = ArgumentCaptor.forClass(LlmUsage.class);
         verify(llmUsageRepository).save(captor.capture());
@@ -133,7 +134,7 @@ class LlmCostServiceTest {
     void logUsage_NullMetadata_HandlesGracefully() {
         lenient().when(chatResponse.getMetadata()).thenReturn(null);
 
-        llmCostService.logUsage(chatResponse, "sentiment_analysis", "AAPL");
+        llmCostService.logUsage(USER_EMAIL, chatResponse, "sentiment_analysis", "AAPL");
 
         ArgumentCaptor<LlmUsage> captor = ArgumentCaptor.forClass(LlmUsage.class);
         verify(llmUsageRepository).save(captor.capture());
@@ -154,7 +155,7 @@ class LlmCostServiceTest {
         AssistantMessage message = new AssistantMessage("test");
         lenient().when(chatResponse.getResult()).thenReturn(new Generation(message));
 
-        llmCostService.logUsage(chatResponse, "sentiment_analysis", "AAPL");
+        llmCostService.logUsage(USER_EMAIL, chatResponse, "sentiment_analysis", "AAPL");
 
         ArgumentCaptor<LlmUsage> captor = ArgumentCaptor.forClass(LlmUsage.class);
         verify(llmUsageRepository).save(captor.capture());
@@ -165,7 +166,7 @@ class LlmCostServiceTest {
 
     @Test
     void logUsage_Failure_LogsWithZeroTokens() {
-        llmCostService.logUsage("sentiment_analysis", "AAPL", "Connection timeout");
+        llmCostService.logUsageFailure(USER_EMAIL, "sentiment_analysis", "AAPL", "Connection timeout");
 
         ArgumentCaptor<LlmUsage> captor = ArgumentCaptor.forClass(LlmUsage.class);
         verify(llmUsageRepository).save(captor.capture());
@@ -187,20 +188,20 @@ class LlmCostServiceTest {
         buildResponse(1000, 500, 0);
         doThrow(new RuntimeException("DB connection failed")).when(llmUsageRepository).save(any());
 
-        assertDoesNotThrow(() -> llmCostService.logUsage(chatResponse, "sentiment_analysis", "AAPL"));
+        assertDoesNotThrow(() -> llmCostService.logUsage(USER_EMAIL, chatResponse, "sentiment_analysis", "AAPL"));
     }
 
     @Test
     void logUsage_FailureRepositoryThrows_DoesNotRethrow() {
         doThrow(new RuntimeException("DB connection failed")).when(llmUsageRepository).save(any());
 
-        assertDoesNotThrow(() -> llmCostService.logUsage("sentiment_analysis", "AAPL", "timeout"));
+        assertDoesNotThrow(() -> llmCostService.logUsageFailure(USER_EMAIL, "sentiment_analysis", "AAPL", "timeout"));
     }
 
     @Test
     void logUsage_CalculatesCorrectCost_SmallTokens() {
         buildResponse(100000, 50000, 30000);
-        llmCostService.logUsage(chatResponse, "sentiment_analysis", "AAPL");
+        llmCostService.logUsage(USER_EMAIL, chatResponse, "sentiment_analysis", "AAPL");
 
         ArgumentCaptor<LlmUsage> captor = ArgumentCaptor.forClass(LlmUsage.class);
         verify(llmUsageRepository).save(captor.capture());

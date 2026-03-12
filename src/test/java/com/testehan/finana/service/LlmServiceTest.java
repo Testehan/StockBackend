@@ -1,19 +1,23 @@
 package com.testehan.finana.service;
 
 import com.testehan.finana.service.mcp.StockDataTools;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
-import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
@@ -47,15 +51,35 @@ class LlmServiceTest {
     @Mock
     private StockDataTools stockDataTools;
 
+    @Mock
+    private Authentication authentication;
+
     private LlmService llmService;
+
+    private static final String TEST_USER = "test@example.com";
+
+    @AfterAll
+    static void tearDownAll() {
+        SecurityContextHolder.setStrategyName(SecurityContextHolder.MODE_THREADLOCAL);
+    }
 
     @BeforeEach
     void setUp() {
+        SecurityContextHolder.setStrategyName(SecurityContextHolder.MODE_GLOBAL);
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+        lenient().when(authentication.getName()).thenReturn(TEST_USER);
+
         lenient().when(chatClientBuilder.build()).thenReturn(chatClient);
         lenient().when(chatClientBuilder.defaultOptions(any())).thenReturn(chatClientBuilder);
         lenient().when(chatModelProvider.getIfAvailable()).thenReturn(chatModel);
         lenient().when(userCreditService.hasAnyCredit(anyString())).thenReturn(true);
+
         llmService = new LlmService(chatModelProvider, chatClientBuilder, llmCostService, userCreditService, stockDataTools);
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
     }
 
     private ChatResponse buildResponse(String text) {
@@ -74,7 +98,7 @@ class LlmServiceTest {
         String result = llmService.callLlm("Hello", "test_op", "AAPL");
 
         assertEquals("Test response", result);
-        verify(llmCostService).logUsage(response, "test_op", "AAPL");
+        verify(llmCostService).logUsage(eq(TEST_USER), eq(response), eq("test_op"), eq("AAPL"));
     }
 
     @Test
@@ -82,7 +106,7 @@ class LlmServiceTest {
         when(chatModel.call(any(Prompt.class))).thenThrow(new RuntimeException("API error"));
 
         assertThrows(RuntimeException.class, () -> llmService.callLlm("Hello", "test_op", "AAPL"));
-        verify(llmCostService).logUsage("test_op", "AAPL", "API error");
+        verify(llmCostService).logUsageFailure(TEST_USER, "test_op", "AAPL", "API error");
     }
 
     @Test
@@ -121,7 +145,7 @@ class LlmServiceTest {
                 .block();
 
         assertNotNull(results);
-        verify(llmCostService).logUsage(eq(lastResponse), eq("stream_op"), eq("AAPL"));
+        verify(llmCostService).logUsage(eq(TEST_USER), eq(lastResponse), eq("stream_op"), eq("AAPL"));
     }
 
     @Test
@@ -135,7 +159,7 @@ class LlmServiceTest {
                 .collectList()
                 .block();
 
-        verify(llmCostService).logUsage("stream_op", "AAPL", "Stream error");
+        verify(llmCostService).logUsageFailure(TEST_USER, "stream_op", "AAPL", "Stream error");
     }
 
     @Test
@@ -149,7 +173,7 @@ class LlmServiceTest {
                 .collectList()
                 .block();
 
-        verify(llmCostService).logUsage(any(ChatResponse.class), eq("search_stream"), eq("AAPL"));
+        verify(llmCostService).logUsage(eq(TEST_USER), any(ChatResponse.class), eq("search_stream"), eq("AAPL"));
     }
 
     @Test
@@ -160,7 +184,7 @@ class LlmServiceTest {
         String result = llmService.callLlm("Hello");
 
         assertEquals("Default response", result);
-        verify(llmCostService).logUsage(response, "development_endpoint", "development_endpoint");
+        verify(llmCostService).logUsage(eq(TEST_USER), eq(response), eq("development_endpoint"), eq("development_endpoint"));
     }
 
     @Test

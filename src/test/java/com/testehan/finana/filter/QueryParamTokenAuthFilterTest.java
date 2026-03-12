@@ -139,7 +139,7 @@ class QueryParamTokenAuthFilterTest {
         assertThat(response.getStatus()).isEqualTo(200);
         assertThat(chain.getRequest()).isNotNull();
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNotNull();
-        assertThat(SecurityContextHolder.getContext().getAuthentication().getPrincipal()).isEqualTo("user@example.com");
+        assertThat(SecurityContextHolder.getContext().getAuthentication().getName()).isEqualTo("user@example.com");
     }
 
     @Test
@@ -155,7 +155,7 @@ class QueryParamTokenAuthFilterTest {
 
         assertThat(response.getStatus()).isEqualTo(200);
         assertThat(chain.getRequest()).isNotNull();
-        assertThat(SecurityContextHolder.getContext().getAuthentication().getPrincipal()).isEqualTo("user@example.com");
+        assertThat(SecurityContextHolder.getContext().getAuthentication().getName()).isEqualTo("user@example.com");
     }
 
     @Test
@@ -171,7 +171,7 @@ class QueryParamTokenAuthFilterTest {
 
         assertThat(response.getStatus()).isEqualTo(200);
         assertThat(chain.getRequest()).isNotNull();
-        assertThat(SecurityContextHolder.getContext().getAuthentication().getPrincipal()).isEqualTo("user@example.com");
+        assertThat(SecurityContextHolder.getContext().getAuthentication().getName()).isEqualTo("user@example.com");
     }
 
     private MockHttpServletRequest buildSseRequest(String path, String token, String userEmail) {
@@ -187,7 +187,7 @@ class QueryParamTokenAuthFilterTest {
     }
 
     private Jwt buildJwt(String email) {
-        Map<String, Object> claims = email != null ? Map.of("email", email) : Map.of();
+        Map<String, Object> claims = email != null ? Map.of("email", email, "sub", email) : Map.of();
         return Jwt.withTokenValue("token")
             .header("alg", "RS256")
             .issuedAt(Instant.now())
