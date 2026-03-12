@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/users/{userId}/stocks")
+@RequestMapping("/api/user/{userId}/stocks")
 public class UserStockController {
 
     private final UserStockRepository userStockRepository;

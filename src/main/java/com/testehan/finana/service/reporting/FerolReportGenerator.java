@@ -8,6 +8,7 @@ import com.testehan.finana.service.reporting.events.CompletionEvent;
 import com.testehan.finana.service.reporting.events.MessageEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -22,7 +23,9 @@ import java.util.stream.Collectors;
 @Service
 public class FerolReportGenerator implements ReportGenerator {
     private static final Logger LOGGER = LoggerFactory.getLogger(FerolReportGenerator.class);
-    private static final long OLLAMA_DELAY_MS = 10000;
+
+    @Value("${app.llm.sequential-delay-ms:0}")
+    private long sequentialDelayMs;
 
     private final List<ReportItemCalculator> ferolCalculators;
     private final ChecklistReportPersistenceService checklistReportPersistenceService;
@@ -60,7 +63,7 @@ public class FerolReportGenerator implements ReportGenerator {
             Collection<ReportItem> result = calculator.calculate(ticker, reportType, sseEmitter);
             checklistReportItems.addAll(result);
             try {
-                Thread.sleep(OLLAMA_DELAY_MS);
+                Thread.sleep(sequentialDelayMs);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }

@@ -11,7 +11,9 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.google.genai.GoogleGenAiChatOptions;
+import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -21,13 +23,18 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
 public class LlmService {
 
     private static final Logger logger = LoggerFactory.getLogger(LlmService.class);
+
+    @Value("${app.llm.use-ollama:true}")
+    private boolean useOllama;
 
     private final ChatModel chatModel;
     private final ChatClient ollamaChatClient;
@@ -238,14 +245,48 @@ public class LlmService {
     }
 
     // ==================== Ollama Methods ====================
-    // These methods use the local Ollama model for testing purposes (no cost tracking)
-    // Using ChatClient which is auto-configured via spring.ai.model.chat.type=ollama
+    // In local mode (app.llm.use-ollama=true) these call the local Ollama instance.
+    // In production (app.llm.use-ollama=false) they transparently delegate to Gemini equivalents.
 
     public String callLlmWithOllama(String query) {
         return callLlmWithOllama(query, "ollama_development", "ollama_development");
     }
 
-    public String callLlmWithOllama(String systemPrompt, java.util.List<org.springframework.ai.chat.messages.Message> messages) {
+    public String callLlmWithOllama(String query, String operationType, String stockTicker) {
+        if (!useOllama) {
+            return callLlm(query, operationType, stockTicker);
+        }
+        try {
+            String response = ollamaChatClient.prompt(query).call().content();
+            logger.info("Ollama call completed for operation: {}, symbol: {}", operationType, stockTicker);
+            return response;
+        } catch (Exception e) {
+            logger.error("Ollama call failed for operation: {}, symbol: {}, error: {}", operationType, stockTicker, e.getMessage());
+            throw e;
+        }
+    }
+
+    public String callLlmWithOllama(Prompt query, String operationType, String stockTicker) {
+        if (!useOllama) {
+            return callLlm(query, operationType, stockTicker);
+        }
+        try {
+            String response = ollamaChatClient.prompt(query).call().content();
+            logger.info("Ollama call completed for operation: {}, symbol: {}", operationType, stockTicker);
+            return response;
+        } catch (Exception e) {
+            logger.error("Ollama call failed for operation: {}, symbol: {}, error: {}", operationType, stockTicker, e.getMessage());
+            throw e;
+        }
+    }
+
+    public String callLlmWithOllama(String systemPrompt, List<Message> messages) {
+        if (!useOllama) {
+            List<Message> allMessages = new ArrayList<>();
+            allMessages.add(new SystemMessage(systemPrompt));
+            allMessages.addAll(messages);
+            return callLlm(new Prompt(allMessages), "chat", "chat");
+        }
         try {
             String response = ollamaChatClient.prompt()
                     .system(systemPrompt)
@@ -260,29 +301,10 @@ public class LlmService {
         }
     }
 
-    public String callLlmWithOllama(String query, String operationType, String stockTicker) {
-        try {
-            String response = ollamaChatClient.prompt(query).call().content();
-            logger.info("Ollama call completed for operation: {}, symbol: {}", operationType, stockTicker);
-            return response;
-        } catch (Exception e) {
-            logger.error("Ollama call failed for operation: {}, symbol: {}, error: {}", operationType, stockTicker, e.getMessage());
-            throw e;
-        }
-    }
-
-    public String callLlmWithOllama(Prompt query, String operationType, String stockTicker) {
-        try {
-            String response = ollamaChatClient.prompt(query).call().content();
-            logger.info("Ollama call completed for operation: {}, symbol: {}", operationType, stockTicker);
-            return response;
-        } catch (Exception e) {
-            logger.error("Ollama call failed for operation: {}, symbol: {}, error: {}", operationType, stockTicker, e.getMessage());
-            throw e;
-        }
-    }
-
     public Flux<String> streamLlmWithOllama(Prompt prompt, String operationType, String stockTicker) {
+        if (!useOllama) {
+            return streamLlm(prompt, operationType, stockTicker);
+        }
         return ollamaChatClient.prompt(prompt)
                 .stream()
                 .content()
@@ -290,7 +312,24 @@ public class LlmService {
                 .doOnError(e -> logger.error("Ollama stream failed for operation: {}, symbol: {}, error: {}", operationType, stockTicker, e.getMessage()));
     }
 
-    public String callLlmWithOllamaAndTools(String systemPrompt, java.util.List<Message> messages) {
+    public String callLlmWithOllamaAndTools(String systemPrompt, List<Message> messages) {
+        if (!useOllama) {
+            String userEmail = getUserEmailFromContext();
+            checkCredit(userEmail);
+            try {
+                var chatResponse = chatClientWithTools.prompt()
+                        .system(systemPrompt)
+                        .messages(messages)
+                        .tools(stockDataTools)
+                        .call()
+                        .chatResponse();
+                llmCostService.logUsage(userEmail, chatResponse, "chat_with_tools", "chat");
+                return chatResponse.getResult().getOutput().getText();
+            } catch (Exception e) {
+                llmCostService.logUsageFailure(userEmail, "chat_with_tools", "chat", e.getMessage());
+                throw e;
+            }
+        }
         try {
             Map<String, Object> toolContext = new HashMap<>();
             Map<String, String> tickerHolder = new HashMap<>();
