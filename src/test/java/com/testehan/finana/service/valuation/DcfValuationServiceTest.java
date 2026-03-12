@@ -136,6 +136,7 @@ class DcfValuationServiceTest {
     @Test
     void testSaveDcfValuation_NewValuations() {
         String ticker = "AAPL";
+        String userEmail = "test@example.com";
         DcfValuation dcfValuation = new DcfValuation();
         dcfValuation.setDcfCalculationData(DcfCalculationData.builder()
                 .meta(DcfCalculationData.CompanyMeta.builder()
@@ -143,10 +144,10 @@ class DcfValuationServiceTest {
                         .build())
                 .build());
 
-        when(valuationsRepository.findById(ticker)).thenReturn(Optional.empty());
+        when(valuationsRepository.findByTickerAndUserEmail(ticker, userEmail)).thenReturn(Optional.empty());
         when(valuationsRepository.save(any(Valuations.class))).thenReturn(new Valuations());
 
-        dcfValuationService.saveDcfValuation(dcfValuation);
+        dcfValuationService.saveDcfValuation(dcfValuation, userEmail);
 
         verify(valuationsRepository).save(any(Valuations.class));
     }
@@ -154,6 +155,7 @@ class DcfValuationServiceTest {
     @Test
     void testSaveDcfValuation_ExistingValuations() {
         String ticker = "AAPL";
+        String userEmail = "test@example.com";
         DcfValuation dcfValuation = new DcfValuation();
         dcfValuation.setDcfCalculationData(DcfCalculationData.builder()
                 .meta(DcfCalculationData.CompanyMeta.builder()
@@ -163,11 +165,12 @@ class DcfValuationServiceTest {
 
         Valuations existingValuations = new Valuations();
         existingValuations.setTicker(ticker);
+        existingValuations.setUserEmail(userEmail);
 
-        when(valuationsRepository.findById(ticker)).thenReturn(Optional.of(existingValuations));
+        when(valuationsRepository.findByTickerAndUserEmail(ticker, userEmail)).thenReturn(Optional.of(existingValuations));
         when(valuationsRepository.save(any(Valuations.class))).thenReturn(existingValuations);
 
-        dcfValuationService.saveDcfValuation(dcfValuation);
+        dcfValuationService.saveDcfValuation(dcfValuation, userEmail);
 
         verify(valuationsRepository).save(existingValuations);
     }
@@ -175,16 +178,18 @@ class DcfValuationServiceTest {
     @Test
     void testGetDcfHistory_WithValuations() {
         String ticker = "AAPL";
+        String userEmail = "test@example.com";
         DcfValuation dcfValuation = new DcfValuation();
         dcfValuation.setValuationDate("2024-01-01");
 
         Valuations valuations = new Valuations();
         valuations.setTicker(ticker);
+        valuations.setUserEmail(userEmail);
         valuations.setDcfValuations(List.of(dcfValuation));
 
-        when(valuationsRepository.findById(ticker)).thenReturn(Optional.of(valuations));
+        when(valuationsRepository.findByTickerAndUserEmail(ticker, userEmail)).thenReturn(Optional.of(valuations));
 
-        List<DcfValuation> result = dcfValuationService.getDcfHistory(ticker);
+        List<DcfValuation> result = dcfValuationService.getDcfHistory(ticker, userEmail);
 
         assertNotNull(result);
         assertEquals(1, result.size());
@@ -194,9 +199,10 @@ class DcfValuationServiceTest {
     @Test
     void testGetDcfHistory_WithNoValuations() {
         String ticker = "UNKNOWN";
-        when(valuationsRepository.findById(ticker)).thenReturn(Optional.empty());
+        String userEmail = "test@example.com";
+        when(valuationsRepository.findByTickerAndUserEmail(ticker, userEmail)).thenReturn(Optional.empty());
 
-        List<DcfValuation> result = dcfValuationService.getDcfHistory(ticker);
+        List<DcfValuation> result = dcfValuationService.getDcfHistory(ticker, userEmail);
 
         assertNotNull(result);
         assertTrue(result.isEmpty());
@@ -206,17 +212,19 @@ class DcfValuationServiceTest {
     void testDeleteDcfValuation_Found() {
         String ticker = "AAPL";
         String valuationDate = "2024-01-01";
+        String userEmail = "test@example.com";
 
         DcfValuation dcfValuation = new DcfValuation();
         dcfValuation.setValuationDate(valuationDate);
 
         Valuations valuations = new Valuations();
         valuations.setTicker(ticker);
+        valuations.setUserEmail(userEmail);
         valuations.setDcfValuations(new java.util.ArrayList<>(List.of(dcfValuation)));
 
-        when(valuationsRepository.findById(ticker.toUpperCase())).thenReturn(Optional.of(valuations));
+        when(valuationsRepository.findByTickerAndUserEmail(ticker.toUpperCase(), userEmail)).thenReturn(Optional.of(valuations));
 
-        boolean result = dcfValuationService.deleteDcfValuation(ticker, valuationDate);
+        boolean result = dcfValuationService.deleteDcfValuation(ticker, valuationDate, userEmail);
 
         assertTrue(result);
         verify(valuationsRepository).save(valuations);
@@ -226,10 +234,11 @@ class DcfValuationServiceTest {
     void testDeleteDcfValuation_NotFound() {
         String ticker = "UNKNOWN";
         String valuationDate = "2024-01-01";
+        String userEmail = "test@example.com";
 
-        when(valuationsRepository.findById(ticker.toUpperCase())).thenReturn(Optional.empty());
+        when(valuationsRepository.findByTickerAndUserEmail(ticker.toUpperCase(), userEmail)).thenReturn(Optional.empty());
 
-        boolean result = dcfValuationService.deleteDcfValuation(ticker, valuationDate);
+        boolean result = dcfValuationService.deleteDcfValuation(ticker, valuationDate, userEmail);
 
         assertFalse(result);
         verify(valuationsRepository, never()).save(any());
@@ -239,14 +248,16 @@ class DcfValuationServiceTest {
     void testDeleteDcfValuation_TickerNotFound() {
         String ticker = "AAPL";
         String valuationDate = "2024-01-01";
+        String userEmail = "test@example.com";
 
         Valuations valuations = new Valuations();
         valuations.setTicker(ticker);
+        valuations.setUserEmail(userEmail);
         valuations.setDcfValuations(new java.util.ArrayList<>());
 
-        when(valuationsRepository.findById(ticker.toUpperCase())).thenReturn(Optional.of(valuations));
+        when(valuationsRepository.findByTickerAndUserEmail(ticker.toUpperCase(), userEmail)).thenReturn(Optional.of(valuations));
 
-        boolean result = dcfValuationService.deleteDcfValuation(ticker, valuationDate);
+        boolean result = dcfValuationService.deleteDcfValuation(ticker, valuationDate, userEmail);
 
         assertFalse(result);
     }

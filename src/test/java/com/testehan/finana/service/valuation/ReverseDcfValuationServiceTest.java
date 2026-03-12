@@ -96,15 +96,16 @@ class ReverseDcfValuationServiceTest {
 
     @Test
     void saveReverseDcfValuation_savesToRepository() {
+        String userEmail = "test@example.com";
         ReverseDcfValuation valuation = mock(ReverseDcfValuation.class);
         DcfCalculationData data = DcfCalculationData.builder()
                 .meta(DcfCalculationData.CompanyMeta.builder().ticker("AAPL").build())
                 .build();
-        
-        when(valuation.getDcfCalculationData()).thenReturn(data);
-        when(valuationsRepository.findById("AAPL")).thenReturn(Optional.empty());
 
-        service.saveReverseDcfValuation(valuation);
+        when(valuation.getDcfCalculationData()).thenReturn(data);
+        when(valuationsRepository.findByTickerAndUserEmail("AAPL", userEmail)).thenReturn(Optional.empty());
+
+        service.saveReverseDcfValuation(valuation, userEmail);
 
         verify(valuationsRepository).save(any(Valuations.class));
     }

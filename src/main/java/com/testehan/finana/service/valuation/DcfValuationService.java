@@ -75,36 +75,39 @@ public class DcfValuationService extends BaseValuationService {
                 .build();
     }
 
-    public void saveDcfValuation(DcfValuation dcfValuation) {
+    public void saveDcfValuation(DcfValuation dcfValuation, String userEmail) {
         dcfValuation.setValuationDate(LocalDateTime.now().toString());
         String ticker = dcfValuation.getDcfCalculationData().meta().ticker();
-        Valuations valuations = valuationsRepository.findById(ticker).orElse(new Valuations());
+        String id = ticker + "_" + userEmail;
+        Valuations valuations = valuationsRepository.findByTickerAndUserEmail(ticker, userEmail).orElse(new Valuations());
+        valuations.setId(id);
         valuations.setTicker(ticker);
+        valuations.setUserEmail(userEmail);
         valuations.getDcfValuations().add(dcfValuation);
         valuationsRepository.save(valuations);
     }
 
-    public List<DcfValuation> getDcfHistory(String ticker) {
-        return valuationsRepository.findById(ticker)
+    public List<DcfValuation> getDcfHistory(String ticker, String userEmail) {
+        return valuationsRepository.findByTickerAndUserEmail(ticker, userEmail)
                 .map(Valuations::getDcfValuations)
                 .orElse(java.util.Collections.emptyList());
     }
 
-    public boolean deleteDcfValuation(String ticker, String valuationDate) {
-        Optional<Valuations> valuationsOpt = valuationsRepository.findById(ticker.toUpperCase());
+    public boolean deleteDcfValuation(String ticker, String valuationDate, String userEmail) {
+        Optional<Valuations> valuationsOpt = valuationsRepository.findByTickerAndUserEmail(ticker.toUpperCase(), userEmail);
         if (valuationsOpt.isEmpty()) {
             return false;
         }
 
         Valuations valuations = valuationsOpt.get();
         List<DcfValuation> dcfValuations = valuations.getDcfValuations();
-        
+
         boolean removed = dcfValuations.removeIf(v -> valuationDate.equals(v.getValuationDate()));
-        
+
         if (removed) {
             valuationsRepository.save(valuations);
         }
-        
+
         return removed;
     }
 

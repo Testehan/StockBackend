@@ -359,23 +359,26 @@ public class GrowthValuationService extends BaseValuationService {
         );
     }
 
-    public List<GrowthValuation> getGrowthCompanyValuationHistory(String ticker) {
-        return valuationsRepository.findById(ticker)
+    public List<GrowthValuation> getGrowthCompanyValuationHistory(String ticker, String userEmail) {
+        return valuationsRepository.findByTickerAndUserEmail(ticker, userEmail)
                 .map(Valuations::getGrowthValuations)
                 .orElse(java.util.Collections.emptyList());
     }
 
-    public void saveGrowthCompanyValuation(GrowthValuation growthValuation) {
+    public void saveGrowthCompanyValuation(GrowthValuation growthValuation, String userEmail) {
         growthValuation.setValuationDate(LocalDateTime.now().toString());
         String ticker = growthValuation.getGrowthValuationData().getTicker();
-        Valuations valuations = valuationsRepository.findById(ticker).orElse(new Valuations());
+        String id = ticker + "_" + userEmail;
+        Valuations valuations = valuationsRepository.findByTickerAndUserEmail(ticker, userEmail).orElse(new Valuations());
+        valuations.setId(id);
         valuations.setTicker(ticker);
+        valuations.setUserEmail(userEmail);
         valuations.getGrowthValuations().add(growthValuation);
         valuationsRepository.save(valuations);
     }
 
-    public boolean deleteGrowthValuation(String ticker, String valuationDate) {
-        Optional<Valuations> valuationsOpt = valuationsRepository.findById(ticker.toUpperCase());
+    public boolean deleteGrowthValuation(String ticker, String valuationDate, String userEmail) {
+        Optional<Valuations> valuationsOpt = valuationsRepository.findByTickerAndUserEmail(ticker.toUpperCase(), userEmail);
         if (valuationsOpt.isEmpty()) {
             return false;
         }

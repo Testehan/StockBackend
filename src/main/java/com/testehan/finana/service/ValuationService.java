@@ -43,12 +43,12 @@ public class ValuationService {
         return growthValuationService.calculateGrowthCompanyValuation(growthValuation);
     }
 
-    public void saveGrowthCompanyValuation(GrowthValuation growthValuation) {
-        growthValuationService.saveGrowthCompanyValuation(growthValuation);
+    public void saveGrowthCompanyValuation(GrowthValuation growthValuation, String userEmail) {
+        growthValuationService.saveGrowthCompanyValuation(growthValuation, userEmail);
     }
 
-    public List<GrowthValuation> getGrowthCompanyValuationHistory(String ticker) {
-        return growthValuationService.getGrowthCompanyValuationHistory(ticker);
+    public List<GrowthValuation> getGrowthCompanyValuationHistory(String ticker, String userEmail) {
+        return growthValuationService.getGrowthCompanyValuationHistory(ticker, userEmail);
     }
 
     public GrowthUserInputLlmResponse getGrowthValuationLlmRecommendation(String ticker, String scenario) {
@@ -67,16 +67,16 @@ public class ValuationService {
         );
     }
 
-    public void saveDcfValuation(DcfValuation dcfValuation) {
-        dcfValuationService.saveDcfValuation(dcfValuation);
+    public void saveDcfValuation(DcfValuation dcfValuation, String userEmail) {
+        dcfValuationService.saveDcfValuation(dcfValuation, userEmail);
     }
 
-    public List<DcfValuation> getDcfHistory(String ticker) {
-        return dcfValuationService.getDcfHistory(ticker);
+    public List<DcfValuation> getDcfHistory(String ticker, String userEmail) {
+        return dcfValuationService.getDcfHistory(ticker, userEmail);
     }
 
-    public boolean deleteDcfValuation(String ticker, String valuationDate) {
-        return dcfValuationService.deleteDcfValuation(ticker, valuationDate);
+    public boolean deleteDcfValuation(String ticker, String valuationDate, String userEmail) {
+        return dcfValuationService.deleteDcfValuation(ticker, valuationDate, userEmail);
     }
 
     // Reverse DCF Valuation Methods
@@ -87,20 +87,20 @@ public class ValuationService {
         );
     }
 
-    public void saveReverseDcfValuation(ReverseDcfValuation reverseDcfValuation) {
-        reverseDcfValuationService.saveReverseDcfValuation(reverseDcfValuation);
+    public void saveReverseDcfValuation(ReverseDcfValuation reverseDcfValuation, String userEmail) {
+        reverseDcfValuationService.saveReverseDcfValuation(reverseDcfValuation, userEmail);
     }
 
-    public List<ReverseDcfValuation> getReverseDcfHistory(String ticker) {
-        return reverseDcfValuationService.getReverseDcfHistory(ticker);
+    public List<ReverseDcfValuation> getReverseDcfHistory(String ticker, String userEmail) {
+        return reverseDcfValuationService.getReverseDcfHistory(ticker, userEmail);
     }
 
-    public boolean deleteReverseDcfValuation(String ticker, String valuationDate) {
-        return reverseDcfValuationService.deleteReverseDcfValuation(ticker, valuationDate);
+    public boolean deleteReverseDcfValuation(String ticker, String valuationDate, String userEmail) {
+        return reverseDcfValuationService.deleteReverseDcfValuation(ticker, valuationDate, userEmail);
     }
 
     // Growth Valuation Methods
-    public boolean deleteGrowthValuation(String ticker, String valuationDate) {
-        return growthValuationService.deleteGrowthValuation(ticker, valuationDate);
+    public boolean deleteGrowthValuation(String ticker, String valuationDate, String userEmail) {
+        return growthValuationService.deleteGrowthValuation(ticker, valuationDate, userEmail);
     }
 }

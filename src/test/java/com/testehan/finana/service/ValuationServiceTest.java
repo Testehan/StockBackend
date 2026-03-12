@@ -47,24 +47,26 @@ class ValuationServiceTest {
     @Test
     void getDcfHistory_delegatesToDcfService() {
         String ticker = "AAPL";
+        String userEmail = "test@example.com";
         List<DcfValuation> expected = Collections.emptyList();
-        when(dcfValuationService.getDcfHistory(ticker)).thenReturn(expected);
+        when(dcfValuationService.getDcfHistory(ticker, userEmail)).thenReturn(expected);
 
-        List<DcfValuation> result = valuationService.getDcfHistory(ticker);
+        List<DcfValuation> result = valuationService.getDcfHistory(ticker, userEmail);
 
         assertEquals(expected, result);
-        verify(dcfValuationService).getDcfHistory(ticker);
+        verify(dcfValuationService).getDcfHistory(ticker, userEmail);
     }
 
     @Test
     void deleteGrowthValuation_delegatesToGrowthService() {
         String ticker = "AAPL";
         String date = "2023-01-01";
-        when(growthValuationService.deleteGrowthValuation(ticker, date)).thenReturn(true);
+        String userEmail = "test@example.com";
+        when(growthValuationService.deleteGrowthValuation(ticker, date, userEmail)).thenReturn(true);
 
-        boolean result = valuationService.deleteGrowthValuation(ticker, date);
+        boolean result = valuationService.deleteGrowthValuation(ticker, date, userEmail);
 
         assertEquals(true, result);
-        verify(growthValuationService).deleteGrowthValuation(ticker, date);
+        verify(growthValuationService).deleteGrowthValuation(ticker, date, userEmail);
     }
 }

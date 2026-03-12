@@ -14,7 +14,9 @@ import java.util.List;
 @Data
 public class Valuations {
     @Id
+    private String id;
     private String ticker;
+    private String userEmail;
     private List<DcfValuation> dcfValuations = new ArrayList<>();
     private List<ReverseDcfValuation> reverseDcfValuations = new ArrayList<>();
     private List<GrowthValuation> growthValuations = new ArrayList<>();

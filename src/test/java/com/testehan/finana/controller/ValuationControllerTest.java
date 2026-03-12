@@ -11,7 +11,12 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -28,6 +33,9 @@ public class ValuationControllerTest {
 
     @MockitoBean
     private ValuationAlertService valuationAlertService;
+
+    @MockitoBean
+    private JwtDecoder jwtDecoder;
 
     @Test
     public void testGetDcfValuationData() throws Exception {
@@ -48,7 +56,12 @@ public class ValuationControllerTest {
     public void testSaveDcfValuation() throws Exception {
         String body = "{\"symbol\": \"AAPL\", \"valuationDate\": \"2023-10-10\"}";
 
+        Jwt mockJwt = mock(Jwt.class);
+        when(mockJwt.getClaimAsString("email")).thenReturn("test@example.com");
+        when(jwtDecoder.decode(anyString())).thenReturn(mockJwt);
+
         mockMvc.perform(post("/stocks/valuation/dcf")
+                .header("Authorization", "Bearer test-token")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body))
                 .andExpect(status().isOk());

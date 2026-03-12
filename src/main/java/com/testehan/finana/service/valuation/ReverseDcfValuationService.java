@@ -38,36 +38,39 @@ public class ReverseDcfValuationService extends BaseValuationService {
         return reverseDCFValuationCalculator.calculateImpliedGrowthRate(data, input);
     }
 
-    public void saveReverseDcfValuation(ReverseDcfValuation reverseDcfValuation) {
+    public void saveReverseDcfValuation(ReverseDcfValuation reverseDcfValuation, String userEmail) {
         reverseDcfValuation.setValuationDate(LocalDateTime.now().toString());
         String ticker = reverseDcfValuation.getDcfCalculationData().meta().ticker();
-        Valuations valuations = valuationsRepository.findById(ticker).orElse(new Valuations());
+        String id = ticker + "_" + userEmail;
+        Valuations valuations = valuationsRepository.findByTickerAndUserEmail(ticker, userEmail).orElse(new Valuations());
+        valuations.setId(id);
         valuations.setTicker(ticker);
+        valuations.setUserEmail(userEmail);
         valuations.getReverseDcfValuations().add(reverseDcfValuation);
         valuationsRepository.save(valuations);
     }
 
-    public List<ReverseDcfValuation> getReverseDcfHistory(String ticker) {
-        return valuationsRepository.findById(ticker)
+    public List<ReverseDcfValuation> getReverseDcfHistory(String ticker, String userEmail) {
+        return valuationsRepository.findByTickerAndUserEmail(ticker, userEmail)
                 .map(Valuations::getReverseDcfValuations)
                 .orElse(java.util.Collections.emptyList());
     }
 
-    public boolean deleteReverseDcfValuation(String ticker, String valuationDate) {
-        Optional<Valuations> valuationsOpt = valuationsRepository.findById(ticker.toUpperCase());
+    public boolean deleteReverseDcfValuation(String ticker, String valuationDate, String userEmail) {
+        Optional<Valuations> valuationsOpt = valuationsRepository.findByTickerAndUserEmail(ticker.toUpperCase(), userEmail);
         if (valuationsOpt.isEmpty()) {
             return false;
         }
 
         Valuations valuations = valuationsOpt.get();
         List<ReverseDcfValuation> reverseDcfValuations = valuations.getReverseDcfValuations();
-        
+
         boolean removed = reverseDcfValuations.removeIf(v -> valuationDate.equals(v.getValuationDate()));
-        
+
         if (removed) {
             valuationsRepository.save(valuations);
         }
-        
+
         return removed;
     }
 }
