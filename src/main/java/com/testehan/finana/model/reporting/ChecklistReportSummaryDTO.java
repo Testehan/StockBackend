@@ -21,6 +21,8 @@ public class ChecklistReportSummaryDTO {
     private UserStockStatus status;
     private boolean ferolNeedsReview;
     private boolean oneHundredBaggerNeedsReview;
+    private boolean ferolGenerationFailed;
+    private boolean oneHundredBaggerGenerationFailed;
 
     public ChecklistReportSummaryDTO(String ticker, Integer totalFerolScore, Integer total100BaggerScore, LocalDateTime generationFerolDate, LocalDateTime generation100BaggerDate) {
         this.ticker = ticker;

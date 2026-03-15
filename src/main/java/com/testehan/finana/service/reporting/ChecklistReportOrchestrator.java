@@ -104,6 +104,11 @@ public class ChecklistReportOrchestrator {
                     if (existingGeneratedReport.isPresent()) {
                         ChecklistReport checklistReport = getReportFromGeneratedReport(existingGeneratedReport.get(), reportType);
                         if (Objects.nonNull(checklistReport)) {
+                            if (checklistReport.getFailureReason() != null) {
+                                eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Previous report generation failed. You must generate a new report."));
+                                sseEmitter.complete();
+                                return;
+                            }
                             eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Report loaded from database."));
                             checklistReport.setGeneratedAt(getReportDate(existingGeneratedReport.get(), reportType));
                             applyUserOverride(checklistReport, userEmail, ticker, reportType);
@@ -146,11 +151,13 @@ public class ChecklistReportOrchestrator {
                         try {
                             generator.generate(ticker, reportType, sseEmitter);
                         } catch (Exception e) {
+                            checklistReportPersistenceService.markReportAsFailed(ticker, reportType, e.getMessage());
                             eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, e));
                         }
                     }, securityContext));
                 })
                 .doOnError(error -> {
+                    checklistReportPersistenceService.markReportAsFailed(ticker, reportType, error.getMessage());
                     eventPublisher.publishEvent(new ErrorEvent(this, ticker, sseEmitter, error));
                 })
                 .subscribe();
@@ -248,8 +255,13 @@ public class ChecklistReportOrchestrator {
                         LocalDateTime ferolReportGeneratedAt = (generatedReport != null) ? generatedReport.getFerolReportGeneratedAt() : null;
                         int totalHundredBaggerScore = (generatedReport != null && generatedReport.getTotalOneHundredBaggerScore() != null) ? generatedReport.getTotalOneHundredBaggerScore() : 0;
                         LocalDateTime hundredBaggerReportGeneratedAt = (generatedReport != null) ? generatedReport.getOneHundredBaggerReportGeneratedAt() : null;
+                        boolean ferolFailed = generatedReport != null && generatedReport.getFerolReport() != null && generatedReport.getFerolReport().getFailureReason() != null;
+                        boolean hundredBaggerFailed = generatedReport != null && generatedReport.getOneHundredBaggerReport() != null && generatedReport.getOneHundredBaggerReport().getFailureReason() != null;
 
-                        return new ChecklistReportSummaryDTO(ticker, totalFerolScore, totalHundredBaggerScore, ferolReportGeneratedAt, hundredBaggerReportGeneratedAt);
+                        ChecklistReportSummaryDTO dto = new ChecklistReportSummaryDTO(ticker, totalFerolScore, totalHundredBaggerScore, ferolReportGeneratedAt, hundredBaggerReportGeneratedAt);
+                        dto.setFerolGenerationFailed(ferolFailed);
+                        dto.setOneHundredBaggerGenerationFailed(hundredBaggerFailed);
+                        return dto;
                     })
                     .collect(Collectors.toList());
 
@@ -318,8 +330,13 @@ public class ChecklistReportOrchestrator {
                         LocalDateTime ferolReportGeneratedAt = generatedReport.getFerolReportGeneratedAt();
                         int totalHundredBaggerScore = generatedReport.getTotalOneHundredBaggerScore() != null ? generatedReport.getTotalOneHundredBaggerScore() : 0;
                         LocalDateTime hundredBaggerReportGeneratedAt = generatedReport.getOneHundredBaggerReportGeneratedAt();
+                        boolean ferolFailed = generatedReport.getFerolReport() != null && generatedReport.getFerolReport().getFailureReason() != null;
+                        boolean hundredBaggerFailed = generatedReport.getOneHundredBaggerReport() != null && generatedReport.getOneHundredBaggerReport().getFailureReason() != null;
 
-                        return new ChecklistReportSummaryDTO(ticker, totalFerolScore, totalHundredBaggerScore, ferolReportGeneratedAt, hundredBaggerReportGeneratedAt);
+                        ChecklistReportSummaryDTO dto = new ChecklistReportSummaryDTO(ticker, totalFerolScore, totalHundredBaggerScore, ferolReportGeneratedAt, hundredBaggerReportGeneratedAt);
+                        dto.setFerolGenerationFailed(ferolFailed);
+                        dto.setOneHundredBaggerGenerationFailed(hundredBaggerFailed);
+                        return dto;
                     })
                     .collect(Collectors.toList());
 

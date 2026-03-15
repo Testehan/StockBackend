@@ -11,5 +11,6 @@ public class ChecklistReport {
     private List<ReportItem> items = new ArrayList<>();
     private LocalDateTime generatedAt = LocalDateTime.now();
     private Boolean needsReview;
+    private String failureReason;
     private List<ReportItem> sharedItems;
 }

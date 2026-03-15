@@ -7,6 +7,8 @@ import com.testehan.finana.model.reporting.ReportType;
 import com.testehan.finana.model.reporting.UserReportOverride;
 import com.testehan.finana.repository.GeneratedReportRepository;
 import com.testehan.finana.repository.UserReportOverrideRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -14,6 +16,8 @@ import java.util.List;
 
 @Service
 public class ChecklistReportPersistenceService {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(ChecklistReportPersistenceService.class);
     private final GeneratedReportRepository generatedReportRepository;
     private final UserReportOverrideRepository userReportOverrideRepository;
 
@@ -56,5 +60,31 @@ public class ChecklistReportPersistenceService {
         userReportOverrideRepository.saveAll(existingOverrides);
 
         return checklistReport;
+    }
+
+    public void markReportAsFailed(String ticker, ReportType reportType, String failureReason) {
+        LOGGER.warn("Marking {} {} report as failed: {}", ticker, reportType, failureReason);
+        GeneratedReport generatedReport = generatedReportRepository.findBySymbol(ticker).orElse(new GeneratedReport());
+        if (generatedReport.getSymbol() == null) {
+            generatedReport.setSymbol(ticker);
+        }
+
+        ChecklistReport failedReport = new ChecklistReport();
+        failedReport.setFailureReason(failureReason);
+
+        switch (reportType) {
+            case FEROL -> {
+                generatedReport.setFerolReport(failedReport);
+                generatedReport.setFerolReportGeneratedAt(LocalDateTime.now());
+                generatedReport.setTotalFerolScore(null);
+            }
+            case ONE_HUNDRED_BAGGER -> {
+                generatedReport.setOneHundredBaggerReport(failedReport);
+                generatedReport.setOneHundredBaggerReportGeneratedAt(LocalDateTime.now());
+                generatedReport.setTotalOneHundredBaggerScore(null);
+            }
+        }
+
+        generatedReportRepository.save(generatedReport);
     }
 }
