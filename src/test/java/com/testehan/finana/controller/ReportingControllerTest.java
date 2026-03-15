@@ -19,6 +19,7 @@ import java.util.ArrayList;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -48,11 +49,12 @@ public class ReportingControllerTest {
     @Test
     public void testSaveChecklistReport() throws Exception {
         ChecklistReport report = new ChecklistReport();
-        when(checklistReportOrchestrator.saveChecklistReport(anyString(), anyList(), any(ReportType.class))).thenReturn(report);
+        when(checklistReportOrchestrator.saveChecklistReport(anyString(), anyList(), any(ReportType.class), anyString())).thenReturn(report);
 
         String body = "[]";
 
         mockMvc.perform(post("/stocks/reporting/checklist/AAPL")
+                .with(jwt().jwt(b -> b.claim("email", "test@test.com")))
                 .param("reportType", "FEROL")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body))

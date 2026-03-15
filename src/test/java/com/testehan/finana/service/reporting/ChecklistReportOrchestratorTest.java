@@ -3,6 +3,7 @@ package com.testehan.finana.service.reporting;
 import com.testehan.finana.model.reporting.GeneratedReport;
 import com.testehan.finana.model.reporting.ReportType;
 import com.testehan.finana.repository.GeneratedReportRepository;
+import com.testehan.finana.repository.UserReportOverrideRepository;
 import com.testehan.finana.repository.UserStockRepository;
 import com.testehan.finana.service.CompanyDataService;
 import com.testehan.finana.service.FinancialDataOrchestrator;
@@ -32,6 +33,7 @@ class ChecklistReportOrchestratorTest {
     @Mock private CompanyDataService companyDataService;
     @Mock private ChecklistReportPersistenceService checklistReportPersistenceService;
     @Mock private GeneratedReportRepository generatedReportRepository;
+    @Mock private UserReportOverrideRepository userReportOverrideRepository;
     @Mock private UserStockRepository userStockRepository;
     @Mock private Executor checklistExecutor;
     @Mock private ApplicationEventPublisher eventPublisher;
@@ -53,9 +55,12 @@ class ChecklistReportOrchestratorTest {
         when(ferolReportGenerator.getReportType()).thenReturn(ReportType.FEROL);
         when(userCreditService.hasAnyCredit(anyString())).thenReturn(true);
         
+        when(userReportOverrideRepository.findByUserIdAndSymbolAndReportType(any(), any(), any()))
+                .thenReturn(Optional.empty());
+
         orchestrator = new ChecklistReportOrchestrator(
                 financialDataOrchestrator, companyDataService, checklistReportPersistenceService,
-                generatedReportRepository, userStockRepository, checklistExecutor,
+                generatedReportRepository, userReportOverrideRepository, userStockRepository, checklistExecutor,
                 eventPublisher, List.of(ferolReportGenerator), mongoTemplate, userCreditService
         );
     }
