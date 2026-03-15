@@ -24,28 +24,6 @@ public class UserStockController {
         return userStockRepository.findByUserId(userId);
     }
 
-//    @PostMapping
-//    public UserStock addUserStock(@PathVariable String userId, @RequestBody UserStock userStock) {
-//        userStock.setUserId(userId);
-//        return userStockRepository.save(userStock);
-//    }
-
-//    @PostMapping("/{stockId}/status/{status}")
-//    public UserStock addUserStockWithStatus(@PathVariable String userId, @PathVariable String stockId, @PathVariable UserStockStatus status) {
-//        UserStock userStock = new UserStock();
-//        userStock.setUserId(userId);
-//        userStock.setStockId(stockId);
-//        userStock.setStatus(status);
-//        return userStockRepository.save(userStock);
-//    }
-
-//    @PutMapping("/{stockId}")
-//    public UserStock updateUserStock(@PathVariable String userId, @PathVariable String stockId, @RequestBody UserStock userStock) {
-//        userStock.setUserId(userId);
-//        userStock.setStockId(stockId);
-//        return userStockRepository.save(userStock);
-//    }
-
     @PutMapping("/{stockId}/status/{status}")
     public ResponseEntity<UserStock> updateUserStockStatus(@PathVariable String userId, @PathVariable String stockId, @PathVariable UserStockStatus status) {
         return userStockRepository.findByUserIdAndStockId(userId, stockId.toUpperCase())
