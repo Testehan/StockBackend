@@ -3,9 +3,11 @@ package com.testehan.finana.service.reporting;
 import com.testehan.finana.exception.InsufficientCreditException;
 import com.testehan.finana.model.CompanyOverview;
 import com.testehan.finana.model.reporting.*;
+import com.testehan.finana.model.reporting.UserReportOverride;
 import com.testehan.finana.model.user.UserStock;
 import com.testehan.finana.model.user.UserStockStatus;
 import com.testehan.finana.repository.GeneratedReportRepository;
+import com.testehan.finana.repository.UserReportOverrideRepository;
 import com.testehan.finana.repository.UserStockRepository;
 import com.testehan.finana.service.CompanyDataService;
 import com.testehan.finana.service.FinancialDataOrchestrator;
@@ -46,6 +48,7 @@ public class ChecklistReportOrchestrator {
     private final CompanyDataService companyDataService;
     private final ChecklistReportPersistenceService checklistReportPersistenceService;
     private final GeneratedReportRepository generatedReportRepository;
+    private final UserReportOverrideRepository userReportOverrideRepository;
     private final UserStockRepository userStockRepository;
     private final Executor checklistExecutor;
     private final ApplicationEventPublisher eventPublisher;
@@ -57,6 +60,7 @@ public class ChecklistReportOrchestrator {
                                        CompanyDataService companyDataService,
                                        ChecklistReportPersistenceService checklistReportPersistenceService,
                                        GeneratedReportRepository generatedReportRepository,
+                                       UserReportOverrideRepository userReportOverrideRepository,
                                        UserStockRepository userStockRepository,
                                        @Qualifier("checklistExecutor") Executor checklistExecutor,
                                        ApplicationEventPublisher eventPublisher,
@@ -67,6 +71,7 @@ public class ChecklistReportOrchestrator {
         this.companyDataService = companyDataService;
         this.checklistReportPersistenceService = checklistReportPersistenceService;
         this.generatedReportRepository = generatedReportRepository;
+        this.userReportOverrideRepository = userReportOverrideRepository;
         this.userStockRepository = userStockRepository;
         this.checklistExecutor = checklistExecutor;
         this.eventPublisher = eventPublisher;
@@ -100,7 +105,8 @@ public class ChecklistReportOrchestrator {
                         ChecklistReport checklistReport = getReportFromGeneratedReport(existingGeneratedReport.get(), reportType);
                         if (Objects.nonNull(checklistReport)) {
                             eventPublisher.publishEvent(new MessageEvent(this, ticker, sseEmitter, "Report loaded from database."));
-                            checklistReport.setGeneratedAt(getReportDate(existingGeneratedReport.get(),reportType));
+                            checklistReport.setGeneratedAt(getReportDate(existingGeneratedReport.get(), reportType));
+                            applyUserOverride(checklistReport, userEmail, ticker, reportType);
                             eventPublisher.publishEvent(new CompletionEvent(this, ticker, sseEmitter, checklistReport));
                             LOGGER.info("Checklist report for {} loaded from DB and sent.", ticker);
                             return; // Exit as report is sent
@@ -150,9 +156,30 @@ public class ChecklistReportOrchestrator {
                 .subscribe();
     }
 
-    public ChecklistReport saveChecklistReport(String ticker, List<ReportItem> checklistReportItems, ReportType reportType) {
-        LOGGER.info("Saving Checklist report for {}", ticker);
-        return checklistReportPersistenceService.buildAndSaveReport(ticker, checklistReportItems, reportType, LocalDateTime.now());
+    public ChecklistReport saveChecklistReport(String ticker, List<ReportItem> checklistReportItems, ReportType reportType, String userEmail) {
+        LOGGER.info("Saving user override for {} by {}", ticker, userEmail);
+
+        LocalDateTime sharedGeneratedAt = generatedReportRepository.findBySymbol(ticker)
+                .map(r -> getReportDate(r, reportType))
+                .orElse(null);
+
+        UserReportOverride override = userReportOverrideRepository
+                .findByUserIdAndSymbolAndReportType(userEmail, ticker, reportType)
+                .orElse(new UserReportOverride());
+
+        override.setUserId(userEmail);
+        override.setSymbol(ticker);
+        override.setReportType(reportType);
+        override.setItems(checklistReportItems);
+        override.setNeedsReview(false);
+        override.setOverriddenAt(LocalDateTime.now());
+        override.setSharedReportGeneratedAt(sharedGeneratedAt);
+        userReportOverrideRepository.save(override);
+
+        ChecklistReport result = new ChecklistReport();
+        result.setItems(checklistReportItems);
+        result.setNeedsReview(false);
+        return result;
     }
 
     public Page<ChecklistReportSummaryDTO> getChecklistReportsSummary(Pageable pageable, UserStockStatus status) {
@@ -312,5 +339,19 @@ public class ChecklistReportOrchestrator {
             case FEROL -> generatedReport.getFerolReportGeneratedAt();
             case ONE_HUNDRED_BAGGER -> generatedReport.getOneHundredBaggerReportGeneratedAt();
         };
+    }
+
+    private void applyUserOverride(ChecklistReport checklistReport, String userEmail, String ticker, ReportType reportType) {
+        userReportOverrideRepository.findByUserIdAndSymbolAndReportType(userEmail, ticker, reportType)
+                .ifPresentOrElse(
+                        override -> {
+                            if (override.isNeedsReview()) {
+                                checklistReport.setSharedItems(new ArrayList<>(checklistReport.getItems()));
+                            }
+                            checklistReport.setItems(override.getItems());
+                            checklistReport.setNeedsReview(override.isNeedsReview());
+                        },
+                        () -> checklistReport.setNeedsReview(false)
+                );
     }
 }

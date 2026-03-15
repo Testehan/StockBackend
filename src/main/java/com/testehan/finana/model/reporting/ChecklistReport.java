@@ -10,4 +10,6 @@ import java.util.List;
 public class ChecklistReport {
     private List<ReportItem> items = new ArrayList<>();
     private LocalDateTime generatedAt = LocalDateTime.now();
+    private Boolean needsReview;
+    private List<ReportItem> sharedItems;
 }
